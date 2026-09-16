@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
+import { PASSWORD_HINT, PASSWORD_MIN_LENGTH } from "@/lib/security-shared";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -86,15 +87,19 @@ export default function RegisterPage() {
               <Input id="email" name="email" type="email" required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Passwort (min. 6 Zeichen)</Label>
+              <Label htmlFor="password">Passwort</Label>
               <Input
                 id="password"
                 name="password"
                 type="password"
-                minLength={6}
+                minLength={PASSWORD_MIN_LENGTH}
+                pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).*"
+                title={PASSWORD_HINT}
+                autoComplete="new-password"
                 required
               />
             </div>
+            <p className="text-xs text-muted-foreground">{PASSWORD_HINT}</p>
             {error && <p className="text-sm text-red-500">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Wird erstellt..." : "Registrieren"}

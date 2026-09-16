@@ -50,12 +50,12 @@ export async function GET() {
     absenceCategories: org.absenceCategories,
     holidays: org.holidays,
     orgSettings: org.settings ?? {
-      aiEnabled: true,
-      aiAutoPlanner: true,
-      aiAnomalyDetection: true,
-      aiChatEnabled: true,
-      aiForecast: true,
-      aiSmartBriefing: true,
+      aiEnabled: false,
+      aiAutoPlanner: false,
+      aiAnomalyDetection: false,
+      aiChatEnabled: false,
+      aiForecast: false,
+      aiSmartBriefing: false,
       smsEnabled: false,
     },
   });

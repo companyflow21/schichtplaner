@@ -7,7 +7,7 @@ import { z } from "zod";
 
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(1).max(128),
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -23,7 +23,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!parsed.success) return null;
 
         const user = await db.user.findUnique({
-          where: { email: parsed.data.email },
+          where: { email: parsed.data.email.toLowerCase() },
         });
         if (!user || !user.passwordHash) return null;
 

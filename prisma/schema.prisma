@@ -523,12 +523,12 @@ model EmployeeNote {
 model OrgSettings {
   id                String  @id @default(cuid())
   organizationId    String  @unique
-  aiEnabled         Boolean @default(true)
-  aiAutoPlanner     Boolean @default(true)
-  aiAnomalyDetection Boolean @default(true)
-  aiChatEnabled     Boolean @default(true)
-  aiForecast        Boolean @default(true)
-  aiSmartBriefing   Boolean @default(true)
+  aiEnabled         Boolean @default(false)
+  aiAutoPlanner     Boolean @default(false)
+  aiAnomalyDetection Boolean @default(false)
+  aiChatEnabled     Boolean @default(false)
+  aiForecast        Boolean @default(false)
+  aiSmartBriefing   Boolean @default(false)
   smsEnabled        Boolean @default(false)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
