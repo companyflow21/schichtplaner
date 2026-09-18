@@ -4,6 +4,11 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import {
+  clearLoginFailures,
+  isLoginBlocked,
+  recordLoginFailure,
+} from "@/lib/login-throttle";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -22,16 +27,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const parsed = loginSchema.safeParse(credentials);
         if (!parsed.success) return null;
 
-        const user = await db.user.findUnique({
-          where: { email: parsed.data.email.toLowerCase() },
-        });
-        if (!user || !user.passwordHash) return null;
+        const email = parsed.data.email.toLowerCase();
+
+        // Nach zu vielen Fehlversuchen ist diese Adresse kurzzeitig gesperrt.
+        if (isLoginBlocked(email)) return null;
+
+        const user = await db.user.findUnique({ where: { email } });
+        if (!user || !user.passwordHash) {
+          recordLoginFailure(email);
+          return null;
+        }
 
         const valid = await bcrypt.compare(
           parsed.data.password,
           user.passwordHash
         );
-        if (!valid) return null;
+        if (!valid) {
+          recordLoginFailure(email);
+          return null;
+        }
+
+        clearLoginFailures(email);
 
         return {
           id: user.id,
