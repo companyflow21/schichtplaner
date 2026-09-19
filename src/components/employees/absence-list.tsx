@@ -246,7 +246,7 @@ export function AbsenceList() {
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                   active
-                    ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
+                    ? "bg-accent text-primary dark:text-primary"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >

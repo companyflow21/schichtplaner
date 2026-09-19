@@ -86,7 +86,7 @@ function getRoleBadge(role: string) {
       );
     case "ADMIN":
       return (
-        <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+        <Badge className="bg-accent text-primary">
           Admin
         </Badge>
       );
@@ -176,7 +176,7 @@ export function EmployeeList() {
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                   active
-                    ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
+                    ? "bg-accent text-primary dark:text-primary"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >

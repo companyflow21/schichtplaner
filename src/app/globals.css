@@ -4,11 +4,41 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Schriften aus dem AKRO Design Starter, lokal gehostet - kein Font-CDN. */
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/akro/fonts/archivo-latin-var.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Source Serif 4";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/akro/fonts/source-serif-4-latin-var.woff2") format("woff2");
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Archivo traegt die Oberflaeche (Labels, Zahlen, Bedienelemente),
+     Source Serif 4 den Fliesstext (Nachrichten, Beschreibungen). */
+  --font-sans: "Archivo", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+  --font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  /* Betriebsstatus (unbesetzt, Warnung, live) - sparsam einsetzen. */
+  --color-signal: var(--akro-signal);
+  --color-ink: var(--akro-graphit);
+  /* Ohne Schatten: Tiefe entsteht aus Flaeche und Linie. */
+  --shadow-2xs: 0 1px 0 rgba(11, 22, 38, 0.04);
+  --shadow-xs: 0 1px 0 rgba(11, 22, 38, 0.05);
+  --shadow-sm: 0 1px 0 rgba(11, 22, 38, 0.06);
+  --shadow-md: 0 1px 0 rgba(11, 22, 38, 0.08);
+  --shadow-lg: 0 2px 0 rgba(11, 22, 38, 0.1);
+  --shadow-xl: 0 2px 0 rgba(11, 22, 38, 0.12);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -47,80 +77,283 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
+/* ============================================================
+   AKRO DESIGN STARTER - Tokens aus akro-design.css
+   Die Dachmarke bleibt graphitfarben; Farbe kommt aus den Sparten.
+   Keine unnoetigen Rundungen, keine Schatten.
+   ============================================================ */
+
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* --- Dachmarke --- */
+  --akro-graphit: #123653;
+  --akro-graphit-tief: #0b2035;
+  --akro-oberflaeche: #ffffff;
+  --akro-sand: #f2f7fb;
+  --akro-linie: #c8d9e4;
+  --akro-text: #102d43;
+  --akro-text-hell: #fffdf9;
+  --akro-text-gedaempft: #55616f;
+  --akro-marke: #455160;
+
+  /* --- Sparten: im Plan nur als Herkunftsfarbe, nie als Dekoration --- */
+  --akro-sicherheit: #1a365d;
+  --akro-fire: #8c1d1d;
+  --akro-service: #065f46;
+
+  /* Akzent = Bedienung (Fokus, Auswahl, aktive Navigation). */
+  --akro-akzent: #17c6c8;
+  --akro-auf-akzent: #0b1626;
+  /* Signal = Betriebsstatus (unbesetzte Schicht, Warnung, Live). */
+  --akro-signal: #f97316;
+
+  /* Bewegung: kritisch gedaempft, kein Nachschwingen. */
+  --akro-schwung: cubic-bezier(0.23, 1, 0.32, 1);
+  --akro-dauer-druck: 100ms;
+  --akro-dauer-flaeche: 240ms;
+
+  /* --- Zuordnung auf die Oberflaechen-Rollen --- */
+  --radius: 0.5rem;
+  --background: var(--akro-sand);
+  --foreground: var(--akro-text);
+  --card: var(--akro-oberflaeche);
+  --card-foreground: var(--akro-text);
+  --popover: var(--akro-oberflaeche);
+  --popover-foreground: var(--akro-text);
+  --primary: var(--akro-graphit);
+  --primary-foreground: var(--akro-text-hell);
+  --secondary: #e5eff5;
+  --secondary-foreground: var(--akro-graphit);
+  --muted: #eaf2f7;
+  --muted-foreground: var(--akro-text-gedaempft);
+  --accent: #daf3f3;
+  --accent-foreground: #10424a;
+  --destructive: var(--akro-fire);
+  --border: var(--akro-linie);
+  --input: var(--akro-linie);
+  --ring: var(--akro-akzent);
+
+  /* Diagramme: die drei Sparten, dann Graphit und Signal. */
+  --chart-1: var(--akro-sicherheit);
+  --chart-2: var(--akro-service);
+  --chart-3: var(--akro-fire);
+  --chart-4: var(--akro-marke);
+  --chart-5: var(--akro-signal);
+
+  --sidebar: var(--akro-oberflaeche);
+  --sidebar-foreground: var(--akro-text);
+  --sidebar-primary: var(--akro-graphit);
+  --sidebar-primary-foreground: var(--akro-text-hell);
+  --sidebar-accent: #e2ebee;
+  --sidebar-accent-foreground: #10424a;
+  --sidebar-border: var(--akro-linie);
+  --sidebar-ring: var(--akro-akzent);
 }
 
+/* Nachtschicht: Graphit wird zur Flaeche, Sand zur Schrift. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --akro-oberflaeche: #24292c;
+  --akro-sand: #15181a;
+  --akro-linie: #3a4145;
+  --akro-text: #f1ece3;
+  --akro-text-gedaempft: #a4aeb8;
+
+  --background: var(--akro-sand);
+  --foreground: var(--akro-text);
+  --card: var(--akro-oberflaeche);
+  --card-foreground: var(--akro-text);
+  --popover: var(--akro-oberflaeche);
+  --popover-foreground: var(--akro-text);
+  --primary: #f1ece3;
+  --primary-foreground: var(--akro-graphit-tief);
+  --secondary: #2f3539;
+  --secondary-foreground: var(--akro-text);
+  --muted: #2a3033;
+  --muted-foreground: var(--akro-text-gedaempft);
+  --accent: #123c43;
+  --accent-foreground: #8ef0fb;
+  --destructive: #e06a6a;
+  --border: var(--akro-linie);
+  --input: #3a4145;
+  --ring: var(--akro-akzent);
+
+  --chart-1: #6f9fd8;
+  --chart-2: #4fbf9b;
+  --chart-3: #e06a6a;
+  --chart-4: #9aa7b4;
+  --chart-5: var(--akro-signal);
+
+  --sidebar: var(--akro-oberflaeche);
+  --sidebar-foreground: var(--akro-text);
+  --sidebar-primary: #f1ece3;
+  --sidebar-primary-foreground: var(--akro-graphit-tief);
+  --sidebar-accent: #123c43;
+  --sidebar-accent-foreground: #8ef0fb;
+  --sidebar-border: var(--akro-linie);
+  --sidebar-ring: var(--akro-akzent);
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-wrap: pretty;
+    /* Kein 300ms-Verzoegerung beim Tippen: Reaktion beginnt sofort. */
+    touch-action: manipulation;
+  }
+
+  /* Ueberschriften in Archivo. Sperrung und Zeilenhoehe haengen an der
+     Groesse: grosse Schrift wird enger und dichter gesetzt, kleine weiter. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    text-wrap: balance;
+  }
+
+  h1 {
+    font-size: clamp(1.75rem, 3.2vw, 2.4rem);
+    line-height: 1.06;
+    letter-spacing: -0.03em;
+  }
+
+  h2 {
+    font-size: clamp(1.35rem, 2.4vw, 1.75rem);
+    line-height: 1.12;
+    letter-spacing: -0.025em;
+  }
+
+  h3 {
+    font-size: clamp(1.1rem, 1.8vw, 1.3rem);
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+  }
+
+  /* Tastaturfokus im Akzent der Marke, wie im Design Starter. */
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--akro-akzent);
+    outline-offset: 4px;
+  }
+
+  /* Rueckmeldung beginnt beim Druck, nicht beim Loslassen. */
+  button:not(:disabled):active,
+  [role="button"]:not([aria-disabled="true"]):active,
+  a:active {
+    transform: scale(0.97);
+    transition: transform var(--akro-dauer-druck) var(--akro-schwung);
+  }
+}
+
+@layer utilities {
+  /* Dienstplaene werden spaltenweise gelesen: Ziffern gleich breit. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Technisches Label in gesperrten Versalien - nur fuer echte Labels. */
+  .akro-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+
+  /* Fliesstext in Source Serif 4: Nachrichten, Beschreibungen, leere Zustaende. */
+  .akro-fliesstext {
+    font-family: var(--font-serif);
+    line-height: 1.62;
+    letter-spacing: 0;
+  }
+
+  /* Schwebende Leiste: Inhalt laeuft darunter durch, statt abgeschnitten
+     zu werden. Ohne backdrop-filter bleibt die Flaeche deckend. */
+  .akro-material {
+    background: color-mix(in srgb, var(--akro-graphit) 82%, transparent);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
+
+  @supports not (backdrop-filter: blur(1px)) {
+    .akro-material {
+      background: var(--akro-graphit);
+    }
+  }
+
+  /* Weiche Kante statt harter Trennlinie dort, wo Inhalt unter die
+     schwebende Leiste laeuft. */
+  .akro-kante::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 100%;
+    height: 12px;
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--background) 70%, transparent),
+      transparent
+    );
+    pointer-events: none;
+  }
+}
+
+/* Weniger Bewegung: kein Verschieben, kein Federn - nur kurze Blenden. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  button:active,
+  [role="button"]:active,
+  a:active {
+    transform: none;
+  }
+}
+
+/* Weniger Transparenz: Flaechen werden deckend statt milchig. */
+@media (prefers-reduced-transparency: reduce) {
+  .akro-material {
+    background: var(--akro-graphit);
+    backdrop-filter: none;
+  }
+}
+
+/* Mehr Kontrast: klare Kanten statt zarter Linien. */
+@media (prefers-contrast: more) {
+  :root {
+    --border: #6f6555;
+    --muted-foreground: #35404d;
+  }
+
+  .dark {
+    --border: #8d959b;
+    --muted-foreground: #cfd6dd;
+  }
+
+  .akro-material {
+    background: var(--akro-graphit);
+    backdrop-filter: none;
   }
 }

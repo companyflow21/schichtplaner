@@ -53,8 +53,8 @@ export function ChatMessages({ messages }: ChatMessagesProps) {
     return (
       <div className="flex-1 flex items-center justify-center p-6 text-center">
         <div className="space-y-2">
-          <Bot className="mx-auto size-10 text-indigo-300" />
-          <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+          <Bot className="mx-auto size-10 text-primary" />
+          <p className="text-sm font-medium text-muted-foreground">
             Hallo! Ich bin dein KI-Assistent.
           </p>
           <p className="text-xs text-muted-foreground max-w-[260px]">
@@ -79,8 +79,8 @@ export function ChatMessages({ messages }: ChatMessagesProps) {
             )}
           >
             {msg.role === "assistant" && (
-              <div className="flex-shrink-0 size-7 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
-                <Bot className="size-4 text-indigo-600 dark:text-indigo-400" />
+              <div className="flex-shrink-0 size-7 rounded-full bg-accent flex items-center justify-center">
+                <Bot className="size-4 text-primary" />
               </div>
             )}
 
@@ -88,8 +88,8 @@ export function ChatMessages({ messages }: ChatMessagesProps) {
               className={cn(
                 "max-w-[85%] rounded-xl px-3 py-2 text-sm",
                 msg.role === "user"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                  ? "bg-primary text-white"
+                  : "bg-muted text-foreground"
               )}
             >
               {msg.isLoading ? (
@@ -112,7 +112,7 @@ export function ChatMessages({ messages }: ChatMessagesProps) {
             </div>
 
             {msg.role === "user" && (
-              <div className="flex-shrink-0 size-7 rounded-full bg-indigo-600 flex items-center justify-center">
+              <div className="flex-shrink-0 size-7 rounded-full bg-primary flex items-center justify-center">
                 <User className="size-4 text-white" />
               </div>
             )}
@@ -148,7 +148,7 @@ function ToolResultCard({ tool }: { tool: ToolResultInfo }) {
   const label = TOOL_LABELS[tool.toolName] ?? tool.toolName;
 
   return (
-    <div className="rounded-lg border bg-white dark:bg-slate-900 p-2 text-xs">
+    <div className="rounded-lg border bg-card p-2 text-xs">
       <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
         {tool.requiresConfirmation ? (
           <AlertTriangle className="size-3 text-amber-500" />
@@ -162,7 +162,7 @@ function ToolResultCard({ tool }: { tool: ToolResultInfo }) {
           </span>
         )}
       </div>
-      <div className="text-slate-600 dark:text-slate-400 whitespace-pre-wrap line-clamp-4">
+      <div className="text-muted-foreground whitespace-pre-wrap line-clamp-4">
         {tool.result}
       </div>
     </div>

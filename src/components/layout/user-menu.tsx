@@ -27,7 +27,7 @@ export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-9 gap-2 px-2">
+        <Button variant="ghost" className="relative h-9 gap-2 px-2 text-[rgba(255,253,249,.8)] hover:bg-[rgba(255,253,249,.1)] hover:text-[var(--akro-text-hell)]">
           <Avatar size="sm">
             {member?.user.profileImage && (
               <AvatarImage
@@ -35,7 +35,7 @@ export function UserMenu() {
                 alt={fullName}
               />
             )}
-            <AvatarFallback className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
+            <AvatarFallback className="bg-secondary text-secondary-foreground">
               {initials || "?"}
             </AvatarFallback>
           </Avatar>

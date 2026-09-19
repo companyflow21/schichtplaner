@@ -135,8 +135,8 @@ export function MessageList({ folder }: Props) {
 
       {/* Bulk actions */}
       {selected.size > 0 && (
-        <div className="mb-3 flex items-center gap-2 rounded-md bg-slate-100 p-2 dark:bg-slate-800">
-          <span className="text-sm text-slate-600 dark:text-slate-400">
+        <div className="mb-3 flex items-center gap-2 rounded-md bg-muted p-2">
+          <span className="text-sm text-muted-foreground">
             {selected.size} ausgewaehlt
           </span>
           {folder === "inbox" && (
@@ -193,12 +193,12 @@ export function MessageList({ folder }: Props) {
       {isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded-md bg-slate-100 dark:bg-slate-800" />
+            <div key={i} className="h-16 animate-pulse rounded-md bg-muted" />
           ))}
         </div>
       ) : messages.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-slate-500">
-          <Mail className="mb-3 size-10 text-slate-300" />
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-muted-foreground">
+          <Mail className="mb-3 size-10 text-muted-foreground" />
           <p className="text-sm">
             {folder === "inbox" && "Keine Nachrichten im Posteingang"}
             {folder === "sent" && "Keine gesendeten Nachrichten"}
@@ -206,16 +206,16 @@ export function MessageList({ folder }: Props) {
           </p>
         </div>
       ) : (
-        <div className="divide-y rounded-lg border bg-white dark:bg-slate-900 dark:border-slate-800">
+        <div className="divide-y rounded-lg border bg-card">
           {/* Select all */}
-          <div className="flex items-center gap-3 px-4 py-2 bg-slate-50 dark:bg-slate-800/50">
+          <div className="flex items-center gap-3 px-4 py-2 bg-muted/50">
             <Checkbox
               checked={selected.size === messages.length && messages.length > 0}
               onCheckedChange={toggleAll}
             />
             <button
               onClick={toggleAll}
-              className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400"
+              className="text-xs text-muted-foreground hover:text-foreground dark:text-muted-foreground"
             >
               <CheckSquare className="mr-1 inline size-3" />
               Alle
@@ -228,8 +228,8 @@ export function MessageList({ folder }: Props) {
               <div
                 key={msg.id}
                 className={cn(
-                  "flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50",
-                  unread && "bg-indigo-50/50 dark:bg-indigo-950/20"
+                  "flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50",
+                  unread && "bg-accent/50"
                 )}
               >
                 <Checkbox
@@ -242,7 +242,7 @@ export function MessageList({ folder }: Props) {
                   onClick={() => router.push(`/portal/inbox?id=${msg.id}`)}
                 >
                   {/* Unread indicator */}
-                  <div className={cn("size-2 shrink-0 rounded-full", unread ? "bg-indigo-500" : "bg-transparent")} />
+                  <div className={cn("size-2 shrink-0 rounded-full", unread ? "bg-primary" : "bg-transparent")} />
 
                   {/* Sender/recipient */}
                   <div className="w-36 shrink-0 truncate">
@@ -262,13 +262,13 @@ export function MessageList({ folder }: Props) {
                     <span className={cn("text-sm", unread && "font-semibold")}>
                       {msg.subject}
                     </span>
-                    <span className="ml-2 text-sm text-slate-400 dark:text-slate-500">
+                    <span className="ml-2 text-sm text-muted-foreground">
                       {msg.body.length > 80 ? msg.body.slice(0, 80) + "..." : msg.body}
                     </span>
                   </div>
 
                   {/* Date */}
-                  <time className="shrink-0 text-xs text-slate-400 dark:text-slate-500">
+                  <time className="shrink-0 text-xs text-muted-foreground">
                     {format(new Date(msg.createdAt), "dd. MMM yyyy, HH:mm", { locale: de })}
                   </time>
                 </div>
