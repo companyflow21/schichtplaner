@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { berlinDate } from "@/lib/berlin";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Check, X } from "lucide-react";
@@ -104,7 +105,12 @@ function getStatusBadge(status: string) {
 
 // ---------- Component ----------
 
-export function AbsenceForm({
+export function AbsenceForm(props: AbsenceFormProps) {
+  const { data: member } = useCurrentMember();
+  if (!member) return null;
+  return props.open ? <AbsenceEditor key={props.absence?.id || "new"} {...props} /> : null;
+}
+function AbsenceEditor({
   open,
   onOpenChange,
   absence,
@@ -119,15 +125,15 @@ export function AbsenceForm({
     currentMember?.role === "OWNER" || currentMember?.role === "ADMIN";
 
   // Form state
-  const [userId, setUserId] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  const [userId, setUserId] = useState(absence?.userId || currentMember?.user.id || "");
+  const [categoryId, setCategoryId] = useState(absence?.categoryId || "");
   const [dateFrom, setDateFrom] = useState(
-    defaultDateFrom || format(new Date(), "yyyy-MM-dd")
+    absence?.dateFrom.slice(0,10) || defaultDateFrom || berlinDate()
   );
   const [dateTo, setDateTo] = useState(
-    defaultDateTo || format(new Date(), "yyyy-MM-dd")
+    absence?.dateTo.slice(0,10) || defaultDateTo || berlinDate()
   );
-  const [note, setNote] = useState("");
+  const [note, setNote] = useState(absence?.note || "");
 
   // Fetch categories
   const { data: categoriesData } = useQuery<{ categories: AbsenceCategory[] }>({
@@ -140,25 +146,6 @@ export function AbsenceForm({
   });
 
   const categories = categoriesData?.categories ?? [];
-
-  // Reset form when dialog opens
-  useEffect(() => {
-    if (open) {
-      if (absence) {
-        setUserId(absence.userId);
-        setCategoryId(absence.categoryId);
-        setDateFrom(absence.dateFrom.slice(0, 10));
-        setDateTo(absence.dateTo.slice(0, 10));
-        setNote(absence.note ?? "");
-      } else {
-        setUserId(currentMember?.user?.id ?? "");
-        setCategoryId(categories[0]?.id ?? "");
-        setDateFrom(defaultDateFrom || format(new Date(), "yyyy-MM-dd"));
-        setDateTo(defaultDateTo || format(new Date(), "yyyy-MM-dd"));
-        setNote("");
-      }
-    }
-  }, [open, absence, currentMember, categories, defaultDateFrom, defaultDateTo]);
 
   // Create mutation
   const createMutation = useMutation({

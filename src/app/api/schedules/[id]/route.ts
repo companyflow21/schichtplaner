@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentMember, isManagerOrAbove } from "@/lib/auth-helpers";
+import { notify, planners } from "@/lib/planning";
+import { emitToOrg } from "@/lib/emit";
 
 const updateScheduleSchema = z.object({
   isPublic: z.boolean().optional(),
@@ -59,10 +61,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     );
   }
 
-  const schedule = await db.schedule.update({
-    where: { id },
-    data: parsed.data,
+  const schedule = await db.$transaction(async tx => {
+    const result = await tx.schedule.update({ where: { id }, data: parsed.data });
+    if (parsed.data.isPublic !== undefined && parsed.data.isPublic !== existing.isPublic) {
+      const people = await tx.organizationMember.findMany({ where: { organizationId: member.organizationId, isActive: true }, select: { userId: true } });
+      await notify(tx, member.organizationId, member.userId, people.map(p => p.userId), result.isPublic ? "Dienstplan veröffentlicht" : "Dienstplan zurückgezogen", "KW " + result.weekNumber + "/" + result.year + (result.isPublic ? " ist jetzt verfügbar." : " wird überarbeitet."));
+    }
+    return result;
   });
+  emitToOrg(member.organizationId, "schedule:updated", { scheduleId: id });
 
   return NextResponse.json({
     schedule: {

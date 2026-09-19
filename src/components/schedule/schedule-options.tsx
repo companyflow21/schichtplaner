@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -408,14 +408,14 @@ function BriefingButton({
   const briefing = data?.briefing ?? null;
   const hasBriefing = !!briefing;
 
-  // Sync text when briefing loads or sheet opens
-  useEffect(() => {
-    if (open) {
+  function changeBriefingOpen(next: boolean) {
+    if (next) {
       const t = briefing?.text ?? "";
       setText(t);
       setInitialText(t);
     }
-  }, [open, briefing]);
+    setOpen(next);
+  }
 
   // Auto-resize textarea
   const handleTextChange = useCallback(
@@ -477,7 +477,7 @@ function BriefingButton({
   const isPending = saveMutation.isPending || deleteMutation.isPending;
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={changeBriefingOpen}>
       <SheetTrigger asChild>
         <Button
           variant="outline"
@@ -610,7 +610,7 @@ function AiBriefingButton({ scheduleId }: { scheduleId: string }) {
       size="sm"
       onClick={() => mutation.mutate()}
       disabled={mutation.isPending}
-      className="gap-1.5 border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400 dark:hover:bg-indigo-950"
+      className="gap-1.5 border-primary/30 text-primary hover:bg-accent"
     >
       {mutation.isPending ? (
         <Loader2 className="size-3.5 animate-spin" />

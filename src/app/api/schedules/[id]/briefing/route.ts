@@ -34,7 +34,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
 
   const schedule = await getScheduleForMember(id, member.organizationId);
-  if (!schedule) {
+  if (!schedule || (!isManagerOrAbove(member.role) && !schedule.isPublic)) {
     return NextResponse.json(
       { error: "Schichtplan nicht gefunden" },
       { status: 404 }

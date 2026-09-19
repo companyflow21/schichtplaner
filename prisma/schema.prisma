@@ -77,6 +77,8 @@ model Organization {
   topics            Topic[]
   holidays          Holiday[]
   settings          OrgSettings?
+  timeRecords       TimeRecord[]
+  timeCorrections   TimeCorrection[]
 
   @@map("organizations")
 }
@@ -89,6 +91,12 @@ model OrganizationMember {
   isActive       Boolean  @default(true)
   isActivated    Boolean  @default(false)
   activationToken String? @unique
+  activationExpiresAt DateTime?
+  position       String?
+  employmentType String @default("Vollzeit")
+  targetHoursPerWeek Float @default(40)
+  qualifications String[] @default([])
+  availabilities Availability[]
   joinedAt       DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -123,10 +131,15 @@ model Branch {
   organizationId String
   name           String
   address        String?
+  meetingPoint   String?
+  notes          String?
+  positions      String[] @default([])
+  isActive       Boolean @default(true)
   createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   schedules    Schedule[]
+  shifts       Shift[]
 
   @@map("branches")
 }
@@ -191,6 +204,8 @@ model Shift {
   id           String   @id @default(cuid())
   scheduleId   String
   divisionId   String?
+  branchId     String?
+  requiredQualifications String[] @default([])
   dayOfWeek    Int
   shiftFrom    String
   shiftTo      String
@@ -204,6 +219,8 @@ model Shift {
 
   schedule    Schedule     @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   division    Division?    @relation(fields: [divisionId], references: [id])
+  branch      Branch?      @relation(fields: [branchId], references: [id])
+  messages    Message[]
   bookings    Booking[]
   modRequests ModRequest[]
 
@@ -221,6 +238,7 @@ model Booking {
   userId    String
   bookedAt  DateTime @default(now())
   bookedBy  String?
+  confirmedAt DateTime?
 
   shift Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -235,6 +253,8 @@ model ModRequest {
   userId    String
   state     RequestState  @default(OPEN)
   note      String?
+  kind      String @default("TAKEOVER")
+  targetUserId String?
   deadline  DateTime?
   sentAt    DateTime      @default(now())
 
@@ -314,6 +334,13 @@ enum LiveAction {
 model TimeRecord {
   id             String       @id @default(cuid())
   userId         String
+  organizationId String
+  startedAt      DateTime?
+  endedAt        DateTime?
+  pauseStartedAt DateTime?
+  breakSeconds   Int @default(0)
+  corrections    TimeCorrection[]
+  organization Organization @relation(fields: [organizationId], references: [id])
   date           DateTime     @db.Date
   timeFrom       String?
   timeTo         String?
@@ -327,6 +354,8 @@ model TimeRecord {
 
   user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   category TimeCategory? @relation(fields: [categoryId], references: [id])
+
+  @@index([organizationId, userId, date])
 
   @@map("time_records")
 }
@@ -424,6 +453,8 @@ model Message {
   subject        String
   body           String
   parentId       String?
+  shiftId        String?
+  shift          Shift? @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   createdAt      DateTime @default(now())
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -518,6 +549,40 @@ model EmployeeNote {
   author  User @relation("author", fields: [authorId], references: [id])
 
   @@map("employee_notes")
+}
+
+model Availability {
+  id String @id @default(cuid())
+  organizationId String
+  userId String
+  date DateTime @db.Date
+  timeFrom String
+  timeTo String
+  available Boolean
+  note String?
+  member OrganizationMember @relation(fields: [organizationId, userId], references: [organizationId, userId], onDelete: Cascade)
+
+  @@index([organizationId, userId, date])
+  @@map("availabilities")
+}
+
+model TimeCorrection {
+  id String @id @default(cuid())
+  organizationId String
+  recordId String
+  requesterId String
+  reason String
+  before Json
+  proposed Json
+  status AbsenceStatus @default(PENDING)
+  reviewedBy String?
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  record TimeRecord @relation(fields: [recordId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, status])
+  @@map("time_corrections")
 }
 
 model OrgSettings {

@@ -108,9 +108,9 @@ export function EmployeePicker({
 
   // Fetch all active org employees
   const { data } = useQuery<{ members: OrgEmployee[] }>({
-    queryKey: ["employees", "active"],
+    queryKey: ["employees", "active", shiftId],
     queryFn: async () => {
-      const res = await fetch("/api/employees?status=active");
+      const res = await fetch(shiftId ? "/api/shifts/" + shiftId + "/candidates" : "/api/employees?status=active");
       if (!res.ok) throw new Error("Fehler beim Laden der Mitarbeiter");
       return res.json();
     },

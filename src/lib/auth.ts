@@ -32,8 +32,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // Nach zu vielen Fehlversuchen ist diese Adresse kurzzeitig gesperrt.
         if (isLoginBlocked(email)) return null;
 
-        const user = await db.user.findUnique({ where: { email } });
-        if (!user || !user.passwordHash) {
+        const user = await db.user.findUnique({ where: { email }, include: { memberships: { where: { isActive: true, isActivated: true }, select: { id: true } } } });
+        if (!user || !user.passwordHash || !user.memberships.length) {
           recordLoginFailure(email);
           return null;
         }

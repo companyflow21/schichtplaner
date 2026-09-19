@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
 
 // POST /api/messages — send a new message
 const sendSchema = z.object({
+  shiftId: z.string().optional(),
   subject: z.string().min(1),
   body: z.string().min(1),
   recipientIds: z.array(z.string().min(1)).min(1),
@@ -114,6 +115,10 @@ export async function POST(request: NextRequest) {
   }
 
   const { subject, body: msgBody, recipientIds } = parsed.data;
+  if (parsed.data.shiftId) {
+    const shift = await db.shift.findFirst({ where: { id: parsed.data.shiftId, deletedAt: null, schedule: { organizationId: member.organizationId, isPublic: true, deletedAt: null } } });
+    if (!shift) return NextResponse.json({ error: "Schicht nicht gefunden." }, { status: 404 });
+  }
 
   // Verify recipients are in the same org
   const validRecipients = await db.organizationMember.findMany({
@@ -138,6 +143,7 @@ export async function POST(request: NextRequest) {
     data: {
       organizationId: member.organizationId,
       senderId: member.user.id,
+      shiftId: parsed.data.shiftId,
       subject,
       body: msgBody,
       recipients: {

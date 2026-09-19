@@ -398,6 +398,7 @@ async function main() {
 
   await db.timeRecord.create({
     data: {
+      organizationId: org.id,
       userId: employees[0].id,
       date: yesterday,
       timeFrom: "06:00",
@@ -408,6 +409,7 @@ async function main() {
   });
   await db.timeRecord.create({
     data: {
+      organizationId: org.id,
       userId: employees[1].id,
       date: yesterday,
       timeFrom: "14:00",

@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentMember, isAdminOrAbove } from "@/lib/auth-helpers";
+import { validDate } from "@/lib/berlin";
+import { notify } from "@/lib/planning";
 
 // PATCH /api/absences/[id] - Update absence (approve/decline/edit)
 const updateAbsenceSchema = z.object({
   status: z.enum(["PENDING", "APPROVED", "DECLINED"]).optional(),
-  dateFrom: z.string().optional(),
-  dateTo: z.string().optional(),
+  dateFrom: z.string().refine(validDate).optional(),
+  dateTo: z.string().refine(validDate).optional(),
   note: z.string().nullable().optional(),
   categoryId: z.string().optional(),
 });
@@ -25,8 +27,8 @@ export async function PATCH(
   const isAdmin = isAdminOrAbove(member.role);
 
   // Find the absence
-  const absence = await db.absence.findUnique({
-    where: { id },
+  const absence = await db.absence.findFirst({
+    where: { id, category: { organizationId: member.organizationId } },
     include: { user: true },
   });
 
@@ -62,6 +64,7 @@ export async function PATCH(
   }
 
   const data = parsed.data;
+  if ((data.dateFrom || absence.dateFrom.toISOString().slice(0,10)) > (data.dateTo || absence.dateTo.toISOString().slice(0,10))) return NextResponse.json({ error: "Enddatum liegt vor dem Beginn." }, { status: 400 });
 
   // Only admin+ can approve/decline
   if (data.status && (data.status === "APPROVED" || data.status === "DECLINED")) {
@@ -118,7 +121,8 @@ export async function PATCH(
     updateData.categoryId = data.categoryId;
   }
 
-  const updated = await db.absence.update({
+  const updated = await db.$transaction(async tx => {
+  const result = await tx.absence.update({
     where: { id },
     data: updateData,
     include: {
@@ -141,6 +145,9 @@ export async function PATCH(
     },
   });
 
+  if (data.status && data.status !== absence.status) await notify(tx, member.organizationId, member.userId, [absence.userId], "Abwesenheitsantrag " + (data.status === "APPROVED" ? "genehmigt" : data.status === "DECLINED" ? "abgelehnt" : "zur Prüfung"), result.dateFrom.toISOString().slice(0,10) + " bis " + result.dateTo.toISOString().slice(0,10));
+  return result;
+  });
   return NextResponse.json({ absence: updated });
 }
 
@@ -158,7 +165,7 @@ export async function DELETE(
   const isAdmin = isAdminOrAbove(member.role);
 
   // Find the absence
-  const absence = await db.absence.findUnique({ where: { id } });
+  const absence = await db.absence.findFirst({ where: { id, category: { organizationId: member.organizationId } } });
   if (!absence) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

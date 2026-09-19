@@ -1,0 +1,22 @@
+"use client";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+export async function json<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Die Anfrage ist fehlgeschlagen.");
+  return data;
+}
+export function useAction() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ url, method = "POST", data }: { url: string; method?: string; data?: unknown }) => json(url, { method, headers: { "Content-Type": "application/json" }, ...(data !== undefined ? { body: JSON.stringify(data) } : {}) }),
+    onSuccess: () => { toast.success("Gespeichert"); client.invalidateQueries(); },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+export function ErrorMessage({ error }: { error: Error | null }) {
+  return error ? <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error.message}</p> : null;
+}
+export function dateLabel(date: string) { return new Date(date.slice(0,10) + "T12:00:00Z").toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit" }); }
+export const selectClass = "h-10 w-full rounded-md border border-input bg-background px-3 text-sm";

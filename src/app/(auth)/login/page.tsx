@@ -30,12 +30,12 @@ export default function LoginPage() {
       setError("Ungültige Anmeldedaten");
       setLoading(false);
     } else {
-      router.push("/schedule/flexible");
+      router.push("/dashboard");
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">Schichtplaner</CardTitle>
@@ -56,12 +56,7 @@ export default function LoginPage() {
               {loading ? "Wird angemeldet..." : "Anmelden"}
             </Button>
           </form>
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            Noch kein Konto?{" "}
-            <Link href="/register" className="text-primary hover:underline">
-              Registrieren
-            </Link>
-          </p>
+          <p className="mt-4 text-center text-sm text-muted-foreground">Interner Zugang der AKRO GmbH. Einen Einladungslink erhältst du von deiner Administration.</p>
         </CardContent>
       </Card>
     </div>

@@ -1,139 +1,20 @@
-import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { getCurrentMember } from "@/lib/auth-helpers";
-
-/**
- * GET /api/schedules?kw=09&year=2026
- *
- * Get or auto-create a schedule for the given calendar week + year.
- * Returns the schedule with shifts (including bookings + user details)
- * and division info.
- */
-export async function GET(request: NextRequest) {
-  const member = await getCurrentMember();
-  if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { searchParams } = request.nextUrl;
-  const kwParam = searchParams.get("kw");
-  const yearParam = searchParams.get("year");
-
-  if (!kwParam || !yearParam) {
-    return NextResponse.json(
-      { error: "Missing query parameters: kw and year are required" },
-      { status: 400 }
-    );
-  }
-
-  const weekNumber = parseInt(kwParam, 10);
-  const year = parseInt(yearParam, 10);
-
-  if (
-    isNaN(weekNumber) ||
-    isNaN(year) ||
-    weekNumber < 1 ||
-    weekNumber > 53 ||
-    year < 2000 ||
-    year > 2100
-  ) {
-    return NextResponse.json(
-      { error: "Invalid kw or year values" },
-      { status: 400 }
-    );
-  }
-
-  const orgId = member.organizationId;
-
-  // Try to find existing schedule
-  let schedule = await db.schedule.findFirst({
-    where: {
-      organizationId: orgId,
-      weekNumber,
-      year,
-      branchId: null,
-      deletedAt: null,
-    },
-    include: {
-      shifts: {
-        where: { deletedAt: null },
-        include: {
-          division: {
-            select: {
-              id: true,
-              title: true,
-              color: true,
-            },
-          },
-          bookings: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                  nickname: true,
-                  profileImage: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: [{ dayOfWeek: "asc" }, { shiftFrom: "asc" }],
-      },
-    },
-  });
-
-  // Auto-create if not found
-  if (!schedule) {
-    schedule = await db.schedule.create({
-      data: {
-        organizationId: orgId,
-        weekNumber,
-        year,
-      },
-      include: {
-        shifts: {
-          where: { deletedAt: null },
-          include: {
-            division: {
-              select: {
-                id: true,
-                title: true,
-                color: true,
-              },
-            },
-            bookings: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    firstName: true,
-                    lastName: true,
-                    nickname: true,
-                    profileImage: true,
-                  },
-                },
-              },
-            },
-          },
-          orderBy: [{ dayOfWeek: "asc" }, { shiftFrom: "asc" }],
-        },
-      },
+import { api, requireMember, serial, ApiError } from "@/lib/api";
+import { isManagerOrAbove } from "@/lib/auth-helpers";
+import { shiftInclude } from "@/lib/planning";
+export async function GET(request: Request) {
+  return api(async () => {
+    const m = await requireMember();
+    const q = new URL(request.url).searchParams;
+    const weekNumber = Number(q.get("kw")), year = Number(q.get("year"));
+    if (!Number.isInteger(weekNumber) || weekNumber < 1 || weekNumber > 53 || !Number.isInteger(year) || year < 2000 || year > 2100) throw new ApiError("Ungültige Kalenderwoche.");
+    const manager = isManagerOrAbove(m.role);
+    return serial(async tx => {
+      const where = { organizationId: m.organizationId, weekNumber, year, branchId: null, deletedAt: null };
+      let schedule = await tx.schedule.findFirst({ where });
+      if (!schedule && manager) schedule = await tx.schedule.create({ data: { organizationId: m.organizationId, weekNumber, year } });
+      if (!schedule || (!manager && !schedule.isPublic)) return { schedule: { id: "", organizationId: m.organizationId, weekNumber, year, isPublic: false, settingsLayout: "LAYOUT_1", showTitle: true, showPauses: true, shifts: [] } };
+      const shifts = await tx.shift.findMany({ where: { scheduleId: schedule.id, deletedAt: null }, include: shiftInclude, orderBy: [{ dayOfWeek: "asc" }, { shiftFrom: "asc" }] });
+      return { schedule: { ...schedule, shifts: shifts.map(s => ({ ...s, bookings: !manager && m.organization.scheduleVisibility === "OWN_ONLY" ? s.bookings.filter(b => b.userId === m.userId) : s.bookings, occupiedCount: s.bookings.length })) } };
     });
-  }
-
-  return NextResponse.json({
-    schedule: {
-      id: schedule.id,
-      organizationId: schedule.organizationId,
-      weekNumber: schedule.weekNumber,
-      year: schedule.year,
-      isPublic: schedule.isPublic,
-      settingsLayout: schedule.settingsLayout,
-      showTitle: schedule.showTitle,
-      showPauses: schedule.showPauses,
-      shifts: schedule.shifts,
-    },
   });
 }

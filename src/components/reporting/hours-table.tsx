@@ -46,6 +46,9 @@ type EmployeeReport = {
   lastName: string;
   profileImage: string | null;
   totalMinutes: number;
+  plannedMinutes: number;
+  targetMinutes: number;
+  deviationMinutes: number;
   shiftCount: number;
   kwBreakdown: KWData[];
 };
@@ -94,12 +97,14 @@ const MONTH_NAMES_DISPLAY = [
 ];
 
 function formatMinutes(totalMinutes: number): string {
+  totalMinutes = Math.round(totalMinutes);
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
   return `${h}H${m > 0 ? ` ${m}M` : ""}`;
 }
 
 function formatMinutesCompact(totalMinutes: number): string {
+  totalMinutes = Math.round(totalMinutes);
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
   if (m === 0) return `${h}H`;
@@ -367,6 +372,9 @@ export function HoursTable({ month, year }: HoursTableProps) {
                       />
                     </button>
                   </TableHead>
+                  <TableHead className="text-right">Plan</TableHead>
+                  <TableHead className="text-right">Soll</TableHead>
+                  <TableHead className="text-right">Ist − Plan</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -397,6 +405,9 @@ export function HoursTable({ month, year }: HoursTableProps) {
                         ? formatMinutesCompact(emp.totalMinutes)
                         : "-"}
                     </TableCell>
+                    <TableCell className="text-right">{(emp.plannedMinutes / 60).toLocaleString("de-DE", { maximumFractionDigits: 2 })} h</TableCell>
+                    <TableCell className="text-right">{(emp.targetMinutes / 60).toLocaleString("de-DE", { maximumFractionDigits: 2 })} h</TableCell>
+                    <TableCell className="text-right">{(emp.deviationMinutes / 60).toLocaleString("de-DE", { maximumFractionDigits: 2 })} h</TableCell>
                   </TableRow>
                 ))}
 
@@ -418,6 +429,7 @@ export function HoursTable({ month, year }: HoursTableProps) {
                   <TableCell className="text-right tabular-nums font-mono text-sm">
                     {formatMinutesCompact(totals.totalMinutes)}
                   </TableCell>
+                  <TableCell colSpan={3} />
                 </TableRow>
               </TableBody>
             </Table>

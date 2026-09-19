@@ -45,7 +45,7 @@ export function ShiftCard({
   userWishRequest,
 }: ShiftCardProps) {
   const queryClient = useQueryClient();
-  const bookedCount = shift.bookings.length;
+  const bookedCount = shift.occupiedCount ?? shift.bookings.length;
   const isFull = bookedCount >= shift.maxEmployees;
   const emptySlots = Math.max(0, shift.maxEmployees - bookedCount);
   const divisionColor = shift.division?.color ?? "#94a3b8";
@@ -65,7 +65,7 @@ export function ShiftCard({
   // Book mutation
   const bookMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const res = await fetch("/api/bookings", {
+      const res = await fetch(isManager ? "/api/bookings" : "/api/mod-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ shiftId: shift.id, userId }),
@@ -77,7 +77,7 @@ export function ShiftCard({
       return res.json();
     },
     onSuccess: () => {
-      toast.success("Mitarbeiter gebucht");
+      toast.success(isManager ? "Mitarbeiter zugewiesen" : "Übernahme angefragt");
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
     },
     onError: (error: Error) => {
@@ -176,19 +176,27 @@ export function ShiftCard({
         onClick={() => isManager && onEdit(shift)}
         disabled={!isManager}
       >
-        {/* Top row: badge + time */}
+        {/* Kopfzeile: Besetzung + Zeit.
+            Besetzte Schichten bleiben ruhig, unbesetzte tragen das Signal -
+            im Dienstplan zaehlt die Luecke, nicht die erledigte Zeile. */}
         <div className="flex items-center justify-between gap-2">
           <Badge
-            variant={isFull ? "default" : "secondary"}
+            variant="secondary"
             className={cn(
-              "text-[10px] px-1.5 py-0",
-              isFull && "bg-green-600 hover:bg-green-600"
+              "tabular text-[10px] px-1.5 py-0",
+              !isFull &&
+                "border-signal/45 bg-signal/15 text-[color-mix(in_srgb,var(--color-signal)_70%,#0b1626)] dark:text-signal"
             )}
+            title={
+              isFull
+                ? "Schicht vollstaendig besetzt"
+                : `${emptySlots} Platz/Plaetze noch offen`
+            }
           >
             <Users className="size-3" />
             {bookedCount}/{shift.maxEmployees}
           </Badge>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1 text-xs text-muted-foreground tabular">
             <Clock className="size-3" />
             {shift.shiftFrom} - {shift.shiftTo}
           </div>
@@ -202,6 +210,8 @@ export function ShiftCard({
         )}
 
         {/* Title */}
+        {shift.branch && <div className="text-xs"><strong>{shift.branch.name}</strong><p>{shift.branch.address}</p>{shift.branch.meetingPoint && <p>Treffpunkt: {shift.branch.meetingPoint}</p>}{shift.branch.notes && <p className="text-muted-foreground whitespace-pre-wrap">{shift.branch.notes}</p>}</div>}
+        {shift.description && <p className="text-xs whitespace-pre-wrap">{shift.description}</p>}
         {showTitle && shift.title && (
           <div className="text-xs text-foreground truncate font-medium">
             {shift.title}
@@ -236,7 +246,7 @@ export function ShiftCard({
         {/* Booked employees */}
         {shift.bookings.map((booking) => {
           const canUnbook =
-            isManager || booking.userId === currentUserId;
+            isManager;
           return (
             <div
               key={booking.id}
@@ -307,7 +317,7 @@ export function ShiftCard({
                   <Plus className="size-3 text-primary/60" />
                 </div>
                 <span className="text-xs text-primary/70 italic">
-                  Eintragen
+                  Übernahme anfragen
                 </span>
               </button>
             ) : (

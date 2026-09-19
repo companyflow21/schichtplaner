@@ -43,13 +43,14 @@ interface Employee {
 }
 
 interface Props {
+  shiftId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultRecipientIds?: string[];
   defaultSubject?: string;
 }
 
-export function ComposeMessage({ open, onOpenChange, defaultRecipientIds, defaultSubject }: Props) {
+export function ComposeMessage({ open, onOpenChange, defaultRecipientIds, defaultSubject, shiftId }: Props) {
   const queryClient = useQueryClient();
   const [recipientIds, setRecipientIds] = useState<string[]>(defaultRecipientIds ?? []);
   const [subject, setSubject] = useState(defaultSubject ?? "");
@@ -69,7 +70,7 @@ export function ComposeMessage({ open, onOpenChange, defaultRecipientIds, defaul
       const res = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject, body, recipientIds }),
+        body: JSON.stringify({ subject, body, recipientIds, shiftId }),
       });
       if (!res.ok) throw new Error("Failed to send");
       return res.json();
@@ -114,12 +115,13 @@ export function ComposeMessage({ open, onOpenChange, defaultRecipientIds, defaul
           {/* Recipients */}
           <div>
             <Label>Empfaenger</Label>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setRecipientIds(employees.map(e => e.user.id))}>Gesamtes Team auswählen</Button>
             <div className="mt-1.5">
               <Popover open={recipientPickerOpen} onOpenChange={setRecipientPickerOpen}>
                 <PopoverTrigger asChild>
-                  <div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border px-3 py-2 cursor-pointer hover:border-indigo-400 dark:border-slate-700">
+                  <div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border px-3 py-2 cursor-pointer hover:border-primary/40">
                     {selectedEmployees.length === 0 ? (
-                      <span className="text-sm text-slate-400">Empfaenger auswaehlen...</span>
+                      <span className="text-sm text-muted-foreground">Empfaenger auswaehlen...</span>
                     ) : (
                       selectedEmployees.map((emp) => (
                         <Badge key={emp.user.id} variant="secondary" className="gap-1">
@@ -160,7 +162,7 @@ export function ComposeMessage({ open, onOpenChange, defaultRecipientIds, defaul
                               <div className="text-sm font-medium">
                                 {emp.user.firstName} {emp.user.lastName}
                               </div>
-                              <div className="text-xs text-slate-500">{emp.user.email}</div>
+                              <div className="text-xs text-muted-foreground">{emp.user.email}</div>
                             </div>
                           </CommandItem>
                         ))}

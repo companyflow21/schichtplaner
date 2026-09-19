@@ -9,7 +9,7 @@ export async function GET() {
   }
 
   const member = await db.organizationMember.findFirst({
-    where: { userId: session.user.id, isActive: true },
+    where: { userId: session.user.id, isActive: true, isActivated: true, organization: { deletedAt: null } },
     include: {
       organization: { select: { id: true, name: true } },
       user: {

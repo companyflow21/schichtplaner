@@ -12,6 +12,7 @@ export type BookingUser = {
 };
 
 export type ShiftBooking = {
+  confirmedAt?: string | null;
   id: string;
   shiftId: string;
   userId: string;
@@ -27,6 +28,10 @@ export type ShiftDivision = {
 };
 
 export type ShiftData = {
+  branchId?: string | null;
+  branch?: { id: string; name: string; address: string | null; meetingPoint: string | null; notes: string | null } | null;
+  requiredQualifications?: string[];
+  occupiedCount?: number;
   id: string;
   scheduleId: string;
   divisionId: string | null;

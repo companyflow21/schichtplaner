@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   ChevronLeft,
   ChevronRight,
@@ -12,8 +12,6 @@ import {
   Clock,
   Timer,
   Pencil,
-  Trash2,
-  Loader2,
 } from "lucide-react";
 import {
   format,
@@ -27,7 +25,6 @@ import {
   getISOWeek,
 } from "date-fns";
 import { de } from "date-fns/locale";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +40,7 @@ import { AnomalyBadge, EmployeeAnomalyIndicator } from "./anomaly-badge";
 // ---------- Types ----------
 
 type TimeRecord = {
+  breakSeconds: number;
   id: string;
   userId: string;
   date: string;
@@ -116,7 +114,6 @@ function getRecordTypeIcon(type: TimeRecord["type"]) {
 // ---------- Component ----------
 
 export function TimeList() {
-  const queryClient = useQueryClient();
   const { data: currentMember } = useCurrentMember();
   const isManager =
     currentMember?.role === "OWNER" ||
@@ -240,31 +237,6 @@ export function TimeList() {
     });
   }, []);
 
-  // Delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/time/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const d = await res.json();
-        throw new Error(d.error || "Fehler beim Loeschen");
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      toast.success("Erfassung geloescht");
-      queryClient.invalidateQueries({ queryKey: ["time-records"] });
-    },
-    onError: (err: Error) => {
-      toast.error(err.message);
-    },
-  });
-
-  function handleDelete(id: string) {
-    if (confirm("Zeiterfassung wirklich loeschen?")) {
-      deleteMutation.mutate(id);
-    }
-  }
-
   function handleEdit(record: TimeRecord) {
     setEditingRecord(record);
     setShowRecordForm(true);
@@ -295,6 +267,7 @@ export function TimeList() {
             variant="outline"
             size="sm"
             onClick={() => setShowStopwatch(!showStopwatch)}
+            aria-label="Stoppuhr anzeigen"
           >
             <Timer className="size-4" />
             <span className="hidden sm:inline">Stoppuhr</span>
@@ -508,27 +481,17 @@ export function TimeList() {
                                             {record.comment}
                                           </span>
                                         )}
-                                        <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="ml-auto flex items-center gap-1">
                                           <Button
                                             variant="ghost"
                                             size="icon-xs"
+                                            aria-label="Zeitkorrektur beantragen"
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               handleEdit(record);
                                             }}
                                           >
                                             <Pencil className="size-3" />
-                                          </Button>
-                                          <Button
-                                            variant="ghost"
-                                            size="icon-xs"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleDelete(record.id);
-                                            }}
-                                            disabled={deleteMutation.isPending}
-                                          >
-                                            <Trash2 className="size-3 text-destructive" />
                                           </Button>
                                         </div>
                                       </div>
@@ -599,16 +562,9 @@ export function TimeList() {
                                     variant="ghost"
                                     size="icon-xs"
                                     onClick={() => handleEdit(record)}
+                                    aria-label="Zeitkorrektur beantragen"
                                   >
                                     <Pencil className="size-3" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon-xs"
-                                    onClick={() => handleDelete(record.id)}
-                                    disabled={deleteMutation.isPending}
-                                  >
-                                    <Trash2 className="size-3 text-destructive" />
                                   </Button>
                                 </div>
                               </div>

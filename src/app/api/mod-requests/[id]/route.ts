@@ -1,215 +1,57 @@
-import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { db } from "@/lib/db";
-import { getCurrentMember, isManagerOrAbove } from "@/lib/auth-helpers";
-import { emitToSchedule } from "@/lib/emit";
-
-const updateSchema = z.object({
-  state: z.enum(["ACCEPTED", "DECLINED"]),
-});
-
-/**
- * PATCH /api/mod-requests/[id]
- *
- * Accept or decline a wish request. Manager+ only.
- * If accepted, automatically creates a booking.
- */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const member = await getCurrentMember();
-  if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  if (!isManagerOrAbove(member.role)) {
-    return NextResponse.json(
-      { error: "Nur Manager koennen Wuensche bearbeiten" },
-      { status: 403 }
-    );
-  }
-
-  const { id } = await params;
-
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  const parsed = updateSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Validation failed", details: parsed.error.issues },
-      { status: 400 }
-    );
-  }
-
-  const { state } = parsed.data;
-
-  // Find the request
-  const modRequest = await db.modRequest.findUnique({
-    where: { id },
-    include: {
-      shift: {
-        include: {
-          schedule: { select: { organizationId: true, id: true } },
-          bookings: true,
-        },
-      },
-    },
-  });
-
-  if (!modRequest || modRequest.shift.schedule.organizationId !== member.organizationId) {
-    return NextResponse.json(
-      { error: "Wunsch nicht gefunden" },
-      { status: 404 }
-    );
-  }
-
-  if (modRequest.state !== "OPEN") {
-    return NextResponse.json(
-      { error: "Wunsch wurde bereits bearbeitet" },
-      { status: 409 }
-    );
-  }
-
-  // If accepting, check shift capacity and create booking
-  if (state === "ACCEPTED") {
-    const shift = modRequest.shift;
-    if (shift.bookings.length >= shift.maxEmployees) {
-      return NextResponse.json(
-        { error: "Schicht ist voll - Wunsch kann nicht angenommen werden" },
-        { status: 409 }
-      );
-    }
-
-    // Check if already booked (edge case)
-    const existingBooking = shift.bookings.find(
-      (b) => b.userId === modRequest.userId
-    );
-    if (existingBooking) {
-      // Already booked, just update state
-      await db.modRequest.update({
-        where: { id },
-        data: { state: "ACCEPTED" },
-      });
-
-      return NextResponse.json({
-        request: { ...modRequest, state: "ACCEPTED" },
-        bookingCreated: false,
-      });
-    }
-
-    // Create booking and update request in a transaction
-    const [updatedRequest, booking] = await db.$transaction([
-      db.modRequest.update({
-        where: { id },
-        data: { state: "ACCEPTED" },
-      }),
-      db.booking.create({
-        data: {
-          shiftId: modRequest.shiftId,
-          userId: modRequest.userId,
-          bookedBy: member.user.id,
-        },
-      }),
-    ]);
-
-    emitToSchedule(modRequest.shift.schedule.id, "mod-request:changed", {
-      scheduleId: modRequest.shift.schedule.id,
-      shiftId: modRequest.shiftId,
-      action: "accepted",
+import { api, body, requireMember, serial, ApiError } from "@/lib/api";
+import { isManagerOrAbove } from "@/lib/auth-helpers";
+import { assign, checkAssignment, notify, planners, shiftInclude } from "@/lib/planning";
+import { emitToOrg } from "@/lib/emit";
+type Context = { params: Promise<{ id: string }> };
+export async function PATCH(request: Request, context: Context) {
+  return api(async () => {
+    const m = await requireMember();
+    const { id } = await context.params;
+    const data = await body(request, z.object({ state: z.enum(["ACCEPTED", "DECLINED"]).optional(), volunteer: z.boolean().optional() }));
+    const result = await serial(async tx => {
+      const r = await tx.modRequest.findFirst({ where: { id, shift: { deletedAt: null, schedule: { organizationId: m.organizationId, deletedAt: null, isPublic: true } } }, include: { shift: { include: shiftInclude } } });
+      if (!r) throw new ApiError("Antrag nicht gefunden.", 404);
+      if (r.state !== "OPEN") throw new ApiError("Antrag wurde bereits bearbeitet.", 409);
+      if (data.volunteer) {
+        if (r.kind !== "SWAP" || r.userId === m.userId || r.targetUserId) throw new ApiError("Dieses Tauschangebot ist nicht verfügbar.", 409);
+        const warnings = await checkAssignment(tx, r.shift, m.userId);
+        if (r.shift.bookings.some(b => b.userId === m.userId)) warnings.push("Bereits zugewiesen.");
+        if (warnings.length) throw new ApiError(warnings.join(" "), 409);
+        const updated = await tx.modRequest.update({ where: { id }, data: { targetUserId: m.userId } });
+        await notify(tx, m.organizationId, m.userId, await planners(tx, m.organizationId), "Schichttausch zur Freigabe", "Ein Mitarbeiter möchte die angebotene Schicht übernehmen.", r.shiftId);
+        return updated;
+      }
+      if (!isManagerOrAbove(m.role) || !data.state) throw new ApiError("Nur die Planung darf Anträge entscheiden.", 403);
+      if (data.state === "ACCEPTED") {
+        let userId = r.userId;
+        if (r.kind === "SWAP") {
+          if (!r.targetUserId) throw new ApiError("Es fehlt eine bestätigte Übernahme.", 409);
+          const source = r.shift.bookings.find(b => b.userId === r.userId);
+          if (!source) throw new ApiError("Ursprüngliche Zuweisung besteht nicht mehr.", 409);
+          await tx.booking.delete({ where: { id: source.id } });
+          userId = r.targetUserId;
+        }
+        await assign(tx, m.organizationId, m.userId, r.shiftId, userId);
+      }
+      const updated = await tx.modRequest.update({ where: { id }, data: { state: data.state } });
+      await notify(tx, m.organizationId, m.userId, [r.userId, ...(r.targetUserId ? [r.targetUserId] : [])], data.state === "ACCEPTED" ? "Schichtantrag genehmigt" : "Schichtantrag abgelehnt", "Der Antrag zu deiner Schicht wurde bearbeitet.", r.shiftId);
+      return updated;
     });
-    emitToSchedule(modRequest.shift.schedule.id, "booking:changed", {
-      scheduleId: modRequest.shift.schedule.id,
-      shiftId: modRequest.shiftId,
-      userId: modRequest.userId,
-      action: "booked",
-    });
-
-    return NextResponse.json({
-      request: updatedRequest,
-      bookingCreated: true,
-    });
-  }
-
-  // Declining
-  const updated = await db.modRequest.update({
-    where: { id },
-    data: { state: "DECLINED" },
+    emitToOrg(m.organizationId, "booking:changed", {});
+    return { request: result };
   });
-
-  emitToSchedule(modRequest.shift.schedule.id, "mod-request:changed", {
-    scheduleId: modRequest.shift.schedule.id,
-    shiftId: modRequest.shiftId,
-    action: "declined",
-  });
-
-  return NextResponse.json({ request: updated });
 }
-
-/**
- * DELETE /api/mod-requests/[id]
- *
- * Cancel own request (employee) or delete any request (manager).
- */
-export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const member = await getCurrentMember();
-  if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id } = await params;
-
-  const modRequest = await db.modRequest.findUnique({
-    where: { id },
-    include: {
-      shift: {
-        include: {
-          schedule: { select: { organizationId: true, id: true } },
-        },
-      },
-    },
+export async function DELETE(_request: Request, context: Context) {
+  return api(async () => {
+    const m = await requireMember();
+    const { id } = await context.params;
+    await serial(async tx => {
+      const r = await tx.modRequest.findFirst({ where: { id, state: "OPEN", shift: { schedule: { organizationId: m.organizationId } } } });
+      if (!r) throw new ApiError("Offener Antrag nicht gefunden.", 404);
+      if (!isManagerOrAbove(m.role) && r.userId !== m.userId) throw new ApiError("Keine Berechtigung.", 403);
+      await tx.modRequest.delete({ where: { id } });
+    });
+    return { success: true };
   });
-
-  if (!modRequest || modRequest.shift.schedule.organizationId !== member.organizationId) {
-    return NextResponse.json(
-      { error: "Wunsch nicht gefunden" },
-      { status: 404 }
-    );
-  }
-
-  // Employees can only cancel their own pending requests
-  if (!isManagerOrAbove(member.role)) {
-    if (modRequest.userId !== member.user.id) {
-      return NextResponse.json(
-        { error: "Nur eigene Wuensche koennen storniert werden" },
-        { status: 403 }
-      );
-    }
-    if (modRequest.state !== "OPEN") {
-      return NextResponse.json(
-        { error: "Nur offene Wuensche koennen storniert werden" },
-        { status: 409 }
-      );
-    }
-  }
-
-  await db.modRequest.delete({
-    where: { id },
-  });
-
-  emitToSchedule(modRequest.shift.schedule.id, "mod-request:changed", {
-    scheduleId: modRequest.shift.schedule.id,
-    shiftId: modRequest.shiftId,
-    action: "deleted",
-  });
-
-  return NextResponse.json({ success: true });
 }

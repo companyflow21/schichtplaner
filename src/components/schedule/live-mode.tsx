@@ -222,7 +222,7 @@ export function LiveMode({ scheduleId, isManager }: LiveModeProps) {
             >
               <span className="relative flex size-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-300 opacity-75" />
-                <span className="relative inline-flex rounded-full size-2 bg-white" />
+                <span className="relative inline-flex rounded-full size-2 bg-card" />
               </span>
               LIVE
               {expanded ? (
@@ -434,7 +434,7 @@ function LiveLogFeed({ logs }: { logs: LiveLogData[] }) {
       {logs.map((log) => (
         <div
           key={log.id}
-          className="flex items-center gap-2 text-xs py-1 px-2 rounded bg-white/60"
+          className="flex items-center gap-2 text-xs py-1 px-2 rounded bg-card/60"
         >
           {log.action === "BOOK" ? (
             <UserPlus className="size-3 text-green-600 shrink-0" />

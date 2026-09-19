@@ -1,23 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { recordMinutes, berlinDate, validDate } from "@/lib/berlin";
 import { getCurrentMember, isManagerOrAbove } from "@/lib/auth-helpers";
-import {
-  startOfMonth,
-  endOfMonth,
-  parse,
-} from "date-fns";
-
-/**
- * Compute duration in decimal hours from two "HH:MM" strings.
- */
-function computeHoursFromRange(from: string, to: string): number {
-  const [fh, fm] = from.split(":").map(Number);
-  const [th, tm] = to.split(":").map(Number);
-  let totalMinutes = th * 60 + tm - (fh * 60 + fm);
-  if (totalMinutes < 0) totalMinutes += 24 * 60; // overnight
-  return totalMinutes / 60;
-}
 
 // GET /api/time — list time records for a month
 export async function GET(request: NextRequest) {
@@ -30,23 +15,11 @@ export async function GET(request: NextRequest) {
   const monthParam = searchParams.get("month"); // e.g. "2026-03"
   const userIdParam = searchParams.get("userId");
 
-  // Parse month
-  let monthStart: Date;
-  let monthEnd: Date;
-  if (monthParam) {
-    const parsed = parse(monthParam, "yyyy-MM", new Date());
-    if (isNaN(parsed.getTime())) {
-      return NextResponse.json(
-        { error: "Invalid month format. Use yyyy-MM" },
-        { status: 400 }
-      );
-    }
-    monthStart = startOfMonth(parsed);
-    monthEnd = endOfMonth(parsed);
-  } else {
-    monthStart = startOfMonth(new Date());
-    monthEnd = endOfMonth(new Date());
-  }
+  const month = monthParam || berlinDate().slice(0, 7);
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return NextResponse.json({ error: "Ungültiger Monat (JJJJ-MM)." }, { status: 400 });
+  const monthStart = new Date(month + "-01T00:00:00Z");
+  const monthEnd = new Date(monthStart);
+  monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
 
   // Get all org members to filter by org
   const orgMembers = await db.organizationMember.findMany({
@@ -81,8 +54,9 @@ export async function GET(request: NextRequest) {
 
   const records = await db.timeRecord.findMany({
     where: {
+      organizationId: member.organizationId,
       userId: { in: filterUserIds },
-      date: { gte: monthStart, lte: monthEnd },
+      date: { gte: monthStart, lt: monthEnd },
     },
     include: {
       category: { select: { id: true, name: true } },
@@ -123,18 +97,8 @@ export async function GET(request: NextRequest) {
     if (!group) continue;
     group.records.push(record);
 
-    // Calculate hours
-    if (record.type === "MANUAL" && record.timeFrom && record.timeTo) {
-      group.totalHours += computeHoursFromRange(record.timeFrom, record.timeTo);
-    } else if (
-      record.type === "MANUAL_DURATION" &&
-      (record.durationHours != null || record.durationMinutes != null)
-    ) {
-      group.totalHours +=
-        (record.durationHours ?? 0) + (record.durationMinutes ?? 0) / 60;
-    } else if (record.type === "WATCH" && record.timeFrom && record.timeTo) {
-      group.totalHours += computeHoursFromRange(record.timeFrom, record.timeTo);
-    }
+    // One calculation for stopwatch, pauses, corrections and exports.
+    group.totalHours += recordMinutes(record) / 60;
   }
 
   const grouped = Array.from(groupedMap.values()).sort((a, b) =>
@@ -148,17 +112,19 @@ export async function GET(request: NextRequest) {
 const createManualSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("MANUAL"),
+    breakMinutes: z.number().int().min(0).max(1440).default(0),
     userId: z.string().min(1),
-    date: z.string().min(1), // "2026-03-15"
-    timeFrom: z.string().regex(/^\d{2}:\d{2}$/),
-    timeTo: z.string().regex(/^\d{2}:\d{2}$/),
+    date: z.string().refine(validDate),
+    timeFrom: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+    timeTo: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
     categoryId: z.string().optional(),
     comment: z.string().optional(),
   }),
   z.object({
     type: z.literal("MANUAL_DURATION"),
+    breakMinutes: z.number().int().min(0).max(1440).default(0),
     userId: z.string().min(1),
-    date: z.string().min(1),
+    date: z.string().refine(validDate),
     durationHours: z.number().int().min(0),
     durationMinutes: z.number().int().min(0).max(59),
     categoryId: z.string().optional(),
@@ -188,6 +154,9 @@ export async function POST(request: NextRequest) {
   }
 
   const data = parsed.data;
+  if (data.type === "MANUAL" && data.timeFrom === data.timeTo) return NextResponse.json({ error: "Beginn und Ende müssen unterschiedlich sein." }, { status: 400 });
+  const gross = data.type === "MANUAL" ? recordMinutes({ type: data.type, timeFrom: data.timeFrom, timeTo: data.timeTo, durationHours: null, durationMinutes: null }) : data.durationHours * 60 + data.durationMinutes;
+  if (data.breakMinutes > gross) return NextResponse.json({ error: "Die Pause überschreitet die Arbeitszeit." }, { status: 400 });
 
   // Permission check: employees can only create for themselves
   if (!isManagerOrAbove(member.role) && data.userId !== member.user.id) {
@@ -210,12 +179,15 @@ export async function POST(request: NextRequest) {
   }
 
   const recordDate = new Date(data.date + "T00:00:00.000Z");
+  if (data.categoryId && !await db.timeCategory.findFirst({ where: { id: data.categoryId, organizationId: member.organizationId } })) return NextResponse.json({ error: "Kategorie nicht gefunden." }, { status: 400 });
 
   const record = await db.timeRecord.create({
     data: {
+      organizationId: member.organizationId,
       userId: data.userId,
       date: recordDate,
       type: data.type,
+      breakSeconds: data.breakMinutes * 60,
       timeFrom: data.type === "MANUAL" ? data.timeFrom : null,
       timeTo: data.type === "MANUAL" ? data.timeTo : null,
       durationHours:

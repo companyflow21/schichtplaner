@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
     inactive: allMembers.filter((m) => !m.isActive).length,
   };
 
-  return NextResponse.json({ members, counts });
+  return NextResponse.json({ members: members.map(m => ({ id: m.id, role: m.role, isActive: m.isActive, isActivated: m.isActivated, joinedAt: m.joinedAt, user: m.user })), counts });
 }
 
 // POST /api/employees - Create new employee(s)
@@ -126,6 +126,7 @@ export async function POST(request: NextRequest) {
 
   // Check for duplicate emails
   const emails = employees.map((e) => e.email.toLowerCase());
+  if (new Set(emails).size !== emails.length) return NextResponse.json({ error: "E-Mail-Adressen sind doppelt angegeben." }, { status: 400 });
   const existingUsers = await db.user.findMany({
     where: { email: { in: emails } },
     select: { id: true, email: true },
@@ -191,6 +192,7 @@ export async function POST(request: NextRequest) {
           role: emp.role,
           isActivated: false,
           activationToken: crypto.randomUUID(),
+          activationExpiresAt: new Date(Date.now() + 7 * 86400000),
         },
         include: {
           user: {

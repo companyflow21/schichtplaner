@@ -7,6 +7,8 @@
  */
 
 import { db } from "@/lib/db";
+import { serial } from "@/lib/api";
+import { assign } from "@/lib/planning";
 
 // ─── Tool Definitions ──────────────────────────────────────────────
 
@@ -206,6 +208,8 @@ export async function executeTool(
   orgId: string,
   userId: string
 ): Promise<ToolResult> {
+  const actor = await db.organizationMember.findFirst({ where: { organizationId: orgId, userId, isActive: true, isActivated: true, role: { in: ["OWNER", "ADMIN", "MANAGER"] }, organization: { deletedAt: null } } });
+  if (!actor) return { content: "Keine Berechtigung. Bitte nutze die freigegebenen Mitarbeiteransichten." };
   switch (toolName) {
     case "getSchedule":
       return executeGetSchedule(input, orgId);
@@ -522,13 +526,11 @@ async function executeBookEmployee(
   }
 
   // Create booking
-  await db.booking.create({
-    data: {
-      shiftId,
-      userId: employeeId,
-      bookedBy: userId,
-    },
-  });
+  try {
+    await serial(tx => assign(tx, orgId, userId, shiftId, employeeId));
+  } catch (error) {
+    return { content: error instanceof Error ? error.message : "Zuweisung nicht möglich." };
+  }
 
   const day = DAY_NAMES[shift.dayOfWeek] ?? `Tag ${shift.dayOfWeek}`;
   const name = `${member.user.firstName} ${member.user.lastName}`;

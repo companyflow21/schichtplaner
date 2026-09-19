@@ -47,6 +47,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
+import { Personnel } from "@/components/workforce/personnel";
 
 type EmployeeDetail = {
   id: string;
@@ -101,7 +102,7 @@ function getRoleBadgeColor(role: string) {
     case "OWNER":
       return "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200";
     case "ADMIN":
-      return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200";
+      return "bg-accent text-primary";
     case "MANAGER":
       return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200";
     default:
@@ -656,6 +657,7 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
         </div>
       </div>
 
+      <Personnel id={employee.id} />
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>

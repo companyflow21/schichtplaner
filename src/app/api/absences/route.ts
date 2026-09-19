@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentMember, isAdminOrAbove } from "@/lib/auth-helpers";
-import { startOfMonth, endOfMonth, parse } from "date-fns";
+import { validDate } from "@/lib/berlin";
+import { notify, planners } from "@/lib/planning";
 
 // GET /api/absences - List absences for the org
 export async function GET(request: NextRequest) {
@@ -26,6 +27,7 @@ export async function GET(request: NextRequest) {
 
   // Build where clause
   const where: Record<string, unknown> = {
+    category: { organizationId: member.organizationId },
     userId: { in: orgUserIds },
   };
 
@@ -37,10 +39,11 @@ export async function GET(request: NextRequest) {
       where.dateTo = { gte: new Date(`${year}-01-01`) };
     }
   } else if (monthParam) {
-    const parsed = parse(monthParam, "yyyy-MM", new Date());
-    if (!isNaN(parsed.getTime())) {
-      const monthStart = startOfMonth(parsed);
-      const monthEnd = endOfMonth(parsed);
+    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam)) {
+      const monthStart = new Date(monthParam + "-01T00:00:00Z");
+      const monthEnd = new Date(monthStart);
+      monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
+      monthEnd.setUTCDate(0);
       where.dateFrom = { lte: monthEnd };
       where.dateTo = { gte: monthStart };
     }
@@ -88,6 +91,7 @@ export async function GET(request: NextRequest) {
   // Get counts by status
   const allAbsences = await db.absence.findMany({
     where: {
+      category: { organizationId: member.organizationId },
       userId: isAdmin ? { in: orgUserIds } : member.user.id,
     },
     select: { status: true },
@@ -107,8 +111,8 @@ export async function GET(request: NextRequest) {
 const createAbsenceSchema = z.object({
   userId: z.string().min(1),
   categoryId: z.string().min(1),
-  dateFrom: z.string().min(1), // "2026-03-15"
-  dateTo: z.string().min(1), // "2026-03-20"
+  dateFrom: z.string().refine(validDate),
+  dateTo: z.string().refine(validDate),
   note: z.string().optional(),
   status: z.enum(["PENDING", "APPROVED"]).optional(),
 });
@@ -190,7 +194,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const absence = await db.absence.create({
+  const absence = await db.$transaction(async tx => {
+  const created = await tx.absence.create({
     data: {
       userId: data.userId,
       categoryId: data.categoryId,
@@ -219,5 +224,8 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  await notify(tx, member.organizationId, member.userId, status === "PENDING" ? await planners(tx, member.organizationId) : [data.userId], status === "PENDING" ? "Neuer Abwesenheitsantrag" : "Abwesenheit genehmigt", data.dateFrom + " bis " + data.dateTo + " · " + category.name);
+  return created;
+  });
   return NextResponse.json({ absence }, { status: 201 });
 }
