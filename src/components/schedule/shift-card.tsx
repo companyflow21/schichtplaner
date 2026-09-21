@@ -185,7 +185,7 @@ export function ShiftCard({
             className={cn(
               "tabular text-[10px] px-1.5 py-0",
               !isFull &&
-                "border-signal/45 bg-signal/15 text-[color-mix(in_srgb,var(--color-signal)_70%,#0b1626)] dark:text-signal"
+                "border-warn/45 bg-warn/10 text-warn"
             )}
             title={
               isFull

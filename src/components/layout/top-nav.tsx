@@ -57,19 +57,19 @@ export function TopNav() {
     return pathname.startsWith(segment);
   }
 
-  // Graphit-Leiste als schwebendes Material: der Plan laeuft darunter
-  // durch. Die aktive Seite traegt den Akzent der Marke als Unterkante -
-  // Flaeche und Linie statt Kachel.
+  // Kopfleiste nach Designsystem: helle Flaeche, Wortmarke links,
+  // Navigation in 14px/500, aktive Seite in AKRO-Blau mit Unterkante.
+  // Linien strukturieren - keine Kacheln, kein Glas, keine Schatten.
   const linkBase =
-    "relative flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors " +
+    "relative flex items-center gap-1.5 px-3 py-2 text-[14px] font-medium transition-colors " +
     "after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:transition-colors";
-  const linkActive = "text-[var(--akro-text-hell)] after:bg-[var(--akro-akzent)]";
+  const linkActive = "text-[var(--brand)] after:bg-[var(--brand)]";
   const linkIdle =
-    "text-[rgba(255,253,249,.66)] hover:text-[var(--akro-text-hell)] after:bg-transparent";
+    "text-foreground hover:text-[var(--brand)] after:bg-transparent";
 
   return (
-    <header className="akro-material akro-kante sticky top-0 z-40">
-      <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-2 px-4">
+    <header className="sticky top-0 z-40 border-b bg-background">
+      <div className="mx-auto flex h-16 max-w-[1344px] items-center gap-2 px-4 md:px-8">
         {/* Mobile hamburger */}
         <MobileNav />
 
@@ -82,12 +82,13 @@ export function TopNav() {
           <Image
             src="/akro/img/akro-wortmarke.svg"
             alt=""
-            width={84}
-            height={22}
+            width={115}
+            height={30}
             priority
-            className="h-[18px] w-auto"
+            className="h-[22px] w-auto"
           />
-          <span className="akro-label hidden text-[rgba(255,253,249,.66)] sm:inline">
+          {/* Senkrechte Linie wie in der Kopfzeile des Designsystems. */}
+          <span className="hidden border-l pl-5 text-[14px] text-muted-foreground sm:inline">
             Schichtplaner
           </span>
         </Link>
@@ -109,7 +110,7 @@ export function TopNav() {
                 <Icon className="size-4" />
                 <span className="hidden 2xl:inline">{item.label}</span>
                 {item.key === "portal" && unreadCount > 0 && (
-                  <span className="absolute top-0.5 right-0 flex size-4 items-center justify-center rounded-full bg-signal text-[10px] font-bold text-[#0b1626]">
+                  <span className="absolute top-0.5 right-0 flex size-4 items-center justify-center rounded-full bg-[var(--brand)] text-[10px] font-bold text-white">
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}

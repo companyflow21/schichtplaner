@@ -100,11 +100,11 @@ function getRoleLabel(role: string) {
 function getRoleBadgeColor(role: string) {
   switch (role) {
     case "OWNER":
-      return "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200";
+      return "bg-warn/10 text-warn dark:bg-warn/20 dark:text-warn";
     case "ADMIN":
       return "bg-accent text-primary";
     case "MANAGER":
-      return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200";
+      return "bg-ok/10 text-ok dark:bg-ok/20 dark:text-ok";
     default:
       return "";
   }
@@ -155,7 +155,7 @@ function InlineEdit({
           variant="ghost"
           size="icon-xs"
           onClick={handleSave}
-          className="text-emerald-600"
+          className="text-ok"
         >
           <Check className="size-3" />
         </Button>
@@ -378,7 +378,7 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
               {employee.isActive && !employee.isActivated && (
                 <Badge
                   variant="outline"
-                  className="border-amber-500 text-amber-600"
+                  className="border-warn/40 text-warn"
                 >
                   Nicht freigeschaltet
                 </Badge>

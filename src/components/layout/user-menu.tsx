@@ -27,7 +27,7 @@ export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-9 gap-2 px-2 text-[rgba(255,253,249,.8)] hover:bg-[rgba(255,253,249,.1)] hover:text-[var(--akro-text-hell)]">
+        <Button variant="ghost" className="relative h-9 gap-2 px-2">
           <Avatar size="sm">
             {member?.user.profileImage && (
               <AvatarImage

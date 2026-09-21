@@ -79,7 +79,7 @@ export function ScheduleOptions({
         <Badge variant={schedule.isPublic ? "default" : "secondary"} className="gap-1.5">
           {schedule.isPublic ? (
             <>
-              <span className="size-1.5 rounded-full bg-green-400 animate-pulse" />
+              <span className="size-1.5 rounded-full bg-ok animate-pulse" />
               Veroeffentlicht
             </>
           ) : (
@@ -157,7 +157,7 @@ function VisibilityToggle({
         <Button variant="outline" size="sm" className="gap-1.5">
           {isPublic ? (
             <>
-              <span className="size-1.5 rounded-full bg-green-500" />
+              <span className="size-1.5 rounded-full bg-ok" />
               Veroeffentlicht
             </>
           ) : (
@@ -482,7 +482,7 @@ function BriefingButton({
         <Button
           variant="outline"
           size="sm"
-          className={cn("gap-1.5", hasBriefing && "border-blue-300 text-blue-600")}
+          className={cn("gap-1.5", hasBriefing && "border-blue-300 text-[var(--brand)]")}
         >
           <FileText className="size-3.5" />
           Briefing

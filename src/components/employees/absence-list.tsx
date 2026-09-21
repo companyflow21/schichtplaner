@@ -251,13 +251,13 @@ export function AbsenceList() {
                 )}
               >
                 {tab.key === "pending" && (
-                  <Clock className="size-3.5 text-yellow-500" />
+                  <Clock className="size-3.5 text-warn" />
                 )}
                 {tab.key === "approved" && (
-                  <Check className="size-3.5 text-green-500" />
+                  <Check className="size-3.5 text-ok" />
                 )}
                 {tab.key === "declined" && (
-                  <X className="size-3.5 text-red-500" />
+                  <X className="size-3.5 text-destructive" />
                 )}
                 {tab.key === "all" && (
                   <Filter className="size-3.5" />
@@ -363,7 +363,7 @@ export function AbsenceList() {
                                 disabled={approveMutation.isPending}
                                 title="Genehmigen"
                               >
-                                <Check className="size-3.5 text-green-500" />
+                                <Check className="size-3.5 text-ok" />
                               </Button>
                               <Button
                                 variant="ghost"
@@ -372,7 +372,7 @@ export function AbsenceList() {
                                 disabled={declineMutation.isPending}
                                 title="Ablehnen"
                               >
-                                <X className="size-3.5 text-red-500" />
+                                <X className="size-3.5 text-destructive" />
                               </Button>
                             </>
                           )}
@@ -457,14 +457,14 @@ export function AbsenceList() {
                             size="icon-xs"
                             onClick={() => approveMutation.mutate(absence.id)}
                           >
-                            <Check className="size-3.5 text-green-500" />
+                            <Check className="size-3.5 text-ok" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon-xs"
                             onClick={() => declineMutation.mutate(absence.id)}
                           >
-                            <X className="size-3.5 text-red-500" />
+                            <X className="size-3.5 text-destructive" />
                           </Button>
                         </>
                       )}

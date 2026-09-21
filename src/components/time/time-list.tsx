@@ -103,11 +103,11 @@ function getRecordDisplayTime(record: TimeRecord): string {
 function getRecordTypeIcon(type: TimeRecord["type"]) {
   switch (type) {
     case "MANUAL":
-      return <Clock className="size-3.5 text-blue-500" />;
+      return <Clock className="size-3.5 text-[var(--brand)]" />;
     case "WATCH":
-      return <Timer className="size-3.5 text-emerald-500" />;
+      return <Timer className="size-3.5 text-ok" />;
     case "MANUAL_DURATION":
-      return <Clock className="size-3.5 text-violet-500" />;
+      return <Clock className="size-3.5 text-[var(--brand)]" />;
   }
 }
 

@@ -258,7 +258,7 @@ export function FileBrowser() {
                             Umbenennen
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            className="text-red-600"
+                            className="text-destructive"
                             onClick={(e) => {
                               e.stopPropagation();
                               deleteMutation.mutate(folder.id);
@@ -316,7 +316,7 @@ export function FileBrowser() {
                             Umbenennen
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            className="text-red-600"
+                            className="text-destructive"
                             onClick={() => deleteMutation.mutate(file.id)}
                           >
                             <Trash2 className="mr-2 size-4" />

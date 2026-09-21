@@ -82,19 +82,19 @@ function getStatusBadge(status: string) {
   switch (status) {
     case "PENDING":
       return (
-        <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+        <Badge className="bg-warn/10 text-warn dark:bg-warn/20 dark:text-warn">
           Ausstehend
         </Badge>
       );
     case "APPROVED":
       return (
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+        <Badge className="bg-ok/10 text-ok dark:bg-ok/20 dark:text-ok">
           Genehmigt
         </Badge>
       );
     case "DECLINED":
       return (
-        <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+        <Badge className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
           Abgelehnt
         </Badge>
       );
@@ -369,7 +369,7 @@ function AbsenceEditor({
                     size="sm"
                     onClick={handleApprove}
                     disabled={isPending}
-                    className="text-green-600 border-green-300 hover:bg-green-50 dark:hover:bg-green-950"
+                    className="text-ok border-ok/40 hover:bg-ok/10 dark:hover:bg-ok/20"
                   >
                     <Check className="size-4" />
                     Genehmigen
@@ -380,7 +380,7 @@ function AbsenceEditor({
                     size="sm"
                     onClick={handleDecline}
                     disabled={isPending}
-                    className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-950"
+                    className="text-destructive border-destructive/40 hover:bg-destructive/10 dark:hover:bg-destructive/20"
                   >
                     <X className="size-4" />
                     Ablehnen

@@ -13,7 +13,7 @@ export function ConnectionStatus() {
   if (status === "connected") {
     return (
       <span
-        className="hidden items-center text-[rgba(255,253,249,.4)] sm:flex"
+        className="hidden items-center text-muted-foreground/60 sm:flex"
         title="Live-Verbindung steht"
       >
         <Wifi className="size-3.5" />
@@ -26,7 +26,7 @@ export function ConnectionStatus() {
 
   return (
     <span
-      className="flex items-center gap-1.5 rounded-md bg-signal/15 px-2 py-1 text-xs font-medium text-signal"
+      className="flex items-center gap-1.5 rounded-md bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive"
       title={
         reconnecting
           ? "Verbindung wird wiederhergestellt"

@@ -131,7 +131,7 @@ export function ComposeMessage({ open, onOpenChange, defaultRecipientIds, defaul
                               e.stopPropagation();
                               removeRecipient(emp.user.id);
                             }}
-                            className="ml-0.5 hover:text-red-500"
+                            className="ml-0.5 hover:text-destructive"
                           >
                             <X className="size-3" />
                           </button>

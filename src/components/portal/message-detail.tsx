@@ -208,7 +208,7 @@ export function MessageDetail() {
           </Button>
           <Button
             variant="outline"
-            className="gap-2 text-red-600 hover:text-red-700"
+            className="gap-2 text-destructive hover:text-destructive"
             onClick={() => trashMutation.mutate()}
           >
             <Trash2 className="size-4" />

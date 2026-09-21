@@ -80,7 +80,7 @@ function getRoleBadge(role: string) {
   switch (role) {
     case "OWNER":
       return (
-        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+        <Badge className="bg-warn/10 text-warn dark:bg-warn/20 dark:text-warn">
           Owner
         </Badge>
       );
@@ -92,7 +92,7 @@ function getRoleBadge(role: string) {
       );
     case "MANAGER":
       return (
-        <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
+        <Badge className="bg-ok/10 text-ok dark:bg-ok/20 dark:text-ok">
           Manager
         </Badge>
       );
@@ -269,7 +269,7 @@ export function EmployeeList() {
                       ) : !emp.isActivated ? (
                         <Badge
                           variant="outline"
-                          className="border-amber-500 text-amber-600"
+                          className="border-warn/40 text-warn"
                         >
                           <AlertTriangle className="size-3" />
                           Nicht freigeschaltet
@@ -277,7 +277,7 @@ export function EmployeeList() {
                       ) : (
                         <Badge
                           variant="outline"
-                          className="border-emerald-500 text-emerald-600"
+                          className="border-ok/40 text-ok"
                         >
                           Aktiv
                         </Badge>
@@ -321,7 +321,7 @@ export function EmployeeList() {
                     {!emp.isActive ? (
                       <Badge variant="destructive">Inaktiv</Badge>
                     ) : !emp.isActivated ? (
-                      <AlertTriangle className="size-4 text-amber-500" />
+                      <AlertTriangle className="size-4 text-warn" />
                     ) : null}
                   </div>
                 </div>

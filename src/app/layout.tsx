@@ -7,6 +7,7 @@ export const metadata: Metadata = {
     template: "%s | AKRO Schichtplaner",
   },
   description: "Dienst- und Schichtplanung der AKRO GmbH",
+  icons: { icon: "/akro/img/favicon.svg" },
   metadataBase: new URL(process.env.APP_URL || "http://localhost:3000"),
   openGraph: {
     title: "AKRO Schichtplaner",

@@ -178,7 +178,7 @@ export function MessageList({ folder }: Props) {
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-red-600"
+                className="text-destructive"
                 onClick={() => deleteMutation.mutate(Array.from(selected))}
               >
                 <Trash2 className="mr-1 size-4" />

@@ -20,7 +20,7 @@ export default async function DashboardLayout({
           <SocketProvider>
             <div className="min-h-screen bg-background">
               <TopNav />
-              <main className="mx-auto max-w-[1400px] p-4 md:p-6">
+              <main className="mx-auto max-w-[1344px] px-[18px] py-6 md:px-8 xl:px-12">
                 {children}
               </main>
             </div>

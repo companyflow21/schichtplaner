@@ -146,7 +146,7 @@ export function TopicDetail({ topicId }: Props) {
           <Button
             variant="ghost"
             size="sm"
-            className="text-red-600 hover:text-red-700"
+            className="text-destructive hover:text-destructive"
             onClick={() => deleteMutation.mutate()}
           >
             <Trash2 className="size-4" />

@@ -136,20 +136,20 @@ export function WishRequestButton({
       OPEN: {
         icon: Clock,
         label: "Wunsch offen",
-        color: "text-amber-600",
-        bg: "bg-amber-50",
+        color: "text-warn",
+        bg: "bg-warn/10",
       },
       ACCEPTED: {
         icon: CheckCircle2,
         label: "Angenommen",
-        color: "text-green-600",
-        bg: "bg-green-50",
+        color: "text-ok",
+        bg: "bg-ok/10",
       },
       DECLINED: {
         icon: XCircle,
         label: "Abgelehnt",
-        color: "text-red-600",
-        bg: "bg-red-50",
+        color: "text-destructive",
+        bg: "bg-destructive/10",
       },
     };
     const config = stateConfig[existingRequest.state];
@@ -191,7 +191,7 @@ export function WishRequestButton({
     <>
       <button
         type="button"
-        className="flex items-center gap-1 text-[10px] text-amber-600 hover:text-amber-700 transition-colors"
+        className="flex items-center gap-1 text-[10px] text-warn hover:text-warn transition-colors"
         onClick={() => setDialogOpen(true)}
       >
         <Star className="size-3" />
@@ -278,7 +278,7 @@ export function WishCountBadge({ shiftId, scheduleId }: WishCountBadgeProps) {
         >
           <Badge
             variant="secondary"
-            className="text-[9px] px-1.5 py-0 gap-1 bg-amber-50 text-amber-700 hover:bg-amber-100 cursor-pointer"
+            className="text-[9px] px-1.5 py-0 gap-1 bg-warn/10 text-warn hover:bg-warn/10 cursor-pointer"
           >
             <Star className="size-2.5 fill-amber-500" />
             {shiftRequests.length}
@@ -406,7 +406,7 @@ function WishRequestsList({ requests, scheduleId }: WishRequestsListProps) {
           <Button
             variant="ghost"
             size="xs"
-            className="text-[10px] gap-1 text-green-600"
+            className="text-[10px] gap-1 text-ok"
             onClick={() => bulkAcceptMutation.mutate()}
             disabled={isPending}
           >
@@ -449,7 +449,7 @@ function WishRequestsList({ requests, scheduleId }: WishRequestsListProps) {
             <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
-                className="size-6 rounded-md flex items-center justify-center bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                className="size-6 rounded-md flex items-center justify-center bg-ok/10 text-ok hover:bg-ok/10 transition-colors"
                 title="Annehmen"
                 onClick={() => acceptMutation.mutate(req.id)}
                 disabled={isPending}
@@ -462,7 +462,7 @@ function WishRequestsList({ requests, scheduleId }: WishRequestsListProps) {
               </button>
               <button
                 type="button"
-                className="size-6 rounded-md flex items-center justify-center bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                className="size-6 rounded-md flex items-center justify-center bg-destructive/10 text-destructive hover:bg-destructive/10 transition-colors"
                 title="Ablehnen"
                 onClick={() => declineMutation.mutate(req.id)}
                 disabled={isPending}
@@ -503,8 +503,8 @@ export function WishFilterToggle({
       className={cn(
         "gap-1.5",
         enabled
-          ? "bg-amber-600 hover:bg-amber-700"
-          : "border-amber-200 text-amber-700 hover:bg-amber-50"
+          ? "bg-warn hover:bg-warn"
+          : "border-warn/40 text-warn hover:bg-warn/10"
       )}
       onClick={() => onToggle(!enabled)}
     >
@@ -514,7 +514,7 @@ export function WishFilterToggle({
         variant="secondary"
         className={cn(
           "text-[9px] px-1 py-0 ml-0.5",
-          enabled ? "bg-amber-500 text-white" : "bg-amber-100 text-amber-700"
+          enabled ? "bg-warn text-white" : "bg-warn/10 text-warn"
         )}
       >
         {wishCount}

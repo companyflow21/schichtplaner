@@ -151,13 +151,13 @@ function ToolResultCard({ tool }: { tool: ToolResultInfo }) {
     <div className="rounded-lg border bg-card p-2 text-xs">
       <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
         {tool.requiresConfirmation ? (
-          <AlertTriangle className="size-3 text-amber-500" />
+          <AlertTriangle className="size-3 text-warn" />
         ) : (
           <Wrench className="size-3" />
         )}
         <span className="font-medium">{label}</span>
         {tool.requiresConfirmation && (
-          <span className="text-amber-600 dark:text-amber-400 text-[10px]">
+          <span className="text-warn dark:text-warn text-[10px]">
             (Aktion ausgefuehrt)
           </span>
         )}
