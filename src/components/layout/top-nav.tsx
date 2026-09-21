@@ -76,7 +76,7 @@ export function TopNav() {
         {/* Die echte Wortmarke aus dem Design Starter, lokal gehostet. */}
         <Link
           href="/dashboard"
-          className="mr-5 flex items-center gap-3"
+          className="mr-5 flex shrink-0 items-center gap-3"
           aria-label="AKRO Schichtplaner - zur Startseite"
         >
           <Image
@@ -88,13 +88,13 @@ export function TopNav() {
             className="h-[22px] w-auto"
           />
           {/* Senkrechte Linie wie in der Kopfzeile des Designsystems. */}
-          <span className="hidden border-l pl-5 text-[14px] text-muted-foreground sm:inline">
+          <span className="hidden border-l pl-5 text-[14px] whitespace-nowrap text-muted-foreground lg:inline">
             Schichtplaner
           </span>
         </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden md:flex md:items-center md:gap-1">
+        <nav className="hidden min-w-0 overflow-x-auto md:flex md:items-center md:gap-1">
           {visibleNav(me?.role).map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
@@ -105,7 +105,7 @@ export function TopNav() {
                 aria-label={item.label}
                 title={item.label}
                 aria-current={active ? "page" : undefined}
-                className={cn(linkBase, active ? linkActive : linkIdle)}
+                className={cn(linkBase, "shrink-0 whitespace-nowrap", active ? linkActive : linkIdle)}
               >
                 <Icon className="size-4" />
                 <span className="hidden 2xl:inline">{item.label}</span>
