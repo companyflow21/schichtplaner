@@ -47,6 +47,8 @@ services:
       DATABASE_URL: postgresql://schichtplaner:${POSTGRES_PASSWORD}@postgres:5432/schichtplaner
       AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET muss in .env gesetzt sein}
       AUTH_TRUST_HOST: "true"
+      # Dienstplaene, Stempelzeiten und Auswertungen rechnen in Ortszeit.
+      TZ: Europe/Berlin
     expose:
       - "3000"
     healthcheck:
