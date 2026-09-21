@@ -15,7 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
 
-export function UserMenu() {
+export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
   const { data: member } = useCurrentMember();
   const { theme, setTheme } = useTheme();
 
@@ -27,7 +27,11 @@ export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-9 gap-2 px-2">
+        <Button
+          variant="ghost"
+          className={collapsed ? "h-10 w-full justify-center px-0" : "h-10 w-full justify-start gap-2 px-2"}
+          aria-label="Benutzerkonto"
+        >
           <Avatar size="sm">
             {member?.user.profileImage && (
               <AvatarImage
@@ -39,9 +43,11 @@ export function UserMenu() {
               {initials || "?"}
             </AvatarFallback>
           </Avatar>
-          <span className="hidden text-sm font-medium lg:inline">
-            {fullName || "Laden..."}
-          </span>
+          {!collapsed && (
+            <span className="truncate text-[14px] font-medium">
+              {fullName || "Laden ..."}
+            </span>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

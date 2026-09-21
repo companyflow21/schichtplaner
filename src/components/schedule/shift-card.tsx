@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Clock, Loader2, Pause, Plus, Users, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { EmployeePicker } from "./employee-picker";
 import { WishRequestButton, WishCountBadge } from "./wish-plan";
@@ -129,12 +130,6 @@ export function ShiftCard({
     },
   });
 
-  function handleUnbook(userId: string, name: string) {
-    if (confirm(`${name} wirklich aus der Schicht entfernen?`)) {
-      unbookMutation.mutate(userId);
-    }
-  }
-
   function handleBook(userId: string) {
     bookMutation.mutate(userId);
   }
@@ -150,12 +145,16 @@ export function ShiftCard({
     !isFull;
 
   const isLayout1 = layout === "LAYOUT_1";
+  const offeneBestätigungen = shift.bookings.filter((b) => !b.confirmedAt).length;
 
   return (
     <div
       className={cn(
-        "group rounded-lg border bg-card transition-all overflow-hidden",
-        isLayout1 ? "shadow-sm hover:shadow-md" : "shadow-none",
+        "group overflow-hidden rounded-md border bg-card transition-colors",
+        // Rangfolge: unbesetzt faellt auf, fehlende Bestätigung bleibt
+        // dezent, vollstaendig besetzte Schichten bleiben ruhig.
+        !isFull && "border-warn/50",
+        isFull && offeneBestätigungen > 0 && "border-dashed",
         isPending && "opacity-70 pointer-events-none",
         isDimmed && "opacity-40 scale-[0.98]",
         highlightUserId && hasHighlightUser && "ring-2 ring-primary/40"
@@ -190,7 +189,7 @@ export function ShiftCard({
             title={
               isFull
                 ? "Schicht vollstaendig besetzt"
-                : `${emptySlots} Platz/Plaetze noch offen`
+                : `${emptySlots} Platz/Plätze noch offen`
             }
           >
             <Users className="size-3" />
@@ -202,23 +201,36 @@ export function ShiftCard({
           </div>
         </div>
 
-        {/* Division name */}
-        {shift.division && (
-          <div className="text-xs font-medium truncate" style={{ color: divisionColor }}>
-            {shift.division.title}
+        {/* Einsatzort und Tätigkeit - Adresse, Treffpunkt und Hinweise
+            stehen im Detailbereich, nicht auf jeder Karte. */}
+        {shift.branch && (
+          <div className="truncate text-xs font-medium" title={shift.branch.name}>
+            {shift.branch.name}
           </div>
         )}
+        {(showTitle && shift.title) || shift.division ? (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            {shift.division && (
+              <span
+                aria-hidden="true"
+                className="size-2 shrink-0 rounded-full"
+                style={{ backgroundColor: divisionColor }}
+              />
+            )}
+            <span className="truncate">
+              {[showTitle ? shift.title : null, shift.division?.title]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </div>
+        ) : null}
 
-        {/* Title */}
-        {shift.branch && <div className="text-xs"><strong>{shift.branch.name}</strong><p>{shift.branch.address}</p>{shift.branch.meetingPoint && <p>Treffpunkt: {shift.branch.meetingPoint}</p>}{shift.branch.notes && <p className="text-muted-foreground whitespace-pre-wrap">{shift.branch.notes}</p>}</div>}
-        {shift.description && <p className="text-xs whitespace-pre-wrap">{shift.description}</p>}
-        {showTitle && shift.title && (
-          <div className="text-xs text-foreground truncate font-medium">
-            {shift.title}
+        {/* Nur der Hinweis, der eine Handlung ausloest. */}
+        {isManager && isFull && offeneBestätigungen > 0 && (
+          <div className="text-[11px] text-muted-foreground">
+            {offeneBestätigungen} Bestätigung(en) offen
           </div>
         )}
-
-        {/* Pause info */}
         {showPauses && hasPause && (
           <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
             <Pause className="size-2.5" />
@@ -264,16 +276,17 @@ export function ShiftCard({
                 {booking.user.firstName} {booking.user.lastName}
               </span>
               {canUnbook && (
+                <ConfirmDialog
+                  title="Zuweisung aufheben"
+                  description={`${booking.user.firstName} ${booking.user.lastName} wird aus dieser Schicht entfernt. Der Platz ist danach wieder offen.`}
+                  confirmLabel="Entfernen"
+                  onConfirm={() => unbookMutation.mutate(booking.userId)}
+                >
                 <button
                   type="button"
                   className="opacity-0 group-hover/slot:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
                   title="Abbuchen"
-                  onClick={() =>
-                    handleUnbook(
-                      booking.userId,
-                      `${booking.user.firstName} ${booking.user.lastName}`
-                    )
-                  }
+                  aria-label={`${booking.user.firstName} ${booking.user.lastName} aus der Schicht entfernen`}
                 >
                   {unbookMutation.isPending ? (
                     <Loader2 className="size-3 animate-spin" />
@@ -281,6 +294,7 @@ export function ShiftCard({
                     <X className="size-3" />
                   )}
                 </button>
+                </ConfirmDialog>
               )}
             </div>
           );

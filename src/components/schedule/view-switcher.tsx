@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { LayoutGrid, Table2, User, CalendarDays } from "lucide-react";
+import { LayoutGrid, User, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ViewSwitcherProps {
@@ -20,15 +20,9 @@ const views: {
 }[] = [
   {
     key: "flexible",
-    label: "Flexibel",
+    label: "Planung",
     icon: LayoutGrid,
     getHref: (kw: string, _month: string) => `/schedule/flexible/${kw}`,
-  },
-  {
-    key: "classic",
-    label: "Klassisch",
-    icon: Table2,
-    getHref: (kw: string, _month: string) => `/schedule/classic/${kw}`,
   },
   {
     key: "employee",
@@ -75,9 +69,7 @@ export function ViewSwitcher({ kw, month }: ViewSwitcherProps) {
   const effectiveMonth = month ?? kwToMonth(effectiveKW);
 
   // Determine active view from current pathname
-  const activeView = pathname.includes("/schedule/classic")
-    ? "classic"
-    : pathname.includes("/schedule/employee")
+  const activeView = pathname.includes("/schedule/employee")
       ? "employee"
       : pathname.includes("/schedule/month")
         ? "month"

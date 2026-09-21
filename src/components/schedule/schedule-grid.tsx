@@ -9,13 +9,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { dayNames, formatDateShort } from "@/lib/utils/calendar";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
 import { cn } from "@/lib/utils";
+import { ScheduleToolbar } from "./schedule-toolbar";
 import { ShiftCard } from "./shift-card";
 import { ShiftForm } from "./shift-form";
 import { EmployeeNav } from "./employee-nav";
-import { ScheduleOptions } from "./schedule-options";
-import { LiveMode, LiveBorder } from "./live-mode";
-import { AISuggestButton } from "./ai-suggest-button";
-import { WishFilterToggle } from "./wish-plan";
+import { LiveBorder } from "./live-mode";
 import type { WishRequest } from "./wish-plan";
 import type { ScheduleData, ShiftData } from "@/types/schedule";
 
@@ -138,6 +136,12 @@ export function ScheduleGrid({ weekNumber, year, weekDates }: ScheduleGridProps)
     return grouped;
   }, [shifts, divisionFilter, wishFilterEnabled, wishByShift]);
 
+  // Neue Schichten landen auf dem heutigen Wochentag, sonst auf Montag.
+  const ersterTagDerWoche = useMemo(() => {
+    const heute = weekDates.findIndex((d) => isToday(d));
+    return heute >= 0 ? heute + 1 : 1;
+  }, [weekDates]);
+
   // Dialog state
   const [formOpen, setFormOpen] = useState(false);
   const [formDay, setFormDay] = useState(1);
@@ -161,31 +165,18 @@ export function ScheduleGrid({ weekNumber, year, weekDates }: ScheduleGridProps)
 
   return (
     <>
-      {/* Schedule Options toolbar */}
-      {schedule && (
-        <div className="mb-4 flex items-start justify-between gap-4 flex-wrap">
-          <ScheduleOptions
-            schedule={schedule}
-            isManager={isManager}
-            divisionFilter={divisionFilter}
-            onDivisionFilterChange={setDivisionFilter}
-          />
-          <div className="flex items-center gap-2">
-            {/* Wish filter toggle (manager only) */}
-            {isManager && (
-              <WishFilterToggle
-                enabled={wishFilterEnabled}
-                onToggle={setWishFilterEnabled}
-                wishCount={openWishCount}
-              />
-            )}
-            {/* AI Suggest button (manager only) */}
-            {isManager && <AISuggestButton scheduleId={scheduleId} />}
-            {/* Live Mode controls */}
-            <LiveMode scheduleId={scheduleId} isManager={isManager} />
-          </div>
-        </div>
-      )}
+      <ScheduleToolbar
+        weekNumber={weekNumber}
+        year={year}
+        schedule={schedule}
+        isManager={isManager}
+        divisionFilter={divisionFilter}
+        onDivisionFilterChange={setDivisionFilter}
+        wishFilterEnabled={wishFilterEnabled}
+        onWishFilterChange={setWishFilterEnabled}
+        openWishCount={openWishCount}
+        onAddShift={() => handleAddShift(ersterTagDerWoche)}
+      />
 
       {/* Employee filter bar */}
       {shifts.length > 0 && (

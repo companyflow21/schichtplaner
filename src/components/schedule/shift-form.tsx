@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { json, useAction, selectClass, ErrorMessage } from "@/components/workforce/client";
@@ -14,11 +15,11 @@ function Editor({ open, onOpenChange, scheduleId, defaultDayOfWeek = 1, shift }:
   const [copyDate, setCopyDate] = useState("");
   const locations = useQuery({ queryKey: ["branches"], queryFn: () => json<{branches: {id: string; name: string; isActive: boolean; positions: string[]}[]}>("/api/branches") });
   const divisions = useQuery({ queryKey: ["divisions"], queryFn: () => json<{divisions: DivisionOption[]}>("/api/divisions") });
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl"><DialogHeader><DialogTitle>{shift ? "Schicht bearbeiten" : "Schicht erstellen"}</DialogTitle><DialogDescription>Bei einer Endzeit vor der Startzeit endet die Schicht am Folgetag.</DialogDescription></DialogHeader><ErrorMessage error={locations.error || divisions.error} />
+  return <Sheet open={open} onOpenChange={onOpenChange}><SheetContent side="right" className="w-full overflow-y-auto p-4 sm:max-w-[30rem]"><SheetHeader className="p-0 pb-4"><SheetTitle>{shift ? "Schicht bearbeiten" : "Schicht erstellen"}</SheetTitle><SheetDescription>Bei einer Endzeit vor der Startzeit endet die Schicht am Folgetag.</SheetDescription></SheetHeader><ErrorMessage error={locations.error || divisions.error} />
     <form className="grid gap-4 sm:grid-cols-2" onSubmit={async e => {
       e.preventDefault(); const f = new FormData(e.currentTarget);
       const data = { scheduleId, divisionId: f.get("divisionId") || null, branchId: f.get("branchId") || null, title: f.get("title") || null, shiftFrom: f.get("shiftFrom"), shiftTo: f.get("shiftTo"), maxEmployees: Number(f.get("maxEmployees")), pauseOption: f.get("pauseOption"), pauseValue: Number(f.get("pauseValue")), description: f.get("description") || null, requiredQualifications: String(f.get("qualifications")).split(",").map(s => s.trim()).filter(Boolean), dayOfWeek: days[0], repeatDays: days, repeatWeeks: Number(f.get("repeatWeeks") || 1) };
-      await action.mutateAsync({ url: shift ? "/api/shifts/" + shift.id : "/api/shifts", method: shift ? "PATCH" : "POST", data }).then(() => onOpenChange(false)).catch(() => {});
+      await action.mutateAsync({ url: shift ? "/api/shifts/" + shift.id : "/api/shifts", method: shift ? "PATCH" : "POST", data, message: shift ? "Schicht geändert" : "Schicht angelegt" }).then(() => onOpenChange(false)).catch(() => {});
     }}>
       <label>Beginn<Input type="time" name="shiftFrom" defaultValue={shift?.shiftFrom || "08:00"} required /></label><label>Ende<Input type="time" name="shiftTo" defaultValue={shift?.shiftTo || "17:00"} required /></label>
       <label>Einsatzort<select name="branchId" defaultValue={shift?.branchId || ""} className={selectClass}><option value="">Kein Einsatzort</option>{locations.data?.branches.filter(b => b.isActive || b.id === shift?.branchId).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
@@ -30,8 +31,8 @@ function Editor({ open, onOpenChange, scheduleId, defaultDayOfWeek = 1, shift }:
       {!shift && <label>Wöchentlich wiederholen (Wochen)<Input name="repeatWeeks" type="number" min={1} max={52} defaultValue={1} required /></label>}
       <label className="sm:col-span-2">Erforderliche Qualifikationen (Komma getrennt)<Input name="qualifications" defaultValue={shift?.requiredQualifications?.join(", ") || ""} /></label>
       <label className="sm:col-span-2">Hinweise<Textarea name="description" defaultValue={shift?.description || ""} maxLength={2000} /></label>
-      <div className="sm:col-span-2 flex flex-wrap justify-end gap-2">{shift && <Button type="button" variant="destructive" disabled={action.isPending} onClick={() => { if (confirm("Schicht absagen und Zuweisungen aufheben?")) action.mutateAsync({ url: "/api/shifts/" + shift.id, method: "DELETE" }).then(() => onOpenChange(false)).catch(() => {}); }}>Schicht löschen</Button>}<Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button><Button disabled={action.isPending}>Speichern</Button></div>
+      <div className="sm:col-span-2 flex flex-wrap justify-end gap-2">{shift && <ConfirmDialog title="Schicht absagen" description="Die Schicht wird gelöscht und alle Zuweisungen werden aufgehoben. Betroffene Mitarbeitende verlieren diesen Einsatz." confirmLabel="Schicht löschen" disabled={action.isPending} onConfirm={() => { action.mutateAsync({ url: "/api/shifts/" + shift.id, method: "DELETE", message: "Schicht abgesagt" }).then(() => onOpenChange(false)).catch(() => {}); }}><Button type="button" variant="destructive" disabled={action.isPending}>Schicht löschen</Button></ConfirmDialog>}<Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button><Button disabled={action.isPending}>Speichern</Button></div>
     </form>
-    {shift && <div className="border-t pt-4 flex flex-wrap items-end gap-3"><label className="flex-1">Schicht kopieren auf<Input type="date" value={copyDate} onChange={e => setCopyDate(e.target.value)} /></label><Button variant="outline" disabled={!copyDate || action.isPending} onClick={() => action.mutateAsync({ url: "/api/shifts/" + shift.id + "/copy", data: { date: copyDate } }).then(() => onOpenChange(false)).catch(() => {})}>Kopieren</Button><p className="text-xs text-muted-foreground w-full">Details werden kopiert. Mitarbeitende weist du anschließend zu.</p></div>}
-  </DialogContent></Dialog>;
+    {shift && <div className="border-t pt-4 flex flex-wrap items-end gap-3"><label className="flex-1">Schicht kopieren auf<Input type="date" value={copyDate} onChange={e => setCopyDate(e.target.value)} /></label><Button variant="outline" disabled={!copyDate || action.isPending} onClick={() => action.mutateAsync({ url: "/api/shifts/" + shift.id + "/copy", data: { date: copyDate }, message: "Schicht kopiert" }).then(() => onOpenChange(false)).catch(() => {})}>Kopieren</Button><p className="text-xs text-muted-foreground w-full">Details werden kopiert. Mitarbeitende weist du anschließend zu.</p></div>}
+  </SheetContent></Sheet>;
 }

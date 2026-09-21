@@ -5,8 +5,6 @@ import {
   formatKW,
   getWeekDates,
 } from "@/lib/utils/calendar";
-import { WeekNav } from "@/components/schedule/week-nav";
-import { ViewSwitcher } from "@/components/schedule/view-switcher";
 import { ScheduleGridWrapper } from "@/components/schedule/schedule-grid-wrapper";
 
 interface ScheduleKWPageProps {
@@ -30,16 +28,8 @@ export default async function ScheduleKWPage({ params }: ScheduleKWPageProps) {
   const weekDateStrings = weekDates.map((d) => d.toISOString());
 
   return (
-    <div className="space-y-6">
-      {/* View Switcher */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <ViewSwitcher kw={kw} />
-      </div>
-
-      {/* Week Navigation */}
-      <WeekNav weekNumber={weekNumber} year={year} />
-
-      {/* 7-Column Schedule Grid with Shifts */}
+    <div>
+      {/* Kopfleiste, Status und Werkzeuge stecken in der Rasterkomponente. */}
       <ScheduleGridWrapper
         weekNumber={weekNumber}
         year={year}

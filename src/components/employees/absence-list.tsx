@@ -15,6 +15,7 @@ import {
   Search,
   Filter,
 } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -179,22 +180,19 @@ export function AbsenceList() {
       const res = await fetch(`/api/absences/${id}`, { method: "DELETE" });
       if (!res.ok) {
         const d = await res.json();
-        throw new Error(d.error || "Fehler beim Loeschen");
+        throw new Error(d.error || "Fehler beim Löschen");
       }
       return res.json();
     },
     onSuccess: () => {
-      toast.success("Abwesenheit geloescht");
+      toast.success("Abwesenheit gelöscht");
       queryClient.invalidateQueries({ queryKey: ["absences"] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
 
-  function handleDelete(id: string) {
-    if (confirm("Abwesenheit wirklich loeschen?")) {
-      deleteMutation.mutate(id);
-    }
-  }
+  const LOESCH_HINWEIS =
+    "Der Eintrag wird entfernt. Ein genehmigter Zeitraum gilt danach nicht mehr als Abwesenheit.";
 
   function handleEdit(absence: AbsenceData) {
     setEditingAbsence(absence);
@@ -289,7 +287,7 @@ export function AbsenceList() {
           <p className="text-lg font-medium">Keine Abwesenheiten</p>
           <p className="text-sm text-muted-foreground mt-1">
             {search
-              ? "Keine Ergebnisse fuer die Suche."
+              ? "Keine Ergebnisse für die Suche."
               : "Noch keine Abwesenheitsanfragen vorhanden."}
           </p>
         </Card>
@@ -385,15 +383,22 @@ export function AbsenceList() {
                             <Pencil className="size-3" />
                           </Button>
                           {canDelete && (
+                            <ConfirmDialog
+                              title="Abwesenheit löschen"
+                              description={LOESCH_HINWEIS}
+                              confirmLabel="Löschen"
+                              disabled={deleteMutation.isPending}
+                              onConfirm={() => deleteMutation.mutate(absence.id)}
+                            >
                             <Button
                               variant="ghost"
                               size="icon-xs"
-                              onClick={() => handleDelete(absence.id)}
                               disabled={deleteMutation.isPending}
-                              title="Loeschen"
+                              title="Löschen"
                             >
                               <Trash2 className="size-3 text-destructive" />
                             </Button>
+                            </ConfirmDialog>
                           )}
                         </div>
                       </TableCell>
@@ -476,13 +481,16 @@ export function AbsenceList() {
                         <Pencil className="size-3" />
                       </Button>
                       {canDelete && (
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          onClick={() => handleDelete(absence.id)}
+                        <ConfirmDialog
+                          title="Abwesenheit löschen"
+                          description={LOESCH_HINWEIS}
+                          confirmLabel="Löschen"
+                          onConfirm={() => deleteMutation.mutate(absence.id)}
                         >
-                          <Trash2 className="size-3 text-destructive" />
-                        </Button>
+                          <Button variant="ghost" size="icon-xs" title="Löschen">
+                            <Trash2 className="size-3 text-destructive" />
+                          </Button>
+                        </ConfirmDialog>
                       )}
                     </div>
                   </div>

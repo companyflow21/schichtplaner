@@ -124,7 +124,7 @@ export function ScheduleOptions({
 
 // ─── Visibility Toggle ─────────────────────────────────────────────
 
-function VisibilityToggle({
+export function VisibilityToggle({
   scheduleId,
   isPublic,
 }: {
@@ -197,7 +197,7 @@ function VisibilityToggle({
 
 // ─── Division Filter ────────────────────────────────────────────────
 
-function DivisionFilter({
+export function DivisionFilter({
   scheduleId,
   divisionFilter,
   onDivisionFilterChange,
@@ -270,7 +270,7 @@ function DivisionFilter({
 
 // ─── Options Menu ───────────────────────────────────────────────────
 
-function OptionsMenu({
+export function OptionsMenu({
   scheduleId,
   settingsLayout,
   showTitle,
@@ -381,7 +381,7 @@ function OptionsMenu({
 
 // ─── Briefing Button + Sheet ────────────────────────────────────────
 
-function BriefingButton({
+export function BriefingButton({
   scheduleId,
   isManager,
 }: {
@@ -569,7 +569,7 @@ function BriefingButton({
 
 // ─── AI Briefing Button ─────────────────────────────────────────────
 
-function AiBriefingButton({ scheduleId }: { scheduleId: string }) {
+export function AiBriefingButton({ scheduleId }: { scheduleId: string }) {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({

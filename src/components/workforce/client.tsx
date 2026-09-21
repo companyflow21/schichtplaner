@@ -10,8 +10,10 @@ export async function json<T>(url: string, init?: RequestInit): Promise<T> {
 export function useAction() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ url, method = "POST", data }: { url: string; method?: string; data?: unknown }) => json(url, { method, headers: { "Content-Type": "application/json" }, ...(data !== undefined ? { body: JSON.stringify(data) } : {}) }),
-    onSuccess: () => { toast.success("Gespeichert"); client.invalidateQueries(); },
+    // "message" benennt die Aenderung konkret; ohne Angabe bleibt es beim
+    // allgemeinen Hinweis.
+    mutationFn: ({ url, method = "POST", data }: { url: string; method?: string; data?: unknown; message?: string }) => json(url, { method, headers: { "Content-Type": "application/json" }, ...(data !== undefined ? { body: JSON.stringify(data) } : {}) }),
+    onSuccess: (_result, variables) => { toast.success(variables.message ?? "Gespeichert"); client.invalidateQueries(); },
     onError: (error: Error) => toast.error(error.message),
   });
 }
