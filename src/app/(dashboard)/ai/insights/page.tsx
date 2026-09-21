@@ -115,8 +115,8 @@ export default function AiInsightsPage() {
 
       {/* Error state */}
       {error && !isLoading && (
-        <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 p-6 text-center">
-          <p className="text-sm text-red-600 dark:text-red-400">
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 dark:bg-destructive/20 dark:border-destructive/40 p-6 text-center">
+          <p className="text-sm text-destructive dark:text-destructive">
             {error instanceof Error ? error.message : "Fehler beim Laden"}
           </p>
           <Button
@@ -229,13 +229,13 @@ export default function AiInsightsPage() {
                         key={idx}
                         className={cn(
                           "border-b last:border-0",
-                          dp.isForecast && "bg-amber-50/50 dark:bg-amber-950/20"
+                          dp.isForecast && "bg-warn/10/50 dark:bg-warn/20"
                         )}
                       >
                         <td className="px-4 py-2">
                           <span className="font-medium">{dp.label}</span>
                           {dp.isForecast && (
-                            <span className="ml-1.5 text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                            <span className="ml-1.5 text-[10px] text-warn dark:text-warn font-medium">
                               PROGNOSE
                             </span>
                           )}
@@ -286,16 +286,16 @@ function MetricCard({
         <div
           className={cn(
             "flex size-8 items-center justify-center rounded-lg",
-            variant === "success" && "bg-green-100 dark:bg-green-900",
-            variant === "danger" && "bg-red-100 dark:bg-red-900",
+            variant === "success" && "bg-ok/10 dark:bg-ok/20",
+            variant === "danger" && "bg-destructive/10 dark:bg-destructive/20",
             variant === "neutral" && "bg-muted"
           )}
         >
           <Icon
             className={cn(
               "size-4",
-              variant === "success" && "text-green-600 dark:text-green-400",
-              variant === "danger" && "text-red-600 dark:text-red-400",
+              variant === "success" && "text-ok dark:text-ok",
+              variant === "danger" && "text-destructive dark:text-destructive",
               variant === "neutral" && "text-muted-foreground"
             )}
           />

@@ -16,9 +16,9 @@ export default function Error({
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="mx-auto max-w-md text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10 dark:bg-destructive/20">
           <svg
-            className="h-8 w-8 text-red-600 dark:text-red-400"
+            className="h-8 w-8 text-destructive dark:text-destructive"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={1.5}
