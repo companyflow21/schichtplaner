@@ -23,6 +23,7 @@
   ],
   "scripts": {
     "test:workflows": "tsx tests/workflows.ts",
+    "test:load:pilot": "tsx tests/load-pilot.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

@@ -27,6 +27,44 @@ Der erste Start dauert einige Minuten. Danach im Browser: **https://localhost**
 Passwörter: mindestens 12 Zeichen, Groß- und Kleinbuchstaben, eine Zahl.
 Die Datenbank ist nur intern im Docker-Netz erreichbar, nicht von außen.
 
+## Pilot-Performance-Test
+
+**Voraussetzungen:** eine eigene Testinstallation (nicht die Produktivumgebung)
+und dort angelegte Testkonten `load-user-001@akro-test.invalid` bis
+`load-user-040@akro-test.invalid` mit gemeinsamem Passwort. Der Test legt
+selbst keine Benutzer an.
+
+**Umgebungsvariablen:**
+
+| Variable | Standard | Bedeutung |
+|---|---|---|
+| `LOAD_BASE_URL` | – | Adresse der Testinstallation (Pflicht) |
+| `LOAD_USER_PASSWORD` | – | Passwort der Testkonten (Pflicht) |
+| `LOAD_USER_PREFIX` | `load-user-` | Namensteil vor der laufenden Nummer |
+| `LOAD_USERS` | `30` | Nutzer in der Normallast |
+| `LOAD_DURATION_MINUTES` | `15` | Gesamtdauer; Phasen werden anteilig angepasst |
+| `LOAD_SPIKE_USERS` | `40` | Nutzer in der Lastspitze |
+| `LOAD_ALLOW_WRITES` | `false` | Schreibvorgänge nur in einer erkennbaren Testorganisation |
+
+**Start:**
+
+```
+LOAD_BASE_URL="https://dienstplan.test.example" LOAD_USER_PASSWORD="…" npm run test:load:pilot
+```
+
+**Niemals gegen die Produktivdatenbank testen.** Ohne `LOAD_BASE_URL` startet
+der Test nicht; es gibt bewusst keine Standardadresse.
+
+Währenddessen in zwei weiteren Terminals mitschauen:
+
+```
+docker stats
+```
+
+```
+docker compose logs -f app postgres caddy
+```
+
 ## Stoppen / Backup
 ```
 docker compose down

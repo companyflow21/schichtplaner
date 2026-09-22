@@ -169,10 +169,46 @@ try {
   console.error(serverLog);
   throw error;
 } finally {
-  child.kill();
-  await Promise.race([once(child,"exit"), new Promise(r => setTimeout(r,5000))]);
-  await socket.stop();
-  await sql.close();
+  await herunterfahren();
+}
+
+/* Beendet den Entwicklungsserver mitsamt seinen Arbeitsprozessen. Windows
+   kennt keine Prozessgruppen, deshalb dort taskkill mit /t. */
+async function beendeServer() {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  const beendet = once(child, "exit").then(() => true).catch(() => true);
+  if (process.platform === "win32" && child.pid) {
+    const taskkill = spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], { windowsHide: true, stdio: "ignore" });
+    await Promise.race([once(taskkill, "exit").catch(() => undefined), warte(5000)]);
+  } else {
+    child.kill("SIGTERM");
+  }
+  if (await Promise.race([beendet, warte(8000).then(() => false)])) return;
+  child.kill("SIGKILL");
+  await Promise.race([beendet, warte(2000)]);
+}
+
+/* Geordneter Abbau. Zuerst wird die Datenbankverbindung geloest, dann der
+   Server beendet: stirbt der Server zuerst, reisst er die Verbindung ab und
+   der PGlite-Socket-Handler lehnt seine interne Sperre mit ECONNRESET ab -
+   eine Ablehnung, die niemand entgegennimmt. Der Waechter unten deckt nur
+   diesen Abbau ab und laesst ausschliesslich Verbindungsabbrueche durch. */
+async function herunterfahren() {
+  const beimAbbau = (grund: unknown) => {
+    const code = (grund as NodeJS.ErrnoException | null)?.code ?? "";
+    if (code === "ECONNRESET" || code === "EPIPE" || code === "ECONNABORTED") return;
+    console.error(grund);
+    process.exitCode = 1;
+  };
+  process.on("unhandledRejection", beimAbbau);
+  try {
+    await Promise.race([socket.stop(), warte(5000)]);
+    await beendeServer();
+    await sql.close();
+  } finally {
+    process.off("unhandledRejection", beimAbbau);
+  }
 }
 }
+function warte(ms: number) { return new Promise<void>(r => { setTimeout(r, ms); }); }
 main().catch(error => { console.error(error); process.exitCode = 1; });
