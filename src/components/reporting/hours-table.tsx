@@ -228,7 +228,7 @@ export function HoursTable({ month, year }: HoursTableProps) {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Auswertung</h1>
+          <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">Auswertung</h1>
           <p className="text-sm text-muted-foreground">
             Monatliche Stundenauswertung und Export
           </p>
@@ -280,7 +280,7 @@ export function HoursTable({ month, year }: HoursTableProps) {
                   <Badge
                     key={kw.weekNumber}
                     variant="secondary"
-                    className="tabular-nums font-mono text-xs cursor-default"
+                    className="tabular text-xs cursor-default"
                   >
                     {kw.label} {formatMinutesCompact(minutes)}
                   </Badge>
@@ -388,7 +388,7 @@ export function HoursTable({ month, year }: HoursTableProps) {
                       return (
                         <TableCell
                           key={kw.weekNumber}
-                          className="text-center tabular-nums font-mono text-sm"
+                          className="text-center tabular text-sm"
                         >
                           {minutes > 0 ? (
                             <span className="text-foreground">
@@ -400,14 +400,14 @@ export function HoursTable({ month, year }: HoursTableProps) {
                         </TableCell>
                       );
                     })}
-                    <TableCell className="text-right tabular-nums font-mono text-sm font-semibold">
+                    <TableCell className="text-right tabular text-sm font-semibold">
                       {emp.totalMinutes > 0
                         ? formatMinutesCompact(emp.totalMinutes)
                         : "-"}
                     </TableCell>
-                    <TableCell className="text-right">{(emp.plannedMinutes / 60).toLocaleString("de-DE", { maximumFractionDigits: 2 })} h</TableCell>
-                    <TableCell className="text-right">{(emp.targetMinutes / 60).toLocaleString("de-DE", { maximumFractionDigits: 2 })} h</TableCell>
-                    <TableCell className="text-right">{(emp.deviationMinutes / 60).toLocaleString("de-DE", { maximumFractionDigits: 2 })} h</TableCell>
+                    <TableCell className="tabular text-right">{(emp.plannedMinutes / 60).toLocaleString("de-DE", { maximumFractionDigits: 2 })} h</TableCell>
+                    <TableCell className="tabular text-right">{(emp.targetMinutes / 60).toLocaleString("de-DE", { maximumFractionDigits: 2 })} h</TableCell>
+                    <TableCell className="tabular text-right">{(emp.deviationMinutes / 60).toLocaleString("de-DE", { maximumFractionDigits: 2 })} h</TableCell>
                   </TableRow>
                 ))}
 
@@ -420,13 +420,13 @@ export function HoursTable({ month, year }: HoursTableProps) {
                     return (
                       <TableCell
                         key={kw.weekNumber}
-                        className="text-center tabular-nums font-mono text-sm"
+                        className="text-center tabular text-sm"
                       >
                         {minutes > 0 ? formatMinutesCompact(minutes) : "-"}
                       </TableCell>
                     );
                   })}
-                  <TableCell className="text-right tabular-nums font-mono text-sm">
+                  <TableCell className="text-right tabular text-sm">
                     {formatMinutesCompact(totals.totalMinutes)}
                   </TableCell>
                   <TableCell colSpan={3} />

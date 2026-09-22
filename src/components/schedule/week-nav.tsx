@@ -162,7 +162,7 @@ export function WeekNav({ weekNumber, year, baseUrl = "/schedule/flexible" }: We
                 "relative",
                 containsToday &&
                   !containsCurrentWeek &&
-                  "ring-2 ring-primary/30",
+                  "border-primary",
                 isExpanded && !containsCurrentWeek && "bg-accent"
               )}
             >
@@ -180,7 +180,7 @@ export function WeekNav({ weekNumber, year, baseUrl = "/schedule/flexible" }: We
 
       {/* Expanded KW list for selected month */}
       {expandedMonth && (
-        <div className="flex items-center gap-1 flex-wrap rounded-md border bg-card p-2">
+        <div className="flex items-center gap-1 flex-wrap akro-panel p-2">
           {getMonthKWs(expandedMonth.month, expandedMonth.year).map((kw) => {
             const isSelected =
               kw.weekNumber === weekNumber && kw.year === year;
@@ -197,7 +197,7 @@ export function WeekNav({ weekNumber, year, baseUrl = "/schedule/flexible" }: We
                   setExpandedMonth(null);
                 }}
                 className={cn(
-                  isCurrent && !isSelected && "ring-1 ring-primary/40"
+                  isCurrent && !isSelected && "text-primary"
                 )}
               >
                 KW {kw.weekNumber}
@@ -216,17 +216,15 @@ export function WeekNav({ weekNumber, year, baseUrl = "/schedule/flexible" }: We
 
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span className="text-lg font-semibold">
+            <span className="akro-kennzahl text-[19px]">
               KW {String(weekNumber).padStart(2, "0")}
             </span>
-            <span className="text-muted-foreground">|</span>
-            <span className="text-sm text-muted-foreground">
-              {mondayStr} - {sundayStr}
+            <span className="text-border" aria-hidden="true">|</span>
+            <span className="tabular text-[13px] text-muted-foreground">
+              {mondayStr} – {sundayStr}
             </span>
             {isCurrentWeek && (
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                Heute
-              </span>
+              <span className="text-[12px] font-medium text-primary">Heute</span>
             )}
           </div>
 

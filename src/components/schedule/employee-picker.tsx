@@ -76,9 +76,9 @@ const ROLE_LABELS: Record<string, string> = {
 
 const ROLE_COLORS: Record<string, string> = {
   OWNER: "bg-warn/10 text-warn dark:bg-warn/20 dark:text-warn",
-  ADMIN: "text-[var(--brand)] text-[var(--brand)] dark:text-[var(--brand)]/30 dark:text-[var(--brand)]",
-  MANAGER: "bg-accent text-[var(--brand)] dark:text-[var(--brand)]",
-  EMPLOYEE: "bg-muted text-foreground dark:bg-muted dark:text-muted-foreground",
+  ADMIN: "bg-accent text-accent-foreground",
+  MANAGER: "bg-accent text-accent-foreground",
+  EMPLOYEE: "bg-muted text-muted-foreground",
 };
 
 /** Get the CSS classes for a score badge based on value. */

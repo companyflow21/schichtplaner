@@ -143,6 +143,39 @@
   --sidebar-accent-foreground: var(--deep);
   --sidebar-border: var(--line);
   --sidebar-ring: var(--brand);
+
+  /* ----------------------------------------------------------
+     Arbeitsoberflaeche ("Operations Console")
+     Alle Werte werden mit color-mix() aus den Variablen oben
+     abgeleitet. Es entstehen keine neuen Farbtoene.
+     ---------------------------------------------------------- */
+
+  /* Drei Flaechenstufen: Arbeitsflaeche, Panel, Panelkopf. */
+  --flaeche-panel: var(--card);
+  --flaeche-kopf: color-mix(in oklab, var(--paper) 55%, var(--card));
+  --flaeche-vertieft: color-mix(in oklab, var(--paper) 80%, var(--card));
+
+  /* Zwei Linienstaerken: fein im Raster, kraeftig an Panelkanten. */
+  --linie: var(--line);
+  --linie-fein: color-mix(in oklab, var(--line) 50%, transparent);
+
+  /* Navigationsschiene: dunkle Strukturflaeche des Designsystems. */
+  --schiene: var(--cert-bg);
+  --schiene-flaeche: var(--cert-card);
+  --schiene-linie: color-mix(in oklab, var(--cert-line) 65%, transparent);
+  --schiene-text: #ffffff;
+  --schiene-gedimmt: var(--cert-accent);
+  --schiene-aktiv: color-mix(in oklab, var(--brand) 34%, var(--cert-bg));
+
+  /* Radienstufen: 8px Bedienelement, 12px Panel, 24px Grossflaeche. */
+  --radius-panel: calc(var(--radius) * 1.5);
+
+  /* Hoehe der Kopfschiene (2px Markenlinie + 56px Zeile).
+     Klebende Unterkoepfe setzen darauf auf. */
+  --kopf-hoehe: 58px;
+
+  /* Heutiger Tag im Plan - eine Spur Marke, kein Farbkasten. */
+  --flaeche-heute: color-mix(in oklab, var(--brand) 5%, var(--card));
 }
 
 /* Nachtschicht: Das Designsystem ist hell angelegt. Der Dunkelmodus nutzt
@@ -313,6 +346,63 @@
     max-width: 420px;
     font-size: 14px;
     line-height: 1.7;
+  }
+
+  /* --- Bausteine der Arbeitsoberflaeche --------------------- */
+
+  /* Panel: eine klar abgegrenzte Flaeche statt vieler Kaertchen. */
+  .akro-panel {
+    background: var(--flaeche-panel);
+    border: 1px solid var(--linie);
+    border-radius: var(--radius-panel);
+  }
+
+  /* Kopfzeile eines Panels - eine Stufe dunkler als die Flaeche. */
+  .akro-panel-kopf {
+    background: var(--flaeche-kopf);
+  }
+
+  /* Vertiefte Flaeche fuer Raster- und Tabellenhintergruende. */
+  .akro-vertieft {
+    background: var(--flaeche-vertieft);
+  }
+
+  /* Dunkle Navigationsschiene. */
+  .akro-schiene {
+    background: var(--schiene);
+    color: var(--schiene-text);
+  }
+
+  /* Markenlinie: der AKRO-Verlauf als 2px-Kante, sparsam gesetzt. */
+  .akro-markenlinie {
+    background-image: linear-gradient(
+      114deg,
+      var(--brand) 5%,
+      #0637cb 53%,
+      var(--deep) 100%
+    );
+  }
+
+  /* Wortmarke auf dunkler Flaeche: eine Farbe, volle Deckung. */
+  .akro-marke-hell {
+    filter: brightness(0) invert(1);
+  }
+
+  /* Kennzahl: gleich breite Ziffern, enger Satz. */
+  .akro-kennzahl {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+}
+
+/* Schlanke Rollbalken - der Inhalt bleibt die Hauptsache. */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--line) 85%, transparent)
+      transparent;
   }
 }
 

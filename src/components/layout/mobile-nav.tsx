@@ -38,7 +38,7 @@ export function MobileNav() {
 
   const eintragKlasse = (active: boolean) =>
     cn(
-      "flex h-full flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
+      "relative flex h-full flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
       active ? "text-primary" : "text-muted-foreground"
     );
 
@@ -57,6 +57,13 @@ export function MobileNav() {
             aria-current={active ? "page" : undefined}
             className={eintragKlasse(active)}
           >
+            {/* Aktiv: schmale Markenkante, kein farbiger Kasten. */}
+            {active && (
+              <span
+                aria-hidden="true"
+                className="absolute inset-x-5 top-0 h-[2px] rounded-full bg-primary"
+              />
+            )}
             <Icon className="size-5" />
             {item.label}
           </Link>

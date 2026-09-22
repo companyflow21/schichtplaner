@@ -88,10 +88,10 @@ export function ClassicGrid({ weekNumber, year, weekDates }: ClassicGridProps) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border">
+    <div className="akro-panel overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
-          <tr className="bg-muted/30">
+          <tr className="akro-panel-kopf">
             <th className="border-r px-3 py-2 text-left text-xs font-semibold text-muted-foreground w-32">
               Schicht
             </th>
@@ -102,7 +102,7 @@ export function ClassicGrid({ weekNumber, year, weekDates }: ClassicGridProps) {
                   key={idx}
                   className={cn(
                     "border-r last:border-r-0 px-3 py-2 text-center text-xs font-semibold min-w-[120px]",
-                    today && "bg-primary/10 text-primary"
+                    today && "bg-[var(--flaeche-heute)] text-primary"
                   )}
                 >
                   <div>{dayNames[idx]}</div>
@@ -192,8 +192,8 @@ export function ClassicGrid({ weekNumber, year, weekDates }: ClassicGridProps) {
 
 function ClassicGridSkeleton() {
   return (
-    <div className="rounded-lg border overflow-hidden">
-      <div className="bg-muted/30 px-3 py-2 flex gap-4">
+    <div className="akro-panel overflow-hidden">
+      <div className="akro-panel-kopf px-3 py-2 flex gap-4">
         <Skeleton className="h-4 w-20" />
         {Array.from({ length: 7 }).map((_, i) => (
           <Skeleton key={i} className="h-4 w-16" />

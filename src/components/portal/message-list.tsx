@@ -126,7 +126,7 @@ export function MessageList({ folder }: Props) {
     <div className="flex-1">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{folderLabels[folder]}</h1>
+        <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">{folderLabels[folder]}</h1>
         <Button onClick={() => setComposeOpen(true)} className="gap-2">
           <MailPlus className="size-4" />
           Neue Nachricht
@@ -206,7 +206,7 @@ export function MessageList({ folder }: Props) {
           </p>
         </div>
       ) : (
-        <div className="divide-y rounded-lg border bg-card">
+        <div className="divide-y akro-panel">
           {/* Select all */}
           <div className="flex items-center gap-3 px-4 py-2 bg-muted/50">
             <Checkbox

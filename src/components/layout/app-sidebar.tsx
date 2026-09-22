@@ -37,9 +37,21 @@ function leseZustand(): boolean {
   }
 }
 
+/** Gemeinsame Form aller Eintraege auf der Schiene. */
+function eintragKlassen(active: boolean, collapsed: boolean) {
+  return cn(
+    "relative flex items-center gap-3 rounded-[var(--radius)] py-2 text-[13.5px] font-medium transition-colors",
+    collapsed ? "justify-center px-0" : "px-3",
+    active
+      ? "bg-[var(--schiene-aktiv)] text-[color:var(--schiene-text)]"
+      : "text-[color:var(--schiene-gedimmt)] hover:bg-[var(--schiene-flaeche)] hover:text-[color:var(--schiene-text)]"
+  );
+}
+
 /**
- * Linke Hauptnavigation ab Tablet-Breite. Eingeklappt bleibt sie als
- * Symbolleiste bedienbar; der Zustand ueberlebt den Seitenwechsel.
+ * Linke Navigationsschiene ab Tablet-Breite. Sie ist die dunkle
+ * Strukturflaeche der Oberflaeche: Navigation und Konto liegen hier,
+ * die Arbeitsflaeche rechts daneben bleibt hell und ruhig.
  */
 export function AppSidebar() {
   const pathname = usePathname();
@@ -67,19 +79,22 @@ export function AppSidebar() {
     <aside
       data-collapsed={collapsed ? "true" : "false"}
       className={cn(
-        "sticky top-0 hidden h-screen shrink-0 flex-col border-r bg-card md:flex",
-        collapsed ? "w-[68px]" : "w-[236px]"
+        "akro-schiene akro-auf-marke sticky top-0 hidden h-screen shrink-0 flex-col border-r border-[var(--schiene-linie)] md:flex",
+        collapsed ? "w-[68px]" : "w-[228px]"
       )}
     >
+      {/* Markenlinie, durchgehend mit der Kopfschiene. */}
+      <div className="akro-markenlinie h-[2px]" aria-hidden="true" />
+
       <div
         className={cn(
-          "flex h-16 items-center border-b",
+          "flex h-14 shrink-0 items-center border-b border-[var(--schiene-linie)]",
           collapsed ? "justify-center px-2" : "justify-between px-4"
         )}
       >
         <Link
           href="/dashboard"
-          className="flex items-center gap-3"
+          className="flex items-center"
           aria-label="AKRO Schichtplaner - zur Startseite"
         >
           <Image
@@ -88,14 +103,17 @@ export function AppSidebar() {
             width={115}
             height={30}
             priority
-            className={cn("w-auto", collapsed ? "h-[18px]" : "h-[22px]")}
+            className={cn(
+              "akro-marke-hell w-auto",
+              collapsed ? "h-[16px]" : "h-[19px]"
+            )}
           />
         </Link>
         {!collapsed && (
           <button
             type="button"
             onClick={toggle}
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-[var(--radius)] p-1.5 text-[color:var(--schiene-gedimmt)] transition-colors hover:bg-[var(--schiene-flaeche)] hover:text-[color:var(--schiene-text)]"
             aria-label="Navigation einklappen"
           >
             <PanelLeftClose className="size-4" />
@@ -106,8 +124,13 @@ export function AppSidebar() {
       <nav className="flex-1 overflow-y-auto px-2 py-4">
         {groups.map((group) => (
           <div key={group.title} className="mb-5 last:mb-0">
-            {!collapsed && (
-              <p className="mb-1.5 px-3 text-[11px] font-semibold tracking-wide text-muted-foreground">
+            {collapsed ? (
+              <div
+                className="mx-3 mb-2 h-px bg-[var(--schiene-linie)]"
+                aria-hidden="true"
+              />
+            ) : (
+              <p className="mb-1.5 px-3 text-[11px] font-semibold tracking-[0.06em] text-[color:var(--schiene-gedimmt)] uppercase opacity-70">
                 {group.title}
               </p>
             )}
@@ -122,26 +145,22 @@ export function AppSidebar() {
                       href={item.href}
                       aria-current={active ? "page" : undefined}
                       title={collapsed ? item.label : undefined}
-                      className={cn(
-                        "relative flex items-center gap-3 rounded-md px-3 py-2 text-[14px] font-medium transition-colors",
-                        collapsed && "justify-center px-0",
-                        active
-                          ? "bg-accent text-accent-foreground"
-                          : "text-foreground hover:bg-muted"
-                      )}
+                      className={eintragKlassen(active, collapsed)}
                     >
-                      <Icon
-                        className={cn(
-                          "size-[18px] shrink-0",
-                          active ? "text-primary" : "text-muted-foreground"
-                        )}
-                      />
+                      {/* Aktiv: schmale Markenkante statt Farbflaeche. */}
+                      {active && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-[var(--brand)]"
+                        />
+                      )}
+                      <Icon className="size-[18px] shrink-0" />
                       {!collapsed && <span className="truncate">{item.label}</span>}
                       {count > 0 && (
                         <span
                           className={cn(
-                            "flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground",
-                            collapsed ? "absolute top-1 right-2 min-w-4 px-1" : "ml-auto"
+                            "akro-kennzahl flex min-w-5 items-center justify-center rounded-full bg-[var(--brand)] px-1.5 py-0.5 text-[11px] text-white",
+                            collapsed ? "absolute top-0.5 right-2 min-w-4 px-1" : "ml-auto"
                           )}
                         >
                           {count > 99 ? "99+" : count}
@@ -157,7 +176,12 @@ export function AppSidebar() {
         ))}
       </nav>
 
-      <div className={cn("border-t py-2", collapsed ? "px-1" : "px-2")}>
+      <div
+        className={cn(
+          "shrink-0 border-t border-[var(--schiene-linie)] py-2",
+          collapsed ? "px-1" : "px-2"
+        )}
+      >
         {footer.map((item) => {
           const Icon = item.icon;
           const active = isNavActive(item.href, pathname);
@@ -167,30 +191,27 @@ export function AppSidebar() {
               href={item.href}
               aria-current={active ? "page" : undefined}
               title={collapsed ? item.label : undefined}
-              className={cn(
-                "mb-1 flex items-center gap-3 rounded-md px-3 py-2 text-[14px] font-medium transition-colors",
-                collapsed && "justify-center px-0",
-                active ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-muted"
-              )}
+              className={cn(eintragKlassen(active, collapsed), "mb-1")}
             >
-              <Icon
-                className={cn(
-                  "size-[18px] shrink-0",
-                  active ? "text-primary" : "text-muted-foreground"
-                )}
-              />
+              {active && (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-[var(--brand)]"
+                />
+              )}
+              <Icon className="size-[18px] shrink-0" />
               {!collapsed && <span>{item.label}</span>}
             </Link>
           );
         })}
 
-        <UserMenu collapsed={collapsed} />
+        <UserMenu collapsed={collapsed} dunkel />
 
         {collapsed && (
           <button
             type="button"
             onClick={toggle}
-            className="mt-1 flex w-full justify-center rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="mt-1 flex w-full justify-center rounded-[var(--radius)] p-2 text-[color:var(--schiene-gedimmt)] transition-colors hover:bg-[var(--schiene-flaeche)] hover:text-[color:var(--schiene-text)]"
             aria-label="Navigation ausklappen"
           >
             <PanelLeftOpen className="size-4" />

@@ -134,7 +134,7 @@ export function MessageDetail() {
         Zurueck
       </Button>
 
-      <div className="rounded-lg border bg-card p-6">
+      <div className="akro-panel p-6">
         {/* Subject */}
         <h2 className="text-xl font-bold mb-4">{msg.subject}</h2>
 

@@ -35,7 +35,18 @@ export default async function DashboardLayout({
               </div>
             </div>
             <MobileNav />
-            <Toaster position="top-right" />
+            <Toaster
+              position="top-right"
+              // Meldungen tragen die Flaechen und Linien der Oberflaeche.
+              style={
+                {
+                  "--normal-bg": "var(--card)",
+                  "--normal-text": "var(--foreground)",
+                  "--normal-border": "var(--border)",
+                  "--border-radius": "var(--radius-panel)",
+                } as React.CSSProperties
+              }
+            />
           </SocketProvider>
         </QueryProvider>
       </ThemeProvider>

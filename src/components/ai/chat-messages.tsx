@@ -148,7 +148,7 @@ function ToolResultCard({ tool }: { tool: ToolResultInfo }) {
   const label = TOOL_LABELS[tool.toolName] ?? tool.toolName;
 
   return (
-    <div className="rounded-lg border bg-card p-2 text-xs">
+    <div className="akro-panel p-2 text-xs">
       <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
         {tool.requiresConfirmation ? (
           <AlertTriangle className="size-3 text-warn" />

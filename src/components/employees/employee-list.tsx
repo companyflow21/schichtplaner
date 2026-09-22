@@ -134,7 +134,7 @@ export function EmployeeList() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Mitarbeiter</h1>
+          <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">Mitarbeiter</h1>
           <p className="text-sm text-muted-foreground">
             Verwalte dein Team und weise Rollen zu
           </p>

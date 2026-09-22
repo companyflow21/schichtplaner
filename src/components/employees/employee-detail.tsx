@@ -365,7 +365,7 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-2xl font-bold">
+            <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">
               {employee.user.lastName}, {employee.user.firstName}
             </h1>
             <div className="flex items-center gap-2 mt-1">
@@ -648,7 +648,7 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Member-ID</span>
-                <span className="font-mono text-xs text-muted-foreground">
+                <span className="tabular text-xs text-muted-foreground">
                   {employee.id}
                 </span>
               </div>

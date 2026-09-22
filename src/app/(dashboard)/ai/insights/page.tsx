@@ -72,7 +72,7 @@ export default function AiInsightsPage() {
             <BarChart3 className="size-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">KI-Insights & Prognose</h1>
+            <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">KI-Insights & Prognose</h1>
             <p className="text-sm text-muted-foreground">
               Stunden-Trends und Prognosen basierend auf historischen Daten
             </p>
@@ -180,7 +180,7 @@ export default function AiInsightsPage() {
           </div>
 
           {/* Forecast chart */}
-          <div className="rounded-xl border bg-card p-6">
+          <div className="akro-panel p-6">
             <h2 className="text-lg font-semibold mb-4">
               Stunden-Verlauf & Prognose
             </h2>
@@ -191,7 +191,7 @@ export default function AiInsightsPage() {
           </div>
 
           {/* Weekly breakdown table */}
-          <div className="rounded-xl border bg-card overflow-hidden">
+          <div className="akro-panel overflow-hidden">
             <div className="px-6 py-4 border-b">
               <h2 className="text-lg font-semibold">Wochen-Details</h2>
             </div>
@@ -240,16 +240,16 @@ export default function AiInsightsPage() {
                             </span>
                           )}
                         </td>
-                        <td className="text-right px-4 py-2 font-mono">
+                        <td className="text-right px-4 py-2 tabular">
                           {hours.toFixed(1)}h
                         </td>
-                        <td className="text-right px-4 py-2 font-mono">
+                        <td className="text-right px-4 py-2 tabular">
                           {dp.isForecast ? "-" : dp.shiftCount}
                         </td>
-                        <td className="text-right px-4 py-2 font-mono">
+                        <td className="text-right px-4 py-2 tabular">
                           {dp.isForecast ? "-" : dp.employeeCount}
                         </td>
-                        <td className="text-right px-4 py-2 font-mono">
+                        <td className="text-right px-4 py-2 tabular">
                           {dp.isForecast ? "-" : avgPerEmployee}
                         </td>
                       </tr>
@@ -281,7 +281,7 @@ function MetricCard({
   variant?: "success" | "danger" | "neutral";
 }) {
   return (
-    <div className="rounded-xl border bg-card p-4">
+    <div className="akro-panel p-4">
       <div className="flex items-center gap-2 mb-2">
         <div
           className={cn(

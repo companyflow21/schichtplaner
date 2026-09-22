@@ -175,7 +175,7 @@ export function LiveMode({ scheduleId, isManager }: LiveModeProps) {
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 text-[var(--brand)] text-[var(--brand)] hover:bg-accent hover:text-[var(--brand)]"
+                className="gap-1.5 text-[var(--brand)] hover:bg-accent hover:text-[var(--brand)]"
                 onClick={() => startMutation.mutate()}
                 disabled={isPending}
               >
@@ -216,14 +216,12 @@ export function LiveMode({ scheduleId, isManager }: LiveModeProps) {
             className="flex items-center gap-1.5"
             onClick={() => setExpanded((prev) => !prev)}
           >
-            <Badge
-              variant="default"
-              className="gap-1.5 text-[var(--brand)] hover:text-[var(--brand)] cursor-pointer"
-            >
-              <span className="relative flex size-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full text-[var(--brand)] opacity-75" />
-                <span className="relative inline-flex rounded-full size-2 bg-card" />
-              </span>
+            <Badge variant="default" className="cursor-pointer gap-1.5">
+              {/* Ruhiger Punkt statt Blinken - der Zustand ist dauerhaft. */}
+              <span
+                aria-hidden="true"
+                className="inline-flex size-2 rounded-full bg-white"
+              />
               LIVE
               {expanded ? (
                 <ChevronUp className="size-3" />
@@ -336,7 +334,7 @@ function LiveTimer({ startedAt }: { startedAt: string }) {
   return (
     <div className="flex items-center gap-2 text-sm text-[var(--brand)]">
       <Clock className="size-4" />
-      <span className="font-mono font-medium">{elapsed}</span>
+      <span className="tabular font-medium">{elapsed}</span>
       <span className="text-xs text-muted-foreground">aktiv</span>
     </div>
   );
@@ -483,7 +481,9 @@ export function LiveBorder({
 
   return (
     <div className="relative">
-      <div className="absolute inset-0 rounded-lg border-2 text-[var(--brand)] animate-pulse pointer-events-none z-10" />
+      {/* Ruhige Markenkante statt Dauerpulsieren - die Live-Sitzung ist
+          ein Zustand, kein Alarm. */}
+      <div className="pointer-events-none absolute inset-0 z-10 rounded-[var(--radius-panel)] border-2 border-[var(--brand)]" />
       {children}
     </div>
   );

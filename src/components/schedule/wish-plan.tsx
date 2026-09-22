@@ -280,7 +280,7 @@ export function WishCountBadge({ shiftId, scheduleId }: WishCountBadgeProps) {
             variant="secondary"
             className="text-[9px] px-1.5 py-0 gap-1 bg-warn/10 text-warn hover:bg-warn/10 cursor-pointer"
           >
-            <Star className="size-2.5 fill-amber-500" />
+            <Star className="size-2.5 fill-warn text-warn" />
             {shiftRequests.length}
           </Badge>
         </button>

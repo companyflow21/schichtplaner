@@ -152,7 +152,7 @@ export default function AiChatPage() {
             <Sparkles className="size-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">KI-Assistent</h1>
+            <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">KI-Assistent</h1>
             <p className="text-sm text-muted-foreground">
               Frag mich alles rund um deinen Schichtplan
             </p>
@@ -180,7 +180,7 @@ export default function AiChatPage() {
       </div>
 
       {/* Chat area */}
-      <div className="flex-1 flex flex-col rounded-xl border bg-card overflow-hidden">
+      <div className="flex-1 flex flex-col akro-panel overflow-hidden">
         {/* Messages */}
         <div className="flex-1 overflow-hidden flex flex-col">
           {messages.length === 0 ? (

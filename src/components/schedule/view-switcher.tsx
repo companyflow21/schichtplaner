@@ -76,24 +76,27 @@ export function ViewSwitcher({ kw, month }: ViewSwitcherProps) {
         : "flexible";
 
   return (
-    <div className="flex items-center gap-1 rounded-lg border bg-muted/30 p-1">
+    // Segmentschalter: eine Kante, innen nur Haarlinien.
+    <div
+      role="group"
+      aria-label="Ansicht"
+      className="flex items-center overflow-hidden rounded-[var(--radius)] border bg-card"
+    >
       {views.map((view) => {
         const isActive = activeView === view.key;
         const Icon = view.icon;
-        const href =
-          view.key === "month"
-            ? view.getHref(effectiveKW, effectiveMonth)
-            : view.getHref(effectiveKW, effectiveMonth);
+        const href = view.getHref(effectiveKW, effectiveMonth);
 
         return (
           <Link
             key={view.key}
             href={href}
+            aria-current={isActive ? "page" : undefined}
             className={cn(
-              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+              "flex h-8 items-center gap-1.5 border-l px-3 text-[13px] font-medium transition-colors first:border-l-0",
               isActive
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                ? "bg-[var(--flaeche-vertieft)] text-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >
             <Icon className="size-3.5" />

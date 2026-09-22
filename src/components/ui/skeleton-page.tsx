@@ -13,7 +13,7 @@ export function SkeletonPage() {
       </div>
 
       {/* Content area */}
-      <div className="rounded-lg border bg-card p-6">
+      <div className="akro-panel p-6">
         <div className="space-y-4">
           <div className="flex items-center gap-4">
             <Skeleton className="h-10 w-10 rounded-full" />
@@ -24,9 +24,9 @@ export function SkeletonPage() {
           </div>
           <Skeleton className="h-px w-full" />
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <Skeleton className="h-24 rounded-lg" />
-            <Skeleton className="h-24 rounded-lg" />
-            <Skeleton className="h-24 rounded-lg" />
+            <Skeleton className="h-24 rounded-[var(--radius-panel)]" />
+            <Skeleton className="h-24 rounded-[var(--radius-panel)]" />
+            <Skeleton className="h-24 rounded-[var(--radius-panel)]" />
           </div>
           <div className="space-y-3">
             <Skeleton className="h-4 w-full" />
@@ -37,7 +37,7 @@ export function SkeletonPage() {
       </div>
 
       {/* Table-like skeleton */}
-      <div className="rounded-lg border bg-card">
+      <div className="akro-panel">
         <div className="border-b p-4">
           <Skeleton className="h-4 w-32" />
         </div>

@@ -5,7 +5,6 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ArrowRight, Clock, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { dateLabel, ErrorMessage, json, useAction } from "./client";
@@ -103,16 +102,20 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-[13px] text-muted-foreground">
-            {dateLabel(data.today)}
-          </p>
-          <h1 className="text-[26px] leading-tight font-semibold tracking-[-0.03em]">
+      {/* Der Verlauf der Dachmarke - einmal je Seite, ganz oben. */}
+      <header className="akro-marke-verlauf akro-auf-marke flex flex-wrap items-center justify-between gap-4 rounded-[var(--radius-panel)] px-5 py-4">
+        <div className="min-w-0">
+          <p className="text-[12px] text-white/70">{dateLabel(data.today)}</p>
+          <h1 className="text-[22px] leading-tight font-semibold tracking-[-0.03em] text-white">
             Guten Tag, {data.firstName}
           </h1>
         </div>
-        <Button asChild variant="outline" size="sm">
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          className="border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+        >
           <Link href={data.manager ? "/schedule/flexible" : "/schedule/employee"}>
             Dienstplan öffnen
             <ArrowRight className="size-3.5" />
@@ -129,7 +132,7 @@ export function Dashboard() {
       <Requests manager={data.manager} userId={data.userId} />
 
       {/* Nur eine kurze Zusammenfassung; die Auswertung hat eine eigene Seite. */}
-      <section className="rounded-md border bg-card p-4">
+      <section className="akro-panel p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-[17px] font-semibold tracking-[-0.02em]">
@@ -229,14 +232,16 @@ function MitarbeiterStart({
 
   return (
     <>
-      <Card className="p-4">
-        <h2 className="text-[17px] font-semibold tracking-[-0.02em]">
-          Deine nächste Schicht
-        </h2>
+      <section className="akro-panel p-4">
+        <h2 className="akro-label">Deine nächste Schicht</h2>
         {nächste ? (
-          <div className="mt-3 space-y-3">
-            <p className="tabular text-[15px] font-medium">
-              {dateLabel(nächste.date)} · {nächste.shiftFrom}–{nächste.shiftTo}
+          <div className="mt-2 space-y-3">
+            <p className="akro-kennzahl text-[19px]">
+              {dateLabel(nächste.date)}
+              <span className="px-2 text-border" aria-hidden="true">
+                |
+              </span>
+              {nächste.shiftFrom}–{nächste.shiftTo}
             </p>
             <p className="text-[14px]">
               {nächste.title || "Schicht"}
@@ -288,12 +293,12 @@ function MitarbeiterStart({
             </div>
           </div>
         ) : (
-          <p className="mt-3 text-[14px] text-muted-foreground">
+          <p className="mt-2 text-[14px] text-muted-foreground">
             Für dich ist noch keine kommende Schicht veröffentlicht. Sobald
             die Planung steht, erscheint sie hier.
           </p>
         )}
-      </Card>
+      </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Abschnitt
@@ -341,16 +346,23 @@ function HandlungsLeiste({
   eintraege: { zahl: number; label: string; href: string; dringend?: boolean }[];
 }) {
   return (
-    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border bg-border lg:grid-cols-4">
-      {eintraege.map((e) => (
+    <div className="akro-panel grid grid-cols-2 overflow-hidden lg:grid-cols-4">
+      {eintraege.map((e, i) => (
         <Link
           key={e.label}
           href={e.href}
-          className="flex flex-col gap-0.5 bg-card p-4 transition-colors hover:bg-muted"
+          className={cn(
+            "flex flex-col gap-1 p-4 transition-colors hover:bg-[var(--flaeche-kopf)]",
+            // Haarlinien statt Zwischenraeume: eine Flaeche, vier Felder.
+            i % 2 === 1 && "border-l",
+            i > 1 && "border-t",
+            "lg:border-t-0 lg:border-l",
+            i === 0 && "lg:border-l-0"
+          )}
         >
           <span
             className={cn(
-              "tabular text-[24px] leading-none font-semibold",
+              "akro-kennzahl text-[28px]",
               e.dringend && e.zahl > 0 ? "text-destructive" : "text-foreground"
             )}
           >
@@ -358,7 +370,7 @@ function HandlungsLeiste({
           </span>
           <span className="flex items-center gap-1 text-[13px] text-muted-foreground">
             {e.dringend && e.zahl > 0 && (
-              <AlertTriangle className="size-3.5 text-destructive" />
+              <AlertTriangle className="size-3.5 shrink-0 text-destructive" />
             )}
             {e.label}
           </span>
@@ -380,12 +392,19 @@ function Abschnitt({
   render: (shift: Shift) => React.ReactNode;
 }) {
   return (
-    <section className="rounded-md border bg-card">
-      <h2 className="border-b px-4 py-3 text-[15px] font-semibold tracking-[-0.02em]">
-        {titel}
-      </h2>
+    <section className="akro-panel overflow-hidden">
+      <div className="akro-panel-kopf flex items-center justify-between gap-3 border-b px-4 py-2.5">
+        <h2 className="text-[14px] font-semibold tracking-[-0.02em]">{titel}</h2>
+        {eintraege.length > 0 && (
+          <span className="akro-kennzahl text-[13px] text-muted-foreground">
+            {eintraege.length}
+          </span>
+        )}
+      </div>
       {eintraege.length ? (
-        <div className="divide-y">{eintraege.map(render)}</div>
+        <div className="divide-y divide-[var(--linie-fein)]">
+          {eintraege.map(render)}
+        </div>
       ) : (
         <p className="px-4 py-6 text-[14px] text-muted-foreground">{leer}</p>
       )}
@@ -405,7 +424,7 @@ function SchichtZeile({
   aktion?: React.ReactNode;
 }) {
   return (
-    <article className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
+    <article className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 transition-colors hover:bg-[var(--flaeche-kopf)]">
       <span className="tabular text-[14px] font-medium">
         {dateLabel(shift.date)} · {shift.shiftFrom}–{shift.shiftTo}
       </span>
@@ -428,20 +447,29 @@ function SchichtZeile({
 function DashboardSkeleton() {
   return (
     <div className="space-y-6" aria-busy="true" aria-label="Übersicht wird geladen">
-      <Skeleton className="h-9 w-64" />
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border bg-border lg:grid-cols-4">
+      <Skeleton className="h-[86px] w-full rounded-[var(--radius-panel)]" />
+      <div className="akro-panel grid grid-cols-2 overflow-hidden lg:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="space-y-2 bg-card p-4">
-            <Skeleton className="h-6 w-10" />
+          <div
+            key={i}
+            className={cn(
+              "space-y-2 p-4",
+              i % 2 === 1 && "border-l",
+              i > 1 && "border-t",
+              "lg:border-t-0 lg:border-l",
+              i === 0 && "lg:border-l-0"
+            )}
+          >
+            <Skeleton className="h-7 w-10" />
             <Skeleton className="h-4 w-28" />
           </div>
         ))}
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         {[0, 1].map((i) => (
-          <div key={i} className="rounded-md border bg-card">
-            <div className="border-b px-4 py-3">
-              <Skeleton className="h-5 w-40" />
+          <div key={i} className="akro-panel overflow-hidden">
+            <div className="akro-panel-kopf border-b px-4 py-3">
+              <Skeleton className="h-4 w-40" />
             </div>
             <div className="space-y-3 p-4">
               <Skeleton className="h-4 w-full" />

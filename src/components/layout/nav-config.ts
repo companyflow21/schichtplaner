@@ -30,6 +30,22 @@ export function isAdmin(role?: string): boolean {
   return role === "OWNER" || role === "ADMIN";
 }
 
+/** Rolle in der Sprache der Anwendung. */
+export function rollenName(role?: string): string {
+  switch (role) {
+    case "OWNER":
+      return "Inhaber";
+    case "ADMIN":
+      return "Administration";
+    case "MANAGER":
+      return "Disposition";
+    case "EMPLOYEE":
+      return "Mitarbeiter";
+    default:
+      return "";
+  }
+}
+
 /**
  * Navigation nach Rolle. Bereiche, die eine Rolle nicht benutzen darf,
  * tauchen gar nicht erst auf - die Berechtigungen selbst liegen weiterhin
@@ -141,6 +157,32 @@ export function mobileNavItems(role?: string): NavItem[] {
       icon: CalendarCheck,
     },
   ];
+}
+
+/**
+ * Titel fuer Unterseiten, die keinen eigenen Navigationspunkt haben.
+ * Laengere Pfade stehen vor kuerzeren, damit der erste Treffer passt.
+ */
+const weitereTitel: [string, string][] = [
+  ["/employees/absences", "Abwesenheiten"],
+  ["/schedule", "Dienstplan"],
+  ["/portal", "Nachrichten"],
+  ["/profile", "Mein Profil"],
+  ["/settings", "Einstellungen"],
+];
+
+/** Name der aktuellen Seite fuer die Kopfschiene. */
+export function seitenTitel(pathname: string, role?: string): string {
+  for (const group of navGroups(role)) {
+    for (const item of group.items) {
+      if (isNavActive(item.href, pathname)) return item.label;
+    }
+  }
+  for (const item of navFooterItems(role)) {
+    if (isNavActive(item.href, pathname)) return item.label;
+  }
+  const treffer = weitereTitel.find(([pfad]) => pathname.startsWith(pfad));
+  return treffer ? treffer[1] : "Übersicht";
 }
 
 /** Ist dieser Navigationspunkt zur aktuellen Adresse aktiv? */

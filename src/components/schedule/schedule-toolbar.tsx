@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getISOWeek } from "date-fns";
 import {
-  CalendarRange,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -51,9 +50,37 @@ function maxISOWeek(year: number): number {
 }
 
 /**
- * Kopf der Planungsseite: Woche, Status und Werkzeuge in drei schmalen
- * Zeilen. Bleibt beim Scrollen stehen, damit Wochenwechsel und die
- * wichtigsten Aktionen immer erreichbar sind.
+ * Eine Kennzahl der Woche. Farbe steht nie allein - jede Angabe traegt
+ * ihre Beschriftung.
+ */
+function Kennwert({
+  zahl,
+  label,
+  warnung,
+}: {
+  zahl: number;
+  label: string;
+  warnung?: boolean;
+}) {
+  return (
+    <span className="flex items-baseline gap-1.5 px-3 first:pl-0">
+      <span
+        className={cn(
+          "akro-kennzahl text-[15px]",
+          warnung && zahl > 0 ? "text-destructive" : "text-foreground"
+        )}
+      >
+        {zahl}
+      </span>
+      <span className="text-[12.5px] text-muted-foreground">{label}</span>
+    </span>
+  );
+}
+
+/**
+ * Kopf der Planungsseite: Woche und Ansicht in der ersten Zeile, Lage
+ * der Woche und Werkzeuge in der zweiten. Bleibt unter der Kopfschiene
+ * stehen, damit Wochenwechsel und Aktionen immer erreichbar sind.
  */
 export function ScheduleToolbar({
   weekNumber,
@@ -99,35 +126,50 @@ export function ScheduleToolbar({
   );
 
   return (
-    <div className="sticky top-0 z-20 -mx-4 mb-4 border-b bg-background px-4 pt-1 pb-2 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
+    <div className="sticky top-[var(--kopf-hoehe)] z-20 -mx-4 mb-4 border-b bg-background px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
       {/* Zeile 1: Woche und Ansicht */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 py-1.5">
-        <h1 className="text-[24px] leading-none font-semibold tracking-[-0.02em]">
-          Dienstplan
-        </h1>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-3 pb-2.5">
+        <div className="flex items-center gap-2.5">
+          {/* Schrittwerk als eine Einheit - zwei Kanten, keine Kaesten. */}
+          <div className="flex items-center overflow-hidden rounded-[var(--radius)] border bg-card">
+            <button
+              type="button"
+              onClick={zurueck}
+              aria-label="Vorherige Woche"
+              className="flex size-8 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <span className="h-8 w-px bg-border" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={vor}
+              aria-label="Nächste Woche"
+              className="flex size-8 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
 
-        <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon-sm" onClick={zurueck} aria-label="Vorherige Woche">
-            <ChevronLeft className="size-4" />
-          </Button>
-          <span className="tabular min-w-[9.5rem] text-center text-[14px] font-medium">
-            KW {String(weekNumber).padStart(2, "0")} ·{" "}
-            <span className="text-muted-foreground">
-              {formatDateShort(weekDates[0])}–{formatDateShort(weekDates[6])}
-            </span>
-          </span>
-          <Button variant="outline" size="icon-sm" onClick={vor} aria-label="Nächste Woche">
-            <ChevronRight className="size-4" />
-          </Button>
-          <Button
-            variant={istAktuelleWoche ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => geheZu(current.weekNumber, current.year)}
-            className="gap-1.5"
-          >
-            <CalendarRange className="size-3.5" />
-            Heute
-          </Button>
+          <div className="min-w-0">
+            <h1 className="akro-kennzahl text-[21px] leading-none">
+              KW {String(weekNumber).padStart(2, "0")}
+              <span className="ml-2 text-[13px] font-normal tracking-normal text-muted-foreground">
+                {formatDateShort(weekDates[0])}.–{formatDateShort(weekDates[6])}.
+                {year}
+              </span>
+            </h1>
+          </div>
+
+          {!istAktuelleWoche && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => geheZu(current.weekNumber, current.year)}
+            >
+              Heute
+            </Button>
+          )}
         </div>
 
         <div className="ml-auto">
@@ -135,74 +177,66 @@ export function ScheduleToolbar({
         </div>
       </div>
 
-      {/* Zeile 2: Status der Woche - Farbe nie allein, immer mit Text */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pb-1.5 text-[13px]">
-        <span className="flex items-center gap-1.5 font-medium">
-          <span
-            aria-hidden="true"
-            className={cn(
-              "size-2 rounded-full",
-              schedule?.isPublic ? "bg-[var(--service)]" : "bg-muted-foreground"
-            )}
-          />
-          {schedule?.isPublic ? "Veröffentlicht" : "Entwurf"}
-        </span>
-        <span className={cn("tabular", offenePlätze > 0 && "font-medium text-destructive")}>
-          {offenePlätze} unbesetzte Plätze
-        </span>
-        {isManager && (
-          <span className={cn("tabular", fehlendeBestätigungen > 0 && "text-muted-foreground")}>
-            {fehlendeBestätigungen} Bestätigungen offen
-          </span>
-        )}
-        {openWishCount > 0 && (
-          <span className="tabular text-muted-foreground">
-            {openWishCount} offene Anfragen
-          </span>
-        )}
-        <span className="tabular text-muted-foreground">
-          {shifts.length} Schichten
-        </span>
-      </div>
-
-      {/* Zeile 3: eine Werkzeugleiste */}
-      {schedule && (
-        <div className="flex flex-wrap items-center gap-2 pb-1.5">
-          <DivisionFilter
-            scheduleId={schedule.id}
-            divisionFilter={divisionFilter}
-            onDivisionFilterChange={onDivisionFilterChange}
-          />
-          {isManager && (
-            <WishFilterToggle
-              enabled={wishFilterEnabled}
-              onToggle={onWishFilterChange}
-              wishCount={openWishCount}
+      {/* Zeile 2: Lage der Woche links, Werkzeuge rechts */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-2.5">
+        <div className="flex flex-wrap items-center divide-x divide-border">
+          <span className="flex items-center gap-1.5 pr-3 text-[12.5px] font-medium">
+            <span
+              aria-hidden="true"
+              className={cn(
+                "size-1.5 rounded-full",
+                schedule?.isPublic ? "bg-[var(--service)]" : "bg-muted-foreground"
+              )}
             />
+            {schedule?.isPublic ? "Veröffentlicht" : "Entwurf"}
+          </span>
+          <Kennwert zahl={shifts.length} label="Schichten" />
+          <Kennwert zahl={offenePlätze} label="unbesetzt" warnung />
+          {isManager && (
+            <Kennwert zahl={fehlendeBestätigungen} label="unbestätigt" />
           )}
+          {openWishCount > 0 && (
+            <Kennwert zahl={openWishCount} label="Anfragen" />
+          )}
+        </div>
 
+        {schedule && (
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            <DivisionFilter
+              scheduleId={schedule.id}
+              divisionFilter={divisionFilter}
+              onDivisionFilterChange={onDivisionFilterChange}
+            />
+            {isManager && (
+              <WishFilterToggle
+                enabled={wishFilterEnabled}
+                onToggle={onWishFilterChange}
+                wishCount={openWishCount}
+              />
+            )}
             {isManager && (
               <>
+                <VisibilityToggle scheduleId={schedule.id} isPublic={schedule.isPublic} />
                 <Button size="sm" className="gap-1.5" onClick={onAddShift}>
                   <Plus className="size-3.5" />
                   Schicht hinzufügen
                 </Button>
-                <VisibilityToggle scheduleId={schedule.id} isPublic={schedule.isPublic} />
               </>
             )}
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1.5">
-                  <MoreHorizontal className="size-3.5" />
-                  Weitere Aktionen
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label="Weitere Aktionen"
+                  title="Weitere Aktionen"
+                >
+                  <MoreHorizontal className="size-4" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-64 space-y-2 p-3">
-                <p className="text-[11px] font-semibold tracking-wide text-muted-foreground">
-                  Darstellung
-                </p>
+                <p className="akro-label">Darstellung</p>
                 <OptionsMenu
                   scheduleId={schedule.id}
                   settingsLayout={schedule.settingsLayout}
@@ -217,9 +251,7 @@ export function ScheduleToolbar({
                     Klassische Tabelle
                   </Link>
                 </Button>
-                <p className="pt-1 text-[11px] font-semibold tracking-wide text-muted-foreground">
-                  Weitere Werkzeuge
-                </p>
+                <p className="akro-label pt-1">Weitere Werkzeuge</p>
                 <BriefingButton scheduleId={schedule.id} isManager={isManager} />
                 {isManager && (
                   <>
@@ -236,8 +268,8 @@ export function ScheduleToolbar({
               </PopoverContent>
             </Popover>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

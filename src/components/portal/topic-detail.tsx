@@ -127,7 +127,7 @@ export function TopicDetail({ topicId }: Props) {
         Zurueck zu Themen
       </Button>
 
-      <div className="rounded-lg border bg-card">
+      <div className="akro-panel">
         {/* Header */}
         <div className="flex items-center justify-between border-b p-5">
           <div>

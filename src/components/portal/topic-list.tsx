@@ -78,7 +78,7 @@ export function TopicList() {
     <div className="flex-1">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Themen</h1>
+        <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">Themen</h1>
         <Button onClick={() => setCreateOpen(true)} className="gap-2">
           <Plus className="size-4" />
           Neues Thema
@@ -101,7 +101,7 @@ export function TopicList() {
           </Button>
         </div>
       ) : (
-        <div className="divide-y rounded-lg border bg-card">
+        <div className="divide-y akro-panel">
           {topics.map((topic) => (
             <div
               key={topic.id}

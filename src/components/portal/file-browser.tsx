@@ -151,7 +151,7 @@ export function FileBrowser() {
     <div className="flex-1">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Dateien</h1>
+        <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">Dateien</h1>
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -225,7 +225,7 @@ export function FileBrowser() {
                 {folders.map((folder) => (
                   <div
                     key={folder.id}
-                    className="group relative flex cursor-pointer flex-col items-center gap-2 rounded-lg border bg-card p-4 transition-all hover:border-primary/40 hover:shadow-sm"
+                    className="group relative flex cursor-pointer flex-col items-center gap-2 akro-panel p-4 transition-all hover:border-primary/40 hover:shadow-sm"
                     onClick={() => setCurrentFolderId(folder.id)}
                   >
                     <Folder className="size-10 text-primary" />
@@ -282,7 +282,7 @@ export function FileBrowser() {
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Dateien
               </h3>
-              <div className="divide-y rounded-lg border bg-card">
+              <div className="divide-y akro-panel">
                 {files.map((file) => (
                   <div
                     key={file.id}

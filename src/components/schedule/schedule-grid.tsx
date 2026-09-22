@@ -4,7 +4,6 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { isToday } from "date-fns";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { dayNames, formatDateShort } from "@/lib/utils/calendar";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
@@ -53,7 +52,7 @@ export function ScheduleGrid({ weekNumber, year, weekDates }: ScheduleGridProps)
   const showTitle = schedule?.showTitle ?? true;
   const showPauses = schedule?.showPauses ?? true;
 
-  // Query live session state for the purple border
+  // Live-Sitzung: markiert das Board waehrend der gemeinsamen Planung
   const { data: liveData } = useQuery<{ session: { isActive: boolean } | null }>({
     queryKey: ["live-session", scheduleId],
     queryFn: async () => {
@@ -189,135 +188,94 @@ export function ScheduleGrid({ weekNumber, year, weekDates }: ScheduleGridProps)
         </div>
       )}
 
-      {/* Desktop: 7-column grid */}
+      {/* Planungsflaeche: ein Board, sieben Spalten, Haarlinien dazwischen */}
       <LiveBorder isActive={isLiveActive}>
-        <div className="hidden md:grid md:grid-cols-7 gap-2">
-          {weekDates.map((date, index) => {
-            const dayOfWeek = index + 1; // 1=Mon..7=Sun
-            const dayShifts = shiftsByDay[dayOfWeek] ?? [];
-            const todayHighlight = isToday(date);
+        <div className="akro-panel hidden overflow-hidden md:block">
+          <div className="grid grid-cols-7 divide-x divide-[var(--linie-fein)]">
+            {weekDates.map((date, index) => {
+              const dayOfWeek = index + 1; // 1=Mo .. 7=So
+              const dayShifts = shiftsByDay[dayOfWeek] ?? [];
+              const heute = isToday(date);
+              const offen = offeneMenge(dayShifts);
 
-            return (
-              <div
-                key={dayOfWeek}
-                className={cn(
-                  "min-h-[200px] rounded-lg border bg-card flex flex-col",
-                  todayHighlight && "ring-2 ring-primary/50 bg-primary/[0.02]"
-                )}
-              >
-                {/* Day Header */}
-                <div
-                  className={cn(
-                    "border-b px-3 py-2 rounded-t-lg",
-                    todayHighlight ? "bg-primary/10" : "bg-muted/30"
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold">
-                      {dayNames[index]}
-                    </div>
-                    {todayHighlight && (
-                      <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
-                        Heute
-                      </span>
+              return (
+                <div key={dayOfWeek} className="flex min-h-[19rem] flex-col">
+                  <TagesKopf
+                    kuerzel={dayNames[index]}
+                    datum={formatDateShort(date)}
+                    anzahl={dayShifts.length}
+                    offen={offen}
+                    heute={heute}
+                  />
+
+                  <div
+                    className={cn(
+                      "flex-1 space-y-2 p-2",
+                      heute ? "bg-[var(--flaeche-heute)]" : "akro-vertieft"
+                    )}
+                  >
+                    {dayShifts.length === 0 && (
+                      <p className="py-6 text-center text-[12px] text-muted-foreground">
+                        Keine Schichten
+                      </p>
+                    )}
+
+                    {dayShifts.map((shift) => (
+                      <ShiftCard
+                        key={shift.id}
+                        shift={shift}
+                        onEdit={handleEditShift}
+                        isManager={isManager}
+                        currentUserId={member?.user?.id}
+                        highlightUserId={selectedEmployeeId}
+                        layout={layout}
+                        showTitle={showTitle}
+                        showPauses={showPauses}
+                        userWishRequest={userWishMap.get(shift.id) ?? null}
+                      />
+                    ))}
+
+                    {isManager && (
+                      <SchichtHinzufuegen
+                        onClick={() => handleAddShift(dayOfWeek)}
+                        label="Schicht"
+                      />
                     )}
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {formatDateShort(date)}
-                  </div>
                 </div>
-
-                {/* Day Content */}
-                <div className="flex-1 p-2 space-y-2">
-                  {dayShifts.length === 0 && (
-                    <div className="flex items-center justify-center py-4">
-                      <span className="text-xs text-muted-foreground">
-                        Keine Schichten
-                      </span>
-                    </div>
-                  )}
-
-                  {dayShifts.map((shift) => (
-                    <ShiftCard
-                      key={shift.id}
-                      shift={shift}
-                      onEdit={handleEditShift}
-                      isManager={isManager}
-                      currentUserId={member?.user?.id}
-                      highlightUserId={selectedEmployeeId}
-                      layout={layout}
-                      showTitle={showTitle}
-                      showPauses={showPauses}
-                      userWishRequest={userWishMap.get(shift.id) ?? null}
-                    />
-                  ))}
-
-                  {/* Add shift button */}
-                  {isManager && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full border border-dashed text-muted-foreground hover:text-foreground"
-                      onClick={() => handleAddShift(dayOfWeek)}
-                    >
-                      <Plus className="size-3.5" />
-                      Schicht
-                    </Button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </LiveBorder>
 
-      {/* Mobile: day-by-day vertical cards */}
+      {/* Handy: ein Tag nach dem anderen, gleiche Kopfzeile */}
       <LiveBorder isActive={isLiveActive}>
-        <div className="md:hidden space-y-3">
+        <div className="space-y-3 md:hidden">
           {weekDates.map((date, index) => {
             const dayOfWeek = index + 1;
             const dayShifts = shiftsByDay[dayOfWeek] ?? [];
-            const todayHighlight = isToday(date);
+            const heute = isToday(date);
 
             return (
-              <div
-                key={dayOfWeek}
-                className={cn(
-                  "rounded-lg border bg-card",
-                  todayHighlight && "ring-2 ring-primary/50 bg-primary/[0.02]"
-                )}
-              >
-                {/* Day Header */}
+              <div key={dayOfWeek} className="akro-panel overflow-hidden">
+                <TagesKopf
+                  kuerzel={dayNames[index]}
+                  datum={formatDateShort(date)}
+                  anzahl={dayShifts.length}
+                  offen={offeneMenge(dayShifts)}
+                  heute={heute}
+                  breit
+                />
+
                 <div
                   className={cn(
-                    "border-b px-4 py-2.5 rounded-t-lg flex items-center justify-between",
-                    todayHighlight ? "bg-primary/10" : "bg-muted/30"
+                    "space-y-2 p-3",
+                    heute ? "bg-[var(--flaeche-heute)]" : "akro-vertieft"
                   )}
                 >
-                  <div>
-                    <span className="text-sm font-semibold">{dayNames[index]}</span>
-                    <span className="text-xs text-muted-foreground ml-2">
-                      {formatDateShort(date)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {todayHighlight && (
-                      <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
-                        Heute
-                      </span>
-                    )}
-                    {dayShifts.length > 0 && (
-                      <span className="text-xs text-muted-foreground">
-                        {dayShifts.length} {dayShifts.length === 1 ? "Schicht" : "Schichten"}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Day Content */}
-                <div className="p-3 space-y-2">
                   {dayShifts.length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-2">
+                    <p className="py-2 text-center text-[12px] text-muted-foreground">
                       Keine Schichten
                     </p>
                   )}
@@ -338,15 +296,10 @@ export function ScheduleGrid({ weekNumber, year, weekDates }: ScheduleGridProps)
                   ))}
 
                   {isManager && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full border border-dashed text-muted-foreground hover:text-foreground"
+                    <SchichtHinzufuegen
                       onClick={() => handleAddShift(dayOfWeek)}
-                    >
-                      <Plus className="size-3.5" />
-                      Schicht hinzufuegen
-                    </Button>
+                      label="Schicht hinzufügen"
+                    />
                   )}
                 </div>
               </div>
@@ -369,22 +322,111 @@ export function ScheduleGrid({ weekNumber, year, weekDates }: ScheduleGridProps)
   );
 }
 
-/** Loading skeleton for the grid */
+/** Wie viele Plaetze an diesem Tag noch offen sind. */
+function offeneMenge(shifts: ShiftData[]): number {
+  return shifts.reduce(
+    (summe, shift) =>
+      summe +
+      Math.max(0, shift.maxEmployees - (shift.occupiedCount ?? shift.bookings.length)),
+    0
+  );
+}
+
+/**
+ * Spaltenkopf des Boards: Tag, Datum und die Lage in einer Zeile.
+ * Der heutige Tag traegt die Markenkante - keine zweite Auszeichnung.
+ */
+function TagesKopf({
+  kuerzel,
+  datum,
+  anzahl,
+  offen,
+  heute,
+  breit = false,
+}: {
+  kuerzel: string;
+  datum: string;
+  anzahl: number;
+  offen: number;
+  heute: boolean;
+  breit?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "relative border-b",
+        breit ? "px-4 py-2.5" : "px-3 py-2",
+        heute ? "bg-[var(--flaeche-heute)]" : "akro-panel-kopf"
+      )}
+    >
+      {heute && (
+        <span
+          aria-hidden="true"
+          className="akro-markenlinie absolute inset-x-0 top-0 h-[2px]"
+        />
+      )}
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[13px] font-semibold tracking-[-0.01em]">
+          {kuerzel}
+          {heute && (
+            <span className="ml-1.5 text-[11px] font-medium text-primary">
+              heute
+            </span>
+          )}
+        </span>
+        <span className="tabular text-[12px] text-muted-foreground">{datum}</span>
+      </div>
+      <p className="tabular mt-0.5 text-[11px] text-muted-foreground">
+        {anzahl} {anzahl === 1 ? "Schicht" : "Schichten"}
+        {offen > 0 && (
+          <span className="font-medium text-destructive">
+            {" · "}
+            {offen} offen
+          </span>
+        )}
+      </p>
+    </div>
+  );
+}
+
+/** Ruhiger Platzhalter am Spaltenende statt einer weiteren Schaltflaeche. */
+function SchichtHinzufuegen({
+  onClick,
+  label,
+}: {
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center justify-center gap-1.5 rounded-[var(--radius)] border border-dashed border-border py-1.5 text-[12px] text-muted-foreground transition-colors hover:border-primary/60 hover:bg-card hover:text-foreground"
+    >
+      <Plus className="size-3.5" />
+      {label}
+    </button>
+  );
+}
+
+/** Geruest in der Form des Boards. */
 function ScheduleGridSkeleton() {
   return (
-    <div className="hidden md:grid md:grid-cols-7 gap-2">
-      {Array.from({ length: 7 }).map((_, i) => (
-        <div key={i} className="min-h-[200px] rounded-lg border bg-card">
-          <div className="border-b bg-muted/30 px-3 py-2 rounded-t-lg">
-            <Skeleton className="h-4 w-8" />
-            <Skeleton className="h-3 w-12 mt-1" />
+    <div className="akro-panel hidden overflow-hidden md:block" aria-busy="true">
+      <div className="grid grid-cols-7 divide-x divide-[var(--linie-fein)]">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div key={i} className="min-h-[19rem]">
+            <div className="akro-panel-kopf space-y-1.5 border-b px-3 py-2">
+              <Skeleton className="h-3.5 w-10" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+            <div className="space-y-2 p-2">
+              <Skeleton className="h-24 w-full rounded-[var(--radius)]" />
+              <Skeleton className="h-16 w-full rounded-[var(--radius)]" />
+            </div>
           </div>
-          <div className="p-2 space-y-2">
-            <Skeleton className="h-20 w-full rounded-lg" />
-            <Skeleton className="h-8 w-full rounded-md" />
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

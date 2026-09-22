@@ -21,4 +21,4 @@ export function ErrorMessage({ error }: { error: Error | null }) {
   return error ? <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error.message}</p> : null;
 }
 export function dateLabel(date: string) { return new Date(date.slice(0,10) + "T12:00:00Z").toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit" }); }
-export const selectClass = "h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
+export const selectClass = "h-10 w-full rounded-[var(--radius)] border border-input bg-card px-3 text-sm";

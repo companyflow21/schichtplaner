@@ -57,7 +57,7 @@ function CustomTooltip({
   const isForecast = rawData?.isForecast;
 
   return (
-    <div className="rounded-lg border bg-card p-3 shadow-lg text-sm">
+    <div className="akro-panel p-3 text-sm">
       <p className="font-semibold mb-1">
         {label} {isForecast && "(Prognose)"}
       </p>

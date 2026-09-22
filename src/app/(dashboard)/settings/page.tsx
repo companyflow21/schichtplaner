@@ -163,7 +163,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Einstellungen</h1>
+        <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">Einstellungen</h1>
         <p className="text-sm text-muted-foreground">
           Organisation und Systemeinstellungen verwalten
         </p>

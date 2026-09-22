@@ -257,7 +257,7 @@ export function TimeList() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Zeiterfassung</h1>
+          <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">Zeiterfassung</h1>
           <p className="text-sm text-muted-foreground">
             Arbeitszeiten erfassen und verwalten
           </p>
@@ -388,7 +388,7 @@ export function TimeList() {
                 )}
                 <Badge
                   variant="secondary"
-                  className="tabular-nums font-mono text-sm"
+                  className="tabular text-sm"
                 >
                   {formatHours(emp.totalHours)}
                 </Badge>
@@ -465,7 +465,7 @@ export function TimeList() {
                                         className="flex items-center gap-2 group"
                                       >
                                         {getRecordTypeIcon(record.type)}
-                                        <span className="text-sm font-mono tabular-nums">
+                                        <span className="text-sm tabular">
                                           {getRecordDisplayTime(record)}
                                         </span>
                                         {record.category && (
@@ -545,7 +545,7 @@ export function TimeList() {
                               >
                                 <div className="flex items-center gap-2 min-w-0">
                                   {getRecordTypeIcon(record.type)}
-                                  <span className="text-sm font-mono tabular-nums">
+                                  <span className="text-sm tabular">
                                     {getRecordDisplayTime(record)}
                                   </span>
                                   {record.category && (
