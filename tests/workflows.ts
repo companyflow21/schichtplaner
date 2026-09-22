@@ -63,6 +63,14 @@ class Session {
     const session = await this.request("/api/auth/session");
     check(session.user?.email === email, "credentials login " + email);
   }
+  /** Anmeldung, die scheitern muss - etwa nach dem Deaktivieren. */
+  async loginFails(email: string, message: string) {
+    const csrf = await this.request("/api/auth/csrf");
+    await fetch(base + "/api/auth/callback/credentials", { method: "POST", redirect: "manual", headers: { Cookie: [...this.jar].map(([k,v]) => k+"="+v).join("; "), "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ csrfToken: csrf.csrfToken, email, password, callbackUrl: base + "/dashboard" }) });
+    // Ohne Sitzung liefert NextAuth null, nicht ein leeres Objekt.
+    const session = await this.request("/api/auth/session");
+    check(!session?.user, message);
+  }
 }
 try {
   let ready = false;
@@ -150,6 +158,15 @@ try {
   const token = new URL(invite.url).searchParams.get("token");
   await anonymous.request("/api/auth/activate", "POST", { token, password });
   await anonymous.request("/api/auth/activate", "POST", { token, password }, 400);
+  // Basiskette weiter: das aktivierte Konto meldet sich an, sieht nur die
+  // eigene Organisation, darf keine fremden Stammdaten aendern - und nach
+  // dem Deaktivieren kommt es nicht mehr hinein.
+  const eingeladen = new Session();
+  await eingeladen.login("new@akro-test.invalid");
+  check((await eingeladen.request("/api/me")).organizationId === org.id, "activated employee belongs only to the inviting organization");
+  await eingeladen.request("/api/employees/" + users.admin.memberId, "PATCH", { targetHoursPerWeek: 5 }, 403);
+  await admin.request("/api/employees/" + newPeople.members[0].id, "PATCH", { isActive: false });
+  await new Session().loginFails("new@akro-test.invalid", "deactivated employee cannot sign in");
   await admin.request("/api/shifts/" + conflict.id, "DELETE");
   check((await employee.request(schedulePath)).schedule.shifts.every((s:any) => s.id !== conflict.id), "deleted shift removed from plan");
   console.log("SUCCESS: " + checks + " assertions / HTTP checks passed.");

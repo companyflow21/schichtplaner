@@ -31,8 +31,20 @@ Die Datenbank ist nur intern im Docker-Netz erreichbar, nicht von außen.
 
 **Voraussetzungen:** eine eigene Testinstallation (nicht die Produktivumgebung)
 und dort angelegte Testkonten `load-user-001@akro-test.invalid` bis
-`load-user-040@akro-test.invalid` mit gemeinsamem Passwort. Der Test legt
+`load-user-040@akro-test.invalid` mit gemeinsamem Passwort. Der Lasttest legt
 selbst keine Benutzer an.
+
+**Testdaten anlegen** (einmalig, wiederholbar) – direkt auf der
+Testinstallation ausführen, `DATABASE_URL` muss auf deren Datenbank zeigen:
+
+```
+DATABASE_URL="postgresql://…" LOAD_USER_PASSWORD="…" npm run test:load:seed
+```
+
+Das Skript arbeitet nur in einer Organisation, deren Name „Test", „Pilot" oder
+„Staging" enthält, legt die 40 Konten als Mitarbeiter an, veröffentlicht den
+Wochenplan und weist jedem Konto eine Schicht zu. Es löscht nichts. Gibt es
+mehrere passende Organisationen, wählt `LOAD_ORG_NAME` eine aus.
 
 **Umgebungsvariablen:**
 

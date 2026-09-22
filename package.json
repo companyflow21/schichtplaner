@@ -24,6 +24,7 @@
   "scripts": {
     "test:workflows": "tsx tests/workflows.ts",
     "test:load:pilot": "tsx tests/load-pilot.ts",
+    "test:load:seed": "tsx tests/seed-load-pilot.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

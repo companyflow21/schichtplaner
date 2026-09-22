@@ -454,6 +454,26 @@ function schlafe(dauer: number): Promise<void> {
   });
 }
 
+/** Wird durch SIGINT/SIGTERM gesetzt und bricht den Lauf geordnet ab. */
+let abbruch = false;
+
+/** Weckt eine laufende Phase vorzeitig, sobald ein Signal eintrifft. */
+let phasenWecker: (() => void) | null = null;
+
+function phasenPause(dauer: number): Promise<void> {
+  return new Promise<void>((auf) => {
+    const uhr = setTimeout(() => {
+      phasenWecker = null;
+      auf();
+    }, dauer);
+    phasenWecker = () => {
+      clearTimeout(uhr);
+      phasenWecker = null;
+      auf();
+    };
+  });
+}
+
 /** Meldet alle benoetigten Konten an; fehlende werden benannt. */
 async function anmeldung(anzahl: number): Promise<string[]> {
   const fehlend: string[] = [];
@@ -473,6 +493,7 @@ async function setzeZielzahl(ziel: number): Promise<void> {
   const aktive = nutzer.filter((n) => n.aktiv);
   if (aktive.length < ziel) {
     for (const n of nutzer) {
+      if (abbruch) break;
       if (nutzer.filter((x) => x.aktiv).length >= ziel) break;
       if (!n.aktiv) {
         n.starte();
@@ -585,6 +606,14 @@ function bewerte(laufzeitMs: number): string[] {
   if (zaehler.mandantFehler > 0) {
     gruende.push(`${zaehler.mandantFehler} Antworten aus einer fremden Organisation.`);
   }
+  // Ein Schreibtest ohne einen einzigen Schreibvorgang hat nichts belegt.
+  if (SCHREIBEN_ERLAUBT && zaehler.schreibvorgaenge === 0) {
+    gruende.push(
+      testumgebung
+        ? "LOAD_ALLOW_WRITES=true, aber kein einziger Schreibvorgang war erfolgreich. Haben die Testkonten Schichten in der laufenden Woche?"
+        : `LOAD_ALLOW_WRITES=true, aber Schreibtests wurden abgelehnt: ${schreibgrund}.`
+    );
+  }
   return gruende;
 }
 
@@ -624,9 +653,11 @@ async function main(): Promise<void> {
 
   const faktor = DAUER_MINUTEN / NENNDAUER_MINUTEN;
   const start = performance.now();
-  let abbruch = false;
   const beiSignal = () => {
     abbruch = true;
+    // Laufende Phase sofort beenden, statt Minuten abzuwarten.
+    phasenWecker?.();
+    console.log("\nSignal empfangen - Phase wird abgebrochen, Verbindungen werden abgebaut …");
   };
   process.once("SIGINT", beiSignal);
   process.once("SIGTERM", beiSignal);
@@ -639,7 +670,8 @@ async function main(): Promise<void> {
       `\n${phase.name}: ${ziel} Nutzer für ${(dauer / 60_000).toFixed(1)} Minuten`
     );
     await setzeZielzahl(ziel);
-    await schlafe(dauer);
+    if (abbruch) break;
+    await phasenPause(dauer);
   }
 
   console.log("\nPhase 5: Verbindungen abbauen …");
