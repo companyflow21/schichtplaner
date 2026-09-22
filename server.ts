@@ -6,10 +6,15 @@ import { decode } from "next-auth/jwt";
 import { db } from "./src/lib/db";
 
 const dev = process.env.NODE_ENV !== "production";
-const hostname = "0.0.0.0";
+// Bindeadresse im Container, nicht die oeffentliche Adresse.
+const bindAdresse = "0.0.0.0";
 const port = parseInt(process.env.PORT || "3000", 10);
 
-const app = next({ dev, hostname, port });
+// Next bekommt hier bewusst keine Adresse: hinter dem Reverse Proxy steht die
+// echte Domain im Host-Kopf. Nennt man Next "0.0.0.0", haelt es das fuer die
+// eigene Adresse und schickt Weiterleitungen - etwa nach dem Abmelden - an
+// https://0.0.0.0:3000 statt an die Domain.
+const app = next({ dev });
 const handle = app.getRequestHandler();
 
 // Die Session steckt im NextAuth-Cookie. Hinter HTTPS heisst es "__Secure-...".
@@ -162,7 +167,7 @@ app.prepare().then(() => {
 
   (globalThis as Record<string, unknown>).__socketIO = io;
 
-  httpServer.listen(port, hostname, () => {
-    console.log(`> Ready on http://${hostname}:${port}`);
+  httpServer.listen(port, bindAdresse, () => {
+    console.log(`> Ready on http://${bindAdresse}:${port}`);
   });
 });

@@ -47,6 +47,9 @@ services:
       DATABASE_URL: postgresql://schichtplaner:${POSTGRES_PASSWORD}@postgres:5432/schichtplaner
       AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET muss in .env gesetzt sein}
       AUTH_TRUST_HOST: "true"
+      # Ohne eigene Adresse leitet die Anmeldung hinter dem Reverse Proxy auf
+      # die interne Bindeadresse um (https://0.0.0.0:3000), etwa beim Abmelden.
+      AUTH_URL: ${APP_URL:?APP_URL muss in .env gesetzt sein}
       # Dienstplaene, Stempelzeiten und Auswertungen rechnen in Ortszeit.
       TZ: Europe/Berlin
     expose:
