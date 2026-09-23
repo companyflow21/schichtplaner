@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Search, Users, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -56,17 +55,16 @@ export function EmployeeNav({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  // Fetch all active employees
-  const { data } = useQuery<{ members: OrgEmployee[] }>({
-    queryKey: ["employees", "active"],
-    queryFn: async () => {
-      const res = await fetch("/api/employees?status=active");
-      if (!res.ok) throw new Error("Fehler beim Laden");
-      return res.json();
-    },
-  });
-
-  const employees = data?.members ?? [];
+  // Nur Personen, die im Plan ohnehin sichtbar sind - keine Personalliste.
+  const employees = useMemo(() => {
+    const byUser = new Map<string, OrgEmployee>();
+    for (const shift of shifts) {
+      for (const booking of shift.bookings) {
+        if (!byUser.has(booking.userId)) byUser.set(booking.userId, { id: booking.userId, role: "", user: { ...booking.user, email: "" } });
+      }
+    }
+    return [...byUser.values()];
+  }, [shifts]);
 
   // Calculate hours per employee from shifts data
   const employeeHours = useMemo(() => {

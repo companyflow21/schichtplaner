@@ -1,32 +1,39 @@
-import { api, body, requireMember, serial, ApiError } from "@/lib/api";
-import { shiftInput, updateShift } from "@/lib/shift-service";
-import { notify, shiftInclude } from "@/lib/planning";
-import { emitToOrg } from "@/lib/emit";
+import { api, body, serial, ApiError } from "@/lib/api";
+import { assertCan, requireAccess } from "@/lib/access";
+import { shiftPatch, updateShift } from "@/lib/shift-service";
+import { notify, shiftInclude, shiftView } from "@/lib/planning";
+import { emitToBranch } from "@/lib/emit";
+
 type Context = { params: Promise<{ id: string }> };
+
 export async function PATCH(request: Request, context: Context) {
   return api(async () => {
-    const m = await requireMember(true);
+    const a = await requireAccess();
     const { id } = await context.params;
-    const data = await body(request, shiftInput.omit({ scheduleId: true, repeatDays: true, repeatWeeks: true }).partial());
-    const shift = await serial(tx => updateShift(tx, m.organizationId, m.userId, id, data));
-    emitToOrg(m.organizationId, "schedule:updated", { scheduleId: shift.scheduleId });
-    return { shift };
+    const data = await body(request, shiftPatch);
+    const { shift, previousBranchId } = await serial(tx => updateShift(tx, a, id, data));
+    const affected = shift.bookings.map(b => b.userId);
+    emitToBranch(a.orgId, shift.schedule.branchId, "schedule:updated", affected);
+    if (previousBranchId !== shift.schedule.branchId) emitToBranch(a.orgId, previousBranchId, "schedule:updated");
+    return { shift: shiftView(shift, a) };
   });
 }
+
 export async function DELETE(_request: Request, context: Context) {
   return api(async () => {
-    const m = await requireMember(true);
+    const a = await requireAccess();
     const { id } = await context.params;
-    const scheduleId = await serial(async tx => {
-      const shift = await tx.shift.findFirst({ where: { id, deletedAt: null, schedule: { organizationId: m.organizationId } }, include: shiftInclude });
+    const shift = await serial(async tx => {
+      const shift = await tx.shift.findFirst({ where: { id, deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null } }, include: shiftInclude });
       if (!shift) throw new ApiError("Schicht nicht gefunden.", 404);
-      if (shift.schedule.isPublic) await notify(tx, m.organizationId, m.userId, shift.bookings.map(b => b.userId), "Schicht abgesagt", "Die Schicht " + (shift.title || "") + " von " + shift.shiftFrom + " bis " + shift.shiftTo + " wurde abgesagt.", id);
+      assertCan(a, "EDIT_SHIFTS", shift.schedule.branchId);
+      if (shift.schedule.isPublic) await notify(tx, a.orgId, a.userId, shift.bookings.map(b => b.userId), "Schicht abgesagt", "Die Schicht " + (shift.title || "") + " von " + shift.shiftFrom + " bis " + shift.shiftTo + " wurde abgesagt.", id);
       await tx.modRequest.updateMany({ where: { shiftId: id, state: "OPEN" }, data: { state: "DECLINED" } });
       await tx.booking.deleteMany({ where: { shiftId: id } });
       await tx.shift.update({ where: { id }, data: { deletedAt: new Date() } });
-      return shift.scheduleId;
+      return shift;
     });
-    emitToOrg(m.organizationId, "schedule:updated", { scheduleId });
+    emitToBranch(a.orgId, shift.schedule.branchId, "schedule:updated", shift.bookings.map(b => b.userId));
     return { success: true };
   });
 }

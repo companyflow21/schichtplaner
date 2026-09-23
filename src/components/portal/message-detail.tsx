@@ -47,6 +47,8 @@ interface MessageFull {
     user: UserInfo;
   }[];
   replies: ReplyMsg[];
+  /** Weitere Empfaenger, deren Namen die betrachtende Person nicht sehen darf. */
+  hiddenRecipients?: number;
 }
 
 export function MessageDetail() {
@@ -158,6 +160,7 @@ export function MessageDetail() {
               <User className="size-3" />
               An:{" "}
               {msg.recipients.map((r) => `${r.user.firstName} ${r.user.lastName} (${r.isRead ? "gelesen" : "ungelesen"})`).join(", ")}
+              {msg.hiddenRecipients ? `${msg.recipients.length ? " und " : ""}${msg.hiddenRecipients} ${msg.hiddenRecipients === 1 ? "weitere Person" : "weitere Personen"}` : ""}
             </div>
           </div>
         </div>

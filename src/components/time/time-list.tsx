@@ -33,6 +33,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
+import { summaryCan } from "@/lib/access-shared";
+import { json, useAction } from "@/components/workforce/client";
 import { TimeRecordForm } from "./time-record-form";
 import { Stopwatch } from "./stopwatch";
 import { AnomalyBadge, EmployeeAnomalyIndicator } from "./anomaly-badge";
@@ -52,7 +54,12 @@ type TimeRecord = {
   categoryId: string | null;
   comment: string | null;
   category: { id: string; name: string } | null;
+  /** Standort nach der Zuordnungsregel; null = nicht eindeutig (nur Admins und die Person sehen sie). */
+  branchId: string | null;
+  branch: { id: string; name: string } | null;
 };
+
+type BranchOption = { id: string; name: string; customer: { name: string } | null };
 
 type EmployeeGroup = {
   userId: string;
@@ -111,14 +118,44 @@ function getRecordTypeIcon(type: TimeRecord["type"]) {
   }
 }
 
+/** Standort einer Buchung; Admins ordnen unklare Buchungen hier zu. */
+function StandortAngabe({ record, admin, branches, pending, onAssign }: { record: TimeRecord; admin: boolean; branches: BranchOption[]; pending: boolean; onAssign: (recordId: string, branchId: string) => void }) {
+  if (record.branch) return <span className="truncate text-xs text-muted-foreground">{record.branch.name}</span>;
+  if (!admin) return <span className="text-xs text-muted-foreground">ohne Standort</span>;
+  return (
+    <select
+      aria-label="Standort zuordnen"
+      className="h-7 max-w-[12rem] rounded-[var(--radius)] border border-warn/45 bg-card px-1.5 text-xs"
+      value=""
+      disabled={pending}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => { if (e.target.value) onAssign(record.id, e.target.value); }}
+    >
+      <option value="">Standort zuordnen …</option>
+      {branches.map((b) => (
+        <option key={b.id} value={b.id}>{b.name}{b.customer ? " · " + b.customer.name : ""}</option>
+      ))}
+    </select>
+  );
+}
+
 // ---------- Component ----------
 
 export function TimeList() {
   const { data: currentMember } = useCurrentMember();
-  const isManager =
-    currentMember?.role === "OWNER" ||
-    currentMember?.role === "ADMIN" ||
-    currentMember?.role === "MANAGER";
+  const isAdmin = !!currentMember?.access.isAdmin;
+  // Mehr als die eigene Zeile gibt es nur mit Standort- und Personalrecht.
+  const editsOthers = isAdmin || summaryCan(currentMember?.access, "EDIT_TIME");
+  const assign = useAction();
+  const { data: branchData } = useQuery({
+    queryKey: ["branches"],
+    queryFn: () => json<{ branches: BranchOption[] }>("/api/branches"),
+    enabled: isAdmin,
+  });
+  const branches = branchData?.branches ?? [];
+  function assignBranch(recordId: string, branchId: string) {
+    assign.mutate({ url: `/api/time/${recordId}/branch`, method: "PATCH", data: { branchId }, message: "Standort zugeordnet" });
+  }
 
   // State
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -161,7 +198,7 @@ export function TimeList() {
       if (!res.ok) return { anomalies: [], summary: { total: 0, critical: 0, warning: 0 } };
       return res.json();
     },
-    enabled: isManager,
+    enabled: isAdmin,
   });
   const anomalies = anomalyData?.anomalies ?? [];
 
@@ -176,16 +213,19 @@ export function TimeList() {
     );
   }, [employees, search]);
 
-  // Employee options for the form
+  // Personen fuer das Formular: fremde nur mit "Zeiterfassung bearbeiten"
   const employeeOptions = useMemo(
     () =>
-      employees.map((emp) => ({
-        userId: emp.userId,
-        firstName: emp.firstName,
-        lastName: emp.lastName,
-      })),
-    [employees]
+      employees
+        .filter((emp) => editsOthers || emp.userId === currentMember?.user.id)
+        .map((emp) => ({
+          userId: emp.userId,
+          firstName: emp.firstName,
+          lastName: emp.lastName,
+        })),
+    [employees, editsOthers, currentMember?.user.id]
   );
+  const ohneStandort = employees.reduce((sum, emp) => sum + emp.records.filter((r) => !r.branchId).length, 0);
 
   // All days in the month
   const daysInMonth = useMemo(() => {
@@ -313,12 +353,19 @@ export function TimeList() {
       </div>
 
       {/* Anomaly Badge */}
-      {isManager && (
-        <AnomalyBadge month={monthKey} isManager={isManager} />
+      {isAdmin && (
+        <AnomalyBadge month={monthKey} isManager={isAdmin} />
+      )}
+
+      {isAdmin && ohneStandort > 0 && (
+        <p className="rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-sm">
+          {ohneStandort} {ohneStandort === 1 ? "Buchung ist" : "Buchungen sind"} in diesem Monat keinem Standort eindeutig zugeordnet.
+          Bis zur Zuordnung sehen sie nur die Administration und die jeweilige Person.
+        </p>
       )}
 
       {/* Search */}
-      {isManager && (
+      {employees.length > 1 && (
         <div className="relative w-full sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -380,7 +427,7 @@ export function TimeList() {
                     {emp.records.length !== 1 ? "en" : ""}
                   </div>
                 </div>
-                {isManager && anomalies.length > 0 && (
+                {isAdmin && anomalies.length > 0 && (
                   <EmployeeAnomalyIndicator
                     anomalies={anomalies}
                     employeeId={emp.userId}
@@ -476,6 +523,7 @@ export function TimeList() {
                                             {record.category.name}
                                           </Badge>
                                         )}
+                                        <StandortAngabe record={record} admin={isAdmin} branches={branches} pending={assign.isPending} onAssign={assignBranch} />
                                         {record.comment && (
                                           <span className="text-xs text-muted-foreground truncate max-w-[200px]">
                                             {record.comment}
@@ -556,6 +604,7 @@ export function TimeList() {
                                       {record.category.name}
                                     </Badge>
                                   )}
+                                  <StandortAngabe record={record} admin={isAdmin} branches={branches} pending={assign.isPending} onAssign={assignBranch} />
                                 </div>
                                 <div className="flex items-center gap-1 shrink-0">
                                   <Button

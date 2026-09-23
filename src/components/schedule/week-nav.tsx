@@ -22,6 +22,8 @@ interface WeekNavProps {
   year: number;
   /** Base URL for navigation, defaults to "/schedule/flexible" */
   baseUrl?: string;
+  /** Standort, der beim Blaettern erhalten bleibt. */
+  standort?: string | null;
 }
 
 /**
@@ -32,7 +34,7 @@ function getMaxISOWeek(y: number): number {
   return getISOWeek(new Date(y, 11, 28));
 }
 
-export function WeekNav({ weekNumber, year, baseUrl = "/schedule/flexible" }: WeekNavProps) {
+export function WeekNav({ weekNumber, year, baseUrl = "/schedule/flexible", standort }: WeekNavProps) {
   const router = useRouter();
   const currentKW = useMemo(() => getCurrentKW(), []);
   const weekDates = useMemo(
@@ -70,9 +72,9 @@ export function WeekNav({ weekNumber, year, baseUrl = "/schedule/flexible" }: We
 
   const navigateToKW = useCallback(
     (kw: number, kwYear: number) => {
-      router.push(`${baseUrl}/${formatKW(kw, kwYear)}`);
+      router.push(`${baseUrl}/${formatKW(kw, kwYear)}${standort ? "?standort=" + encodeURIComponent(standort) : ""}`);
     },
-    [router, baseUrl]
+    [router, baseUrl, standort]
   );
 
   const navigatePrev = useCallback(() => {

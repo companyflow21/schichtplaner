@@ -51,6 +51,8 @@ type AbsenceData = {
     lastName: string;
   };
   category: AbsenceCategory;
+  /** Vom Server: darf die angemeldete Person diesen Antrag entscheiden? */
+  canDecide?: boolean;
 };
 
 type EmployeeOption = {
@@ -121,8 +123,6 @@ function AbsenceEditor({
   const isEdit = !!absence;
   const queryClient = useQueryClient();
   const { data: currentMember } = useCurrentMember();
-  const isAdmin =
-    currentMember?.role === "OWNER" || currentMember?.role === "ADMIN";
 
   // Form state
   const [userId, setUserId] = useState(absence?.userId || currentMember?.user.id || "");
@@ -266,8 +266,8 @@ function AbsenceEditor({
               </div>
             )}
 
-            {/* Employee select (only for admins in create mode) */}
-            {!isEdit && isAdmin && employees.length > 0 && (
+            {/* Personenauswahl nur, wenn neben der eigenen Person weitere freigegeben sind */}
+            {!isEdit && employees.length > 1 && (
               <div className="space-y-1.5">
                 <Label>Mitarbeiter</Label>
                 <Select value={userId} onValueChange={setUserId}>
@@ -360,8 +360,8 @@ function AbsenceEditor({
 
           <DialogFooter className="mt-6">
             <div className="flex items-center gap-2 w-full">
-              {/* Approve/Decline buttons for admin on pending absences */}
-              {isEdit && isAdmin && absence?.status === "PENDING" && (
+              {/* Genehmigen/Ablehnen nur mit dem Recht fuer genau diese Person */}
+              {isEdit && absence?.canDecide && absence.status === "PENDING" && (
                 <div className="flex gap-2 mr-auto">
                   <Button
                     type="button"

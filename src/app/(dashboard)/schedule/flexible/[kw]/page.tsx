@@ -9,32 +9,27 @@ import { ScheduleGridWrapper } from "@/components/schedule/schedule-grid-wrapper
 
 interface ScheduleKWPageProps {
   params: Promise<{ kw: string }>;
+  searchParams: Promise<{ standort?: string }>;
 }
 
-export default async function ScheduleKWPage({ params }: ScheduleKWPageProps) {
+/** Wochenplan eines Standorts (?standort=ID); ohne Standort die Auswahl. */
+export default async function ScheduleKWPage({ params, searchParams }: ScheduleKWPageProps) {
   const { kw } = await params;
+  const { standort } = await searchParams;
   const parsed = parseKW(kw);
 
   if (!parsed) {
-    // Invalid KW format, redirect to current week
     const current = getCurrentKW();
-    redirect(`/schedule/flexible/${formatKW(current.weekNumber, current.year)}`);
+    redirect(`/schedule/flexible/${formatKW(current.weekNumber, current.year)}${standort ? "?standort=" + encodeURIComponent(standort) : ""}`);
   }
 
   const { weekNumber, year } = parsed;
-  const weekDates = getWeekDates(weekNumber, year);
-
-  // Serialize dates as ISO strings for the client component
-  const weekDateStrings = weekDates.map((d) => d.toISOString());
+  const weekDateStrings = getWeekDates(weekNumber, year).map((d) => d.toISOString());
 
   return (
     <div>
       {/* Kopfleiste, Status und Werkzeuge stecken in der Rasterkomponente. */}
-      <ScheduleGridWrapper
-        weekNumber={weekNumber}
-        year={year}
-        weekDateStrings={weekDateStrings}
-      />
+      <ScheduleGridWrapper weekNumber={weekNumber} year={year} weekDateStrings={weekDateStrings} standort={standort ?? null} />
     </div>
   );
 }

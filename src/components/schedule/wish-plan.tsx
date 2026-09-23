@@ -34,20 +34,20 @@ import { cn } from "@/lib/utils";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
+/** Antrag, wie die API ihn fuer die angemeldete Person ausgibt. */
 export type WishRequest = {
   id: string;
+  kind?: string;
   shiftId: string;
-  userId: string;
+  /** Nur fuer eigene Antraege und fuer die Planung gesetzt. */
+  userId: string | null;
+  targetUserId?: string | null;
   state: "OPEN" | "ACCEPTED" | "DECLINED";
   note: string | null;
   sentAt: string;
-  user: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    nickname: string | null;
-    profileImage: string | null;
-  };
+  /** Name nur fuer Beteiligte und wer den Standortplan sehen darf. */
+  user: { firstName: string; lastName: string } | null;
+  can?: { decide: boolean; volunteer: boolean; withdraw: boolean };
   shift: {
     id: string;
     scheduleId: string;
@@ -55,6 +55,8 @@ export type WishRequest = {
     shiftFrom: string;
     shiftTo: string;
     title: string | null;
+    date?: string;
+    branch?: { name: string } | null;
     division?: {
       id: string;
       title: string;
@@ -263,7 +265,7 @@ export function WishCountBadge({ shiftId, scheduleId }: WishCountBadgeProps) {
 
   const requests = data?.requests ?? [];
   const shiftRequests = requests.filter(
-    (r) => r.shiftId === shiftId && r.state === "OPEN"
+    (r) => r.shiftId === shiftId && r.state === "OPEN" && r.can?.decide
   );
 
   if (shiftRequests.length === 0) return null;
@@ -430,12 +432,13 @@ function WishRequestsList({ requests, scheduleId }: WishRequestsListProps) {
           >
             <Avatar size="sm" className="mt-0.5">
               <AvatarFallback className="text-[9px]">
-                {getInitials(req.user.firstName, req.user.lastName)}
+                {req.user ? getInitials(req.user.firstName, req.user.lastName) : "?"}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
               <div className="text-xs font-medium truncate">
-                {req.user.firstName} {req.user.lastName}
+                {req.user ? `${req.user.firstName} ${req.user.lastName}` : "Antrag"}
+                {req.kind === "SWAP" && <span className="font-normal text-muted-foreground"> · Tausch</span>}
               </div>
               {req.note && (
                 <div className="flex items-start gap-1 mt-0.5">

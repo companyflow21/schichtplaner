@@ -1,6 +1,6 @@
 /*
- * Legt die Daten fuer den Pilot-Lasttest an: Testkonten, einen Einsatzort,
- * den veroeffentlichten Wochenplan und je eine Schicht pro Konto.
+ * Legt die Daten fuer den Pilot-Lasttest an: Testkonten, einen Testkunden mit
+ * Einsatzort, dessen veroeffentlichten Wochenplan und je eine Schicht pro Konto.
  *
  * Das Skript arbeitet nur in einer Organisation, die sich selbst als Test-,
  * Pilot- oder Staging-Umgebung ausweist, und nur mit Konten auf der
@@ -31,6 +31,7 @@ function zahl(name: string, standard: number): number {
 const ANZAHL = Math.max(zahl("LOAD_USERS", 30), zahl("LOAD_SPIKE_USERS", 40));
 
 const EINSATZORT = "Lasttest Objekt";
+const KUNDE = "Lasttest Kunde";
 const SCHICHT_TITEL = "Lasttest";
 const SCHICHTZEITEN = [
   { dayOfWeek: 1, shiftFrom: "06:00", shiftTo: "14:00" },
@@ -190,32 +191,41 @@ async function main(): Promise<void> {
   console.log(`Konten neu angelegt:   ${neueKonten}`);
   console.log(`Konten aktualisiert:   ${aktualisierteKonten}`);
 
-  // --- Einsatzort ---
+  // --- Kunde und Einsatzort (nur in der Testorganisation) ---
+  const kunde = await db.customer.upsert({
+    where: { organizationId_name: { organizationId: org.id, name: KUNDE } },
+    create: { organizationId: org.id, name: KUNDE, notes: "Synthetische Daten für den Pilot-Lasttest." },
+    update: {},
+    select: { id: true },
+  });
   let branch = await db.branch.findFirst({
     where: { organizationId: org.id, name: EINSATZORT },
-    select: { id: true },
+    select: { id: true, customerId: true },
   });
   if (!branch) {
     branch = await db.branch.create({
       data: {
         organizationId: org.id,
+        customerId: kunde.id,
         name: EINSATZORT,
         address: "Teststraße 1, 00000 Testort",
         meetingPoint: "Pforte",
         positions: ["Sicherheit"],
       },
-      select: { id: true },
+      select: { id: true, customerId: true },
     });
     console.log(`Einsatzort angelegt:   ${EINSATZORT}`);
+  } else if (!branch.customerId) {
+    await db.branch.update({ where: { id: branch.id }, data: { customerId: kunde.id } });
   }
 
-  // --- Wochenplan (branchId null, wie ihn die Anwendung sucht) ---
+  // --- Wochenplan des Einsatzorts ---
   let schedule = await db.schedule.findFirst({
     where: {
       organizationId: org.id,
       weekNumber: woche.weekNumber,
       year: woche.year,
-      branchId: null,
+      branchId: branch.id,
       deletedAt: null,
     },
     select: { id: true, isPublic: true },
@@ -224,6 +234,7 @@ async function main(): Promise<void> {
     schedule = await db.schedule.create({
       data: {
         organizationId: org.id,
+        branchId: branch.id,
         weekNumber: woche.weekNumber,
         year: woche.year,
         isPublic: true,
@@ -257,7 +268,6 @@ async function main(): Promise<void> {
     const neu = await db.shift.create({
       data: {
         scheduleId: schedule.id,
-        branchId: branch.id,
         title: SCHICHT_TITEL,
         dayOfWeek: zeit.dayOfWeek,
         shiftFrom: zeit.shiftFrom,

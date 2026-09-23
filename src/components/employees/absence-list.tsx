@@ -39,6 +39,9 @@ import type { AbsenceData, EmployeeOption } from "./absence-form";
 
 type AbsenceResponse = {
   absences: AbsenceData[];
+  canManage: boolean;
+  /** Eigene Person plus zugeordnete Personen, fuer die Eintraege erlaubt sind. */
+  people: EmployeeOption[];
   counts: {
     all: number;
     pending: number;
@@ -76,8 +79,6 @@ function formatDateRange(from: string, to: string): string {
 export function AbsenceList() {
   const queryClient = useQueryClient();
   const { data: currentMember } = useCurrentMember();
-  const isAdmin =
-    currentMember?.role === "OWNER" || currentMember?.role === "ADMIN";
 
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [search, setSearch] = useState("");
@@ -115,22 +116,8 @@ export function AbsenceList() {
     );
   }, [absences, search]);
 
-  // Employee options for the form
-  const employeeOptions: EmployeeOption[] = useMemo(() => {
-    const uniqueUsers = new Map<string, EmployeeOption>();
-    for (const a of absences) {
-      if (!uniqueUsers.has(a.user.id)) {
-        uniqueUsers.set(a.user.id, {
-          userId: a.user.id,
-          firstName: a.user.firstName,
-          lastName: a.user.lastName,
-        });
-      }
-    }
-    return Array.from(uniqueUsers.values()).sort((a, b) =>
-      a.lastName.localeCompare(b.lastName)
-    );
-  }, [absences]);
+  // Personen fuer das Formular - vom Server nach Freigabe begrenzt
+  const employeeOptions: EmployeeOption[] = data?.people ?? [];
 
   // Approve mutation
   const approveMutation = useMutation({
@@ -312,7 +299,7 @@ export function AbsenceList() {
                 {filteredAbsences.map((absence) => {
                   const days = calculateDays(absence.dateFrom, absence.dateTo);
                   const canDelete =
-                    isAdmin ||
+                    !!absence.canDecide ||
                     (absence.userId === currentMember?.user.id &&
                       absence.status === "PENDING");
 
@@ -352,7 +339,7 @@ export function AbsenceList() {
                       <TableCell className="text-right">
                         <div className="flex items-center gap-1 justify-end">
                           {/* Quick approve/decline for admins on pending */}
-                          {isAdmin && absence.status === "PENDING" && (
+                          {absence.canDecide && absence.status === "PENDING" && (
                             <>
                               <Button
                                 variant="ghost"
@@ -374,14 +361,16 @@ export function AbsenceList() {
                               </Button>
                             </>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            onClick={() => handleEdit(absence)}
-                            title="Bearbeiten"
-                          >
-                            <Pencil className="size-3" />
-                          </Button>
+                          {canDelete && (
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              onClick={() => handleEdit(absence)}
+                              title="Bearbeiten"
+                            >
+                              <Pencil className="size-3" />
+                            </Button>
+                          )}
                           {canDelete && (
                             <ConfirmDialog
                               title="Abwesenheit löschen"
@@ -414,7 +403,7 @@ export function AbsenceList() {
             {filteredAbsences.map((absence) => {
               const days = calculateDays(absence.dateFrom, absence.dateTo);
               const canDelete =
-                isAdmin ||
+                !!absence.canDecide ||
                 (absence.userId === currentMember?.user.id &&
                   absence.status === "PENDING");
 
@@ -455,7 +444,7 @@ export function AbsenceList() {
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
-                      {isAdmin && absence.status === "PENDING" && (
+                      {absence.canDecide && absence.status === "PENDING" && (
                         <>
                           <Button
                             variant="ghost"
@@ -473,13 +462,16 @@ export function AbsenceList() {
                           </Button>
                         </>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => handleEdit(absence)}
-                      >
-                        <Pencil className="size-3" />
-                      </Button>
+                      {canDelete && (
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => handleEdit(absence)}
+                          title="Bearbeiten"
+                        >
+                          <Pencil className="size-3" />
+                        </Button>
+                      )}
                       {canDelete && (
                         <ConfirmDialog
                           title="Abwesenheit löschen"

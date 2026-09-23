@@ -46,8 +46,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useCurrentMember } from "@/lib/hooks/use-current-member";
 import { Personnel } from "@/components/workforce/personnel";
+import { AccessEditor } from "./access-editor";
 
 type EmployeeDetail = {
   id: string;
@@ -64,6 +64,14 @@ type EmployeeDetail = {
     nickname: string | null;
     profileImage: string | null;
     createdAt: string;
+  };
+  /** Was die angemeldete Person hier darf - vom Server berechnet. */
+  permissions: {
+    editContact: boolean;
+    editPersonnel: boolean;
+    notes: boolean;
+    admin: boolean;
+    manageAccess: boolean;
   };
 };
 
@@ -192,14 +200,8 @@ function InlineEdit({
 export function EmployeeDetail({ memberId }: { memberId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { data: currentMember } = useCurrentMember();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
-
-  const isAdmin =
-    currentMember?.role === "OWNER" || currentMember?.role === "ADMIN";
-  const isManagerPlus =
-    isAdmin || currentMember?.role === "MANAGER";
 
   // Fetch employee detail
   const {
@@ -223,7 +225,7 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: isManagerPlus,
+    enabled: !!employee?.permissions.notes,
   });
 
   // Update employee mutation
@@ -267,6 +269,7 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
     onSuccess: () => {
       toast.success("Rolle geaendert");
       queryClient.invalidateQueries({ queryKey: ["employee", memberId] });
+      queryClient.invalidateQueries({ queryKey: ["access", memberId] });
       queryClient.invalidateQueries({ queryKey: ["employees"] });
     },
     onError: (err: Error) => {
@@ -340,10 +343,9 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
     );
   }
 
-  const isSelf = employee.user.id === currentMember?.user?.id;
-  const canEdit = isAdmin || isSelf;
-  const canChangeRole = isAdmin && !isSelf && employee.role !== "OWNER";
-  const canDelete = isAdmin && !isSelf && employee.role !== "OWNER";
+  const canEdit = employee.permissions.editContact;
+  const canChangeRole = employee.permissions.admin;
+  const canDelete = employee.permissions.admin;
 
   return (
     <div className="space-y-6">
@@ -536,7 +538,7 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
           </Card>
 
           {/* Notes Section */}
-          {isManagerPlus && (
+          {employee.permissions.notes && (
             <Card className="p-5 space-y-4">
               <h2 className="text-sm font-semibold uppercase text-muted-foreground tracking-wide">
                 <StickyNote className="inline size-3.5 mr-1" />
@@ -658,6 +660,7 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
       </div>
 
       <Personnel id={employee.id} />
+      {employee.permissions.manageAccess && <AccessEditor memberId={employee.id} />}
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>

@@ -32,6 +32,7 @@ model User {
   liveLogs          LiveLog[]
   topicPosts        TopicPost[]
   uploadedFiles     PortalFile[]
+  createdIssues     BranchIssue[]
 
   @@map("users")
 }
@@ -59,12 +60,12 @@ model Organization {
   name         String
   address      String?
   nameFormat   NameFormat @default(LASTNAME_FIRSTNAME)
-  scheduleVisibility ScheduleVisibility @default(ALL)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   deletedAt    DateTime?
 
   members           OrganizationMember[]
+  customers         Customer[]
   branches          Branch[]
   divisions         Division[]
   schedules         Schedule[]
@@ -99,10 +100,15 @@ model OrganizationMember {
   availabilities Availability[]
   joinedAt       DateTime @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branchAccess   BranchAccess[]
+  managedStaff   StaffAssignment[] @relation("StaffManager")
+  staffManagers  StaffAssignment[] @relation("StaffEmployee")
+  assignedIssues BranchIssue[]
 
   @@unique([organizationId, userId])
+  @@unique([id, organizationId])
   @@map("organization_members")
 }
 
@@ -121,14 +127,29 @@ enum NameFormat {
   NICKNAME
 }
 
-enum ScheduleVisibility {
-  ALL
-  OWN_ONLY
+/// Kunde der AKRO-Organisation. Ausschliesslich interne Planungsdaten -
+/// es gibt keinen Kundenzugang.
+model Customer {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  notes          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branches     Branch[]
+
+  @@unique([organizationId, name])
+  @@map("customers")
 }
 
 model Branch {
   id             String   @id @default(cuid())
   organizationId String
+  /// Nur Altbestaende duerfen ohne Kunde sein; neue Standorte brauchen einen.
+  customerId     String?
   name           String
   address        String?
   meetingPoint   String?
@@ -137,11 +158,101 @@ model Branch {
   isActive       Boolean @default(true)
   createdAt      DateTime @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer?     @relation(fields: [customerId], references: [id], onDelete: Restrict)
   schedules    Schedule[]
-  shifts       Shift[]
+  access       BranchAccess[]
+  issues       BranchIssue[]
+  timeRecords  TimeRecord[]
 
+  @@unique([id, organizationId])
+  @@index([organizationId, customerId])
   @@map("branches")
+}
+
+/// Standortfreigabe: die Rolle bestimmt, welche Rechte ueberhaupt moeglich
+/// sind; die Freigabe bestimmt, fuer welchen Standort sie gelten.
+model BranchAccess {
+  id             String        @id @default(cuid())
+  organizationId String
+  memberId       String
+  branchId       String
+  rights         BranchRight[] @default([])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  member OrganizationMember @relation(fields: [memberId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  branch Branch             @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@unique([memberId, branchId])
+  @@index([organizationId, branchId])
+  @@map("branch_access")
+}
+
+enum BranchRight {
+  VIEW_SCHEDULE
+  EDIT_SHIFTS
+  PUBLISH_SCHEDULE
+  HANDLE_REQUESTS
+  VIEW_TIME
+  EDIT_TIME
+  MANAGE_ISSUES
+  REQUEST_SHIFTS
+}
+
+/// Ausdrueckliche Zuordnung von Mitarbeitenden zu einem Manager. Rechte auf
+/// Personaldaten entstehen nur hierueber, nie ueber eine Standortfreigabe.
+model StaffAssignment {
+  id               String       @id @default(cuid())
+  organizationId   String
+  managerMemberId  String
+  employeeMemberId String
+  rights           StaffRight[] @default([])
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  manager  OrganizationMember @relation("StaffManager", fields: [managerMemberId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  employee OrganizationMember @relation("StaffEmployee", fields: [employeeMemberId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@unique([managerMemberId, employeeMemberId])
+  @@index([organizationId, employeeMemberId])
+  @@map("staff_assignments")
+}
+
+enum StaffRight {
+  ASSIGN_SHIFTS
+  VIEW_PROFILE
+  EDIT_PROFILE
+  MANAGE_ABSENCES
+  VIEW_HOURS
+}
+
+/// Interne Standortmeldung - getrennt von unbesetzten Schichten.
+model BranchIssue {
+  id               String      @id @default(cuid())
+  organizationId   String
+  branchId         String
+  title            String
+  description      String
+  status           IssueStatus @default(OPEN)
+  assigneeMemberId String?
+  createdById      String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  resolvedAt       DateTime?
+
+  branch    Branch              @relation(fields: [branchId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  assignee  OrganizationMember? @relation(fields: [assigneeMemberId], references: [id], onDelete: SetNull)
+  createdBy User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, branchId, status])
+  @@map("branch_issues")
+}
+
+enum IssueStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
 }
 
 model Division {
@@ -171,6 +282,8 @@ model DivisionMember {
   @@map("division_members")
 }
 
+/// Wochenplan eines Standorts. Der Standort einer Schicht ergibt sich
+/// ausschliesslich hieraus. Ohne branchId: Altbestand, nur fuer Admins.
 model Schedule {
   id             String   @id @default(cuid())
   organizationId String
@@ -186,7 +299,7 @@ model Schedule {
   deletedAt      DateTime?
 
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  branch       Branch?       @relation(fields: [branchId], references: [id])
+  branch       Branch?       @relation(fields: [branchId], references: [id], onDelete: Restrict)
   shifts       Shift[]
   briefings    Briefing[]
   liveSession  LiveSession?
@@ -204,7 +317,6 @@ model Shift {
   id           String   @id @default(cuid())
   scheduleId   String
   divisionId   String?
-  branchId     String?
   requiredQualifications String[] @default([])
   dayOfWeek    Int
   shiftFrom    String
@@ -219,7 +331,6 @@ model Shift {
 
   schedule    Schedule     @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   division    Division?    @relation(fields: [divisionId], references: [id])
-  branch      Branch?      @relation(fields: [branchId], references: [id])
   messages    Message[]
   bookings    Booking[]
   modRequests ModRequest[]
@@ -335,6 +446,9 @@ model TimeRecord {
   id             String       @id @default(cuid())
   userId         String
   organizationId String
+  /// Standort der Arbeit; ohne Angabe nur fuer die Person selbst, ihre
+  /// Personalverantwortlichen und Admins sichtbar.
+  branchId       String?
   startedAt      DateTime?
   endedAt        DateTime?
   pauseStartedAt DateTime?
@@ -354,9 +468,10 @@ model TimeRecord {
 
   user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   category TimeCategory? @relation(fields: [categoryId], references: [id])
+  branch   Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, userId, date])
-
+  @@index([organizationId, branchId, date])
   @@map("time_records")
 }
 

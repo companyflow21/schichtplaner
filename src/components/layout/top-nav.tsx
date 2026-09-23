@@ -62,7 +62,7 @@ function Dienstzeit() {
 export function TopNav() {
   const pathname = usePathname();
   const { data: me } = useCurrentMember();
-  const titel = seitenTitel(pathname, me?.role);
+  const titel = seitenTitel(pathname, me);
 
   return (
     <header className="sticky top-0 z-30 border-b bg-card">

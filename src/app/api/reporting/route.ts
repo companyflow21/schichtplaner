@@ -1,10 +1,12 @@
-import { api, requireMember, ApiError } from "@/lib/api";
-import { isManagerOrAbove } from "@/lib/auth-helpers";
+import { api, ApiError } from "@/lib/api";
+import { requireAccess } from "@/lib/access";
 import { monthlyReport, reportPeriod } from "@/lib/report";
+
 export async function GET(request: Request) {
   return api(async () => {
-    const m = await requireMember(), { month, year } = reportPeriod(request);
+    const a = await requireAccess();
+    const { month, year, branchId } = reportPeriod(request);
     if (!Number.isInteger(month) || month < 1 || month > 12 || !Number.isInteger(year) || year < 2000 || year > 2100) throw new ApiError("Ungültiger Monat.");
-    return monthlyReport(m.organizationId, month, year, isManagerOrAbove(m.role) ? undefined : m.userId);
+    return monthlyReport(a, month, year, { branchId });
   });
 }

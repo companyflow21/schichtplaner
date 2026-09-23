@@ -31,9 +31,9 @@ export function MobileNav() {
   const unread = useUnreadCount();
   const [open, setOpen] = useState(false);
 
-  const items = mobileNavItems(me?.role);
-  const groups = navGroups(me?.role);
-  const footer = navFooterItems(me?.role);
+  const items = mobileNavItems(me);
+  const groups = navGroups(me);
+  const footer = navFooterItems(me);
   const hauptZiele = new Set(items.map((item) => item.href));
 
   const eintragKlasse = (active: boolean) =>

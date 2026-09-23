@@ -298,7 +298,7 @@ function LivePanel({
       )}
 
       {/* Live Log */}
-      <LiveLogFeed logs={session.logs} />
+      <LiveLogFeed logs={session.logs ?? []} />
     </div>
   );
 }

@@ -39,7 +39,6 @@ export async function GET() {
       name: org.name,
       address: org.address,
       nameFormat: org.nameFormat,
-      scheduleVisibility: org.scheduleVisibility,
     },
     timeSettings: org.timeSettings ?? {
       whoCanUse: "ALL",
@@ -76,7 +75,6 @@ const updateSettingsSchema = z.object({
       "NICKNAME",
     ])
     .optional(),
-  scheduleVisibility: z.enum(["ALL", "OWN_ONLY"]).optional(),
 
   // Time settings
   timeSettings: z
@@ -165,8 +163,6 @@ export async function PATCH(request: NextRequest) {
   if (data.name !== undefined) orgUpdate.name = data.name;
   if (data.address !== undefined) orgUpdate.address = data.address;
   if (data.nameFormat !== undefined) orgUpdate.nameFormat = data.nameFormat;
-  if (data.scheduleVisibility !== undefined)
-    orgUpdate.scheduleVisibility = data.scheduleVisibility;
 
   if (Object.keys(orgUpdate).length > 0) {
     await db.organization.update({

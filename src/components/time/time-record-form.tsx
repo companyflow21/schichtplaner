@@ -78,11 +78,6 @@ function TimeEditor({
   const isEdit = !!record;
   const queryClient = useQueryClient();
   const { data: currentMember } = useCurrentMember();
-  const isManager =
-    currentMember?.role === "OWNER" ||
-    currentMember?.role === "ADMIN" ||
-    currentMember?.role === "MANAGER";
-
   // Form state
   const [userId, setUserId] = useState(record?.userId || currentMember?.user.id || "");
   const [date, setDate] = useState(
@@ -239,7 +234,7 @@ function TimeEditor({
 
           <div className="mt-4 space-y-4">
             {/* Employee select (only for managers in create mode) */}
-            {!isEdit && isManager && employees.length > 0 && (
+            {!isEdit && employees.length > 1 && (
               <div className="space-y-1.5">
                 <Label>Mitarbeiter</Label>
                 <Select value={userId} onValueChange={setUserId}>

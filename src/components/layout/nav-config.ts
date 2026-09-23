@@ -10,6 +10,8 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+import type { CurrentMember } from "@/lib/hooks/use-current-member";
+import { summaryCan } from "@/lib/access-shared";
 
 export type NavItem = {
   key: string;
@@ -46,43 +48,42 @@ export function rollenName(role?: string): string {
   }
 }
 
+/** Was die Navigation zeigen darf - abgeleitet aus Rolle und Freigaben. */
+function faehigkeiten(me?: CurrentMember) {
+  const access = me?.access;
+  const admin = isAdmin(me?.role);
+  const manager = me?.role === "MANAGER";
+  return {
+    admin,
+    planning: admin || manager,
+    plans: summaryCan(access, "VIEW_SCHEDULE"),
+    staff: admin || Object.keys(access?.staff ?? {}).length > 0,
+    locations: admin || Object.keys(access?.branches ?? {}).length > 0,
+  };
+}
+
 /**
- * Navigation nach Rolle. Bereiche, die eine Rolle nicht benutzen darf,
- * tauchen gar nicht erst auf - die Berechtigungen selbst liegen weiterhin
- * in den API-Routen.
+ * Navigation nach Rolle und Freigaben. Bereiche ohne Recht tauchen gar nicht
+ * erst auf - die Berechtigungen selbst prueft ausschliesslich der Server.
  */
-export function navGroups(role?: string): NavGroup[] {
-  if (!isPlanner(role)) {
+export function navGroups(me?: CurrentMember): NavGroup[] {
+  const can = faehigkeiten(me);
+  if (!can.planning) {
     return [
       {
         title: "Arbeit",
         items: [
           { key: "dashboard", href: "/dashboard", label: "Heute", icon: House },
-          {
-            key: "schedule",
-            href: "/schedule/employee",
-            label: "Mein Dienstplan",
-            icon: CalendarDays,
-          },
+          { key: "schedule", href: "/schedule/employee", label: "Mein Dienstplan", icon: CalendarDays },
+          ...(can.plans ? [{ key: "plans", href: "/schedule/month", label: "Standortpläne", icon: Building2 }] : []),
           { key: "time", href: "/time", label: "Zeiterfassung", icon: Clock },
         ],
       },
       {
         title: "Meine Anliegen",
         items: [
-          {
-            key: "requests",
-            href: "/employees/absences",
-            label: "Anträge",
-            icon: CalendarCheck,
-          },
-          {
-            key: "portal",
-            href: "/portal/inbox",
-            label: "Nachrichten",
-            icon: MessageSquare,
-            badge: "unread",
-          },
+          { key: "requests", href: "/employees/absences", label: "Anträge", icon: CalendarCheck },
+          { key: "portal", href: "/portal/inbox", label: "Nachrichten", icon: MessageSquare, badge: "unread" },
         ],
       },
     ];
@@ -93,69 +94,48 @@ export function navGroups(role?: string): NavGroup[] {
       title: "Arbeit",
       items: [
         { key: "dashboard", href: "/dashboard", label: "Heute", icon: House },
-        {
-          key: "schedule",
-          href: "/schedule/flexible",
-          label: "Dienstplan",
-          icon: CalendarDays,
-        },
+        ...(can.plans ? [{ key: "schedule", href: "/schedule/month", label: "Dienstplan", icon: CalendarDays }] : []),
       ],
     },
     {
       title: "Personal",
       items: [
-        { key: "employees", href: "/employees", label: "Mitarbeiter", icon: Users },
-        {
-          key: "absences",
-          href: "/employees/absences",
-          label: "Abwesenheiten",
-          icon: CalendarCheck,
-        },
+        ...(can.staff ? [{ key: "employees", href: "/employees", label: "Mitarbeiter", icon: Users }] : []),
+        { key: "absences", href: "/employees/absences", label: "Abwesenheiten", icon: CalendarCheck },
         { key: "time", href: "/time", label: "Zeiterfassung", icon: Clock },
       ],
     },
     {
       title: "Organisation",
       items: [
-        { key: "divisions", href: "/divisions", label: "Einsatzorte", icon: Building2 },
+        ...(can.locations ? [{ key: "divisions", href: "/divisions", label: "Einsatzorte", icon: Building2 }] : []),
         { key: "reporting", href: "/reporting", label: "Auswertung", icon: BarChart3 },
-        {
-          key: "portal",
-          href: "/portal/inbox",
-          label: "Nachrichten",
-          icon: MessageSquare,
-          badge: "unread",
-        },
+        { key: "portal", href: "/portal/inbox", label: "Nachrichten", icon: MessageSquare, badge: "unread" as const },
       ],
     },
   ];
 }
 
-/** Fuss der Seitenleiste: nur für Rollen, die Einstellungen aendern duerfen. */
-export function navFooterItems(role?: string): NavItem[] {
-  return isPlanner(role)
+/** Fuss der Seitenleiste: Einstellungen nur fuer die Administration. */
+export function navFooterItems(me?: CurrentMember): NavItem[] {
+  return isAdmin(me?.role)
     ? [{ key: "settings", href: "/settings", label: "Einstellungen", icon: Settings }]
     : [];
 }
 
 /** Untere Navigation auf dem Handy: hoechstens vier Ziele plus "Mehr". */
-export function mobileNavItems(role?: string): NavItem[] {
-  const planner = isPlanner(role);
+export function mobileNavItems(me?: CurrentMember): NavItem[] {
+  const can = faehigkeiten(me);
   return [
     { key: "dashboard", href: "/dashboard", label: "Heute", icon: House },
     {
       key: "schedule",
-      href: planner ? "/schedule/flexible" : "/schedule/employee",
+      href: can.planning && can.plans ? "/schedule/month" : "/schedule/employee",
       label: "Plan",
       icon: CalendarDays,
     },
     { key: "time", href: "/time", label: "Zeit", icon: Clock },
-    {
-      key: "requests",
-      href: "/employees/absences",
-      label: "Anträge",
-      icon: CalendarCheck,
-    },
+    { key: "requests", href: "/employees/absences", label: "Anträge", icon: CalendarCheck },
   ];
 }
 
@@ -172,13 +152,13 @@ const weitereTitel: [string, string][] = [
 ];
 
 /** Name der aktuellen Seite fuer die Kopfschiene. */
-export function seitenTitel(pathname: string, role?: string): string {
-  for (const group of navGroups(role)) {
+export function seitenTitel(pathname: string, me?: CurrentMember): string {
+  for (const group of navGroups(me)) {
     for (const item of group.items) {
       if (isNavActive(item.href, pathname)) return item.label;
     }
   }
-  for (const item of navFooterItems(role)) {
+  for (const item of navFooterItems(me)) {
     if (isNavActive(item.href, pathname)) return item.label;
   }
   const treffer = weitereTitel.find(([pfad]) => pathname.startsWith(pfad));
@@ -191,6 +171,8 @@ export function isNavActive(href: string, pathname: string): boolean {
   if (href === "/employees") {
     return pathname.startsWith("/employees") && !pathname.startsWith("/employees/absences");
   }
+  if (href === "/schedule/month") return pathname.startsWith("/schedule/month");
+  if (href === "/schedule/employee") return pathname.startsWith("/schedule") && !pathname.startsWith("/schedule/month");
   const segment = "/" + href.split("/")[1];
   return pathname === segment || pathname.startsWith(segment + "/");
 }

@@ -23,7 +23,6 @@ type SettingsResponse = {
     name: string;
     address: string | null;
     nameFormat: string;
-    scheduleVisibility: string;
   };
   timeSettings: {
     whoCanUse: string;
@@ -201,7 +200,6 @@ export default function SettingsPage() {
           {activeSection === "schedule" && (
             <ScheduleSettings
               nameFormat={data.organization.nameFormat}
-              scheduleVisibility={data.organization.scheduleVisibility}
               onUpdate={handleUpdate}
               isSaving={updateMutation.isPending}
             />

@@ -14,7 +14,8 @@ import type { WishRequest } from "./wish-plan";
 interface ShiftCardProps {
   shift: ShiftData;
   onEdit: (shift: ShiftData) => void;
-  isManager: boolean;
+  /** Darf die angemeldete Person diese Schicht bearbeiten und besetzen? (aus shift.can) */
+  canEdit: boolean;
   /** Current user's ID - needed for self-booking as employee */
   currentUserId?: string;
   /** If set, highlight shifts containing this user and dim others */
@@ -36,7 +37,7 @@ function getInitials(firstName: string, lastName: string): string {
 export function ShiftCard({
   shift,
   onEdit,
-  isManager,
+  canEdit,
   currentUserId,
   highlightUserId,
   layout = "LAYOUT_1",
@@ -65,7 +66,7 @@ export function ShiftCard({
   // Book mutation
   const bookMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const res = await fetch(isManager ? "/api/bookings" : "/api/mod-requests", {
+      const res = await fetch(canEdit ? "/api/bookings" : "/api/mod-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ shiftId: shift.id, userId }),
@@ -77,7 +78,7 @@ export function ShiftCard({
       return res.json();
     },
     onSuccess: () => {
-      toast.success(isManager ? "Mitarbeiter zugewiesen" : "Übernahme angefragt");
+      toast.success(canEdit ? "Mitarbeiter zugewiesen" : "Übernahme angefragt");
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
     },
     onError: (error: Error) => {
@@ -138,7 +139,8 @@ export function ShiftCard({
 
   // Can the current user book themselves into an empty slot?
   const canSelfBook =
-    !isManager &&
+    !canEdit &&
+    !!shift.can?.request &&
     currentUserId &&
     !bookedUserIds.includes(currentUserId) &&
     !isFull;
@@ -154,7 +156,7 @@ export function ShiftCard({
         // dezent, vollstaendig besetzte Schichten bleiben ruhig.
         !isFull && "border-warn/50",
         isFull && offeneBestätigungen > 0 && "border-dashed",
-        isManager && "hover:border-primary/50",
+        canEdit && "hover:border-primary/50",
         isPending && "opacity-70 pointer-events-none",
         isDimmed && "opacity-40",
         highlightUserId && hasHighlightUser && "border-primary"
@@ -170,10 +172,10 @@ export function ShiftCard({
         type="button"
         className={cn(
           "w-full space-y-1 px-2.5 py-2 text-left",
-          isManager && "cursor-pointer transition-colors hover:bg-[var(--flaeche-kopf)]"
+          canEdit && "cursor-pointer transition-colors hover:bg-[var(--flaeche-kopf)]"
         )}
-        onClick={() => isManager && onEdit(shift)}
-        disabled={!isManager}
+        onClick={() => canEdit && onEdit(shift)}
+        disabled={!canEdit}
       >
         {/* Kopfzeile: Zeit zuerst, dann die Besetzung.
             Besetzte Schichten bleiben ruhig, unbesetzte tragen das Signal -
@@ -230,7 +232,7 @@ export function ShiftCard({
         ) : null}
 
         {/* Nur der Hinweis, der eine Handlung ausloest. */}
-        {isManager && isFull && offeneBestätigungen > 0 && (
+        {canEdit && isFull && offeneBestätigungen > 0 && (
           <div className="text-[11px] text-muted-foreground">
             {offeneBestätigungen} Bestätigung(en) offen
           </div>
@@ -244,10 +246,10 @@ export function ShiftCard({
 
         {/* Wish plan indicators */}
         <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-          {isManager && (
+          {shift.can?.handle && (
             <WishCountBadge shiftId={shift.id} scheduleId={shift.scheduleId} />
           )}
-          {!isManager && currentUserId && !bookedUserIds.includes(currentUserId) && (
+          {!canEdit && shift.can?.request && currentUserId && !bookedUserIds.includes(currentUserId) && (
             <WishRequestButton
               shiftId={shift.id}
               currentUserId={currentUserId}
@@ -261,8 +263,7 @@ export function ShiftCard({
       <div className="space-y-0.5 px-2.5 pb-2">
         {/* Booked employees */}
         {shift.bookings.map((booking) => {
-          const canUnbook =
-            isManager;
+          const canUnbook = canEdit;
           return (
             <div
               key={booking.id}
@@ -278,6 +279,10 @@ export function ShiftCard({
               </Avatar>
               <span className="min-w-0 flex-1 truncate text-[12px]">
                 {booking.user.firstName} {booking.user.lastName}
+                {/* Nur fuer die Planung: zaehlt nicht als wirksame Besetzung. */}
+                {booking.unavailable && (
+                  <span className="ml-1 text-[11px] font-medium text-destructive">· nicht verfügbar</span>
+                )}
               </span>
               {canUnbook && (
                 <ConfirmDialog
@@ -307,7 +312,7 @@ export function ShiftCard({
         {/* Empty slots */}
         {Array.from({ length: emptySlots }).map((_, i) => (
           <div key={`empty-${i}`}>
-            {isManager ? (
+            {canEdit ? (
               <EmployeePicker
                 bookedUserIds={bookedUserIds}
                 onSelect={handleBook}
@@ -352,7 +357,7 @@ export function ShiftCard({
         ))}
 
         {/* + Platz button for managers */}
-        {isManager && (
+        {canEdit && (
           <button
             type="button"
             className="flex w-full items-center gap-1.5 pt-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"

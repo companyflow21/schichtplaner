@@ -42,6 +42,7 @@ interface MessageItem {
     profileImage: string | null;
   };
   recipients: Recipient[];
+  hiddenRecipients?: number;
 }
 
 interface Props {
@@ -248,11 +249,12 @@ export function MessageList({ folder }: Props) {
                   <div className="w-36 shrink-0 truncate">
                     <span className={cn("text-sm", unread && "font-semibold")}>
                       {folder === "sent"
-                        ? msg.recipients
-                            .map((r) =>
+                        ? [
+                            ...msg.recipients.map((r) =>
                               r.user ? `${r.user.firstName} ${r.user.lastName}` : "Unbekannt"
-                            )
-                            .join(", ")
+                            ),
+                            ...(msg.hiddenRecipients ? [`+${msg.hiddenRecipients} weitere`] : []),
+                          ].join(", ")
                         : `${msg.sender.firstName} ${msg.sender.lastName}`}
                     </span>
                   </div>

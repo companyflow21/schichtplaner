@@ -13,6 +13,8 @@ interface EmployeeGridProps {
   weekNumber: number;
   year: number;
   weekDates: Date[];
+  /** Standort des Plans; ohne Angabe die zusammengefuehrte Sicht. */
+  standort?: string | null;
 }
 
 type EmployeeRow = {
@@ -48,11 +50,11 @@ function shiftDurationHours(shift: ShiftData): number {
  * Rows = employees, Columns = Mo-So.
  * Each cell shows the employee's shift(s) for that day.
  */
-export function EmployeeGrid({ weekNumber, year, weekDates }: EmployeeGridProps) {
+export function EmployeeGrid({ weekNumber, year, weekDates, standort }: EmployeeGridProps) {
   const { data, isLoading } = useQuery<{ schedule: ScheduleData }>({
-    queryKey: ["schedule", weekNumber, year],
+    queryKey: ["schedule", weekNumber, year, standort ?? "alle"],
     queryFn: async () => {
-      const res = await fetch(`/api/schedules?kw=${weekNumber}&year=${year}`);
+      const res = await fetch(`/api/schedules?kw=${weekNumber}&year=${year}${standort ? "&standort=" + encodeURIComponent(standort) : ""}`);
       if (!res.ok) throw new Error("Fehler beim Laden der Schichten");
       return res.json();
     },
@@ -165,6 +167,7 @@ export function EmployeeGrid({ weekNumber, year, weekDates }: EmployeeGridProps)
                         {dayShifts.map((shift) => (
                           <div
                             key={shift.id}
+                            title={shift.branch?.name}
                             className="text-[11px] rounded px-1.5 py-0.5 inline-block"
                             style={{
                               backgroundColor: shift.division?.color
@@ -174,6 +177,10 @@ export function EmployeeGrid({ weekNumber, year, weekDates }: EmployeeGridProps)
                             }}
                           >
                             {shift.shiftFrom}-{shift.shiftTo}
+                            {/* In der zusammengefuehrten Sicht steht der Standort dabei. */}
+                            {!standort && shift.branch && (
+                              <span className="block max-w-[110px] truncate text-[10px] text-muted-foreground">{shift.branch.name}</span>
+                            )}
                           </div>
                         ))}
                       </div>

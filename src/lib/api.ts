@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
-import { getCurrentMember, isManagerOrAbove } from "./auth-helpers";
+import { getCurrentMember } from "./auth-helpers";
 import { db } from "./db";
+import { ApiError } from "./errors";
 
-export class ApiError extends Error {
-  constructor(message: string, public status = 400) { super(message); }
-}
-export async function requireMember(manager = false) {
+export { ApiError };
+export async function requireMember() {
   const member = await getCurrentMember();
   if (!member) throw new ApiError("Bitte erneut anmelden.", 401);
-  if (manager && !isManagerOrAbove(member.role)) throw new ApiError("Keine Berechtigung.", 403);
   return member;
 }
 export async function body<T extends z.ZodType>(request: Request, schema: T): Promise<z.output<T>> {

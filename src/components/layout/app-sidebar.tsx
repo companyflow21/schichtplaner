@@ -72,8 +72,8 @@ export function AppSidebar() {
     melden();
   }, [collapsed]);
 
-  const groups = navGroups(me?.role);
-  const footer = navFooterItems(me?.role);
+  const groups = navGroups(me);
+  const footer = navFooterItems(me);
 
   return (
     <aside
