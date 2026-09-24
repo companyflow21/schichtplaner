@@ -13,6 +13,9 @@ const input = z.object({ shiftId: z.string().min(1), userId: z.string().min(1) }
  * Personen (planningPool); Admins alle. confirm bestaetigt Hinweise wie eine
  * fehlende Qualifikation; harte Sperren bleiben davon unberuehrt. Die
  * Einteilung aendert die Standortzuordnung der Person nicht.
+ * Gleichzeitiges Besetzen kollidiert leicht; die Transaktion (Pruefungen,
+ * Buchung, Benachrichtigung) wird dann begrenzt neu ausgefuehrt und sieht
+ * die inzwischen gespeicherten Buchungen; das Socket-Signal erst nach dem Commit.
  */
 export async function POST(request: Request) {
   return api(async () => {
@@ -24,7 +27,7 @@ export async function POST(request: Request) {
       assertCan(a, "EDIT_SHIFTS", target.schedule.branchId);
       if (!a.isAdmin && !(await planningPool(tx, a, target.schedule.branchId)).has(data.userId)) throw new ApiError("Diese Person kannst du für diesen Standort nicht einplanen.", 403);
       return assign(tx, a, data.shiftId, data.userId, data.confirm === true);
-    });
+    }, { retry: true });
     emitToBranch(a.orgId, shift.schedule.branchId, "booking:changed", [data.userId]);
     return { booking };
   });
