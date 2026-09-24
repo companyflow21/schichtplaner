@@ -19,11 +19,11 @@
   --color-foreground: var(--foreground);
   --font-sans: "Archivo", Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
-  /* Status: ausschliesslich aus den festgelegten Spartenfarben.
-     ok = Service-Gruen, warn/fehler = Fire-Rotbraun, info = Sicherheit-Blau. */
-  --color-ok: var(--service);
-  --color-warn: var(--fire);
-  --color-info: var(--security);
+  /* Status: vier Bedeutungen, je Farbschema eigene Werte (siehe :root/.dark).
+     ok = passend/erledigt, warn = Hinweis, destructive = Fehler, info. */
+  --color-ok: var(--status-ok);
+  --color-warn: var(--status-hinweis);
+  --color-info: var(--status-info);
   --color-brand: var(--brand);
   --color-ink: var(--ink);
   /* Ohne Schatten: Tiefe entsteht aus Flaeche und Linie. */
@@ -123,10 +123,21 @@
   --muted-foreground: var(--ink-muted);
   --accent: #d3e0ff;
   --accent-foreground: var(--deep);
-  --destructive: var(--fire);
+  --destructive: var(--status-fehler);
   --border: var(--line);
   --input: var(--line);
   --ring: var(--brand);
+
+  /* --- Statusfarben ---
+     AKRO-Blau fuehrt (Navigation, Hauptaktion). Status nur mit Text:
+     Service-Gruen = passend/erledigt, warmes Orange = Hinweis,
+     Fire-Rot = Fehler. Das Orange ist die einzige Ergaenzung zur
+     Dachmarke - noetig, damit Hinweis und Fehler unterscheidbar bleiben;
+     alle Werte erreichen mindestens 4,5:1 auf Karte, Papier und Tonflaeche. */
+  --status-ok: var(--service);
+  --status-hinweis: #a15700;
+  --status-fehler: var(--fire);
+  --status-info: var(--security);
 
   /* Diagramme: Sparten zuerst, dann Tiefblau und Sekundaertext. */
   --chart-1: var(--security);
@@ -202,10 +213,18 @@
   --muted-foreground: #9db6d8;
   --accent: #16376a;
   --accent-foreground: #99c4ff;
-  --destructive: #d97a55;
+  --destructive: var(--status-fehler);
   --border: var(--line);
   --input: #355687;
   --ring: #4d7dff;
+
+  /* Statusfarben auf dunkler Flaeche: Tuerkis und Sicherheit-Blau aus den
+     dunklen Markenwerten (chart-1/2); Orange und Rot aufgehellt, damit
+     Hinweis und Fehler auf #102e5b lesbar und unterscheidbar bleiben. */
+  --status-ok: #4fbf9b;
+  --status-hinweis: #f0a24a;
+  --status-fehler: #ff8a80;
+  --status-info: #6f9fd8;
 
   --chart-1: #6f9fd8;
   --chart-2: #4fbf9b;

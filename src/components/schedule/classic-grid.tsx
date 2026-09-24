@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { isToday } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { dayNames, formatDateShort } from "@/lib/utils/calendar";
 import { cn } from "@/lib/utils";
 import type { ScheduleData, ShiftData } from "@/types/schedule";
@@ -83,8 +83,8 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
 
   if (timeSlots.length === 0) {
     return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground">
-        Keine Schichten in dieser Woche
+      <div className="akro-panel p-6 text-[14px] text-muted-foreground">
+        Keine Schichten in dieser Woche.
       </div>
     );
   }
@@ -123,21 +123,19 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
               <td className="border-r px-3 py-2 align-top">
                 <div className="flex items-center gap-2">
                   <span
+                    aria-hidden="true"
                     className="size-2 rounded-full shrink-0"
                     style={{ backgroundColor: slot.divisionColor }}
                   />
                   <div>
-                    <div className="text-xs font-medium">
-                      {slot.from} - {slot.to}
+                    <div className="tabular text-xs font-medium whitespace-nowrap">
+                      {slot.from}–{slot.to}
                     </div>
                     {slot.branchName && (
                       <div className="text-[10px] text-muted-foreground truncate max-w-[100px]">{slot.branchName}</div>
                     )}
                     {slot.divisionTitle && (
-                      <div
-                        className="text-[10px] truncate max-w-[100px]"
-                        style={{ color: slot.divisionColor }}
-                      >
+                      <div className="text-[10px] text-muted-foreground truncate max-w-[100px]">
                         {slot.divisionTitle}
                       </div>
                     )}
@@ -157,31 +155,30 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
                     key={day}
                     className={cn(
                       "border-r last:border-r-0 px-2 py-1.5 align-top min-w-[120px]",
-                      today && "bg-primary/[0.03]"
+                      today && "bg-[var(--flaeche-heute)]"
                     )}
                   >
                     {cellShifts.length === 0 ? (
                       <span className="text-[10px] text-muted-foreground/40">--</span>
                     ) : (
                       <div className="space-y-0.5">
-                        {cellShifts.flatMap((shift) =>
-                          shift.bookings.length > 0 ? (
-                            shift.bookings.map((booking) => (
+                        {cellShifts.flatMap((shift) => {
+                          // Offene Plaetze stehen mit Text dabei - nicht nur als Zahl.
+                          const offen = shift.missing ?? Math.max(0, shift.maxEmployees - (shift.occupiedCount ?? shift.bookings.length));
+                          return [
+                            ...shift.bookings.map((booking) => (
                               <div
                                 key={booking.id}
                                 className="text-[11px] truncate"
                               >
                                 {booking.user.firstName} {booking.user.lastName}
                               </div>
-                            ))
-                          ) : (
-                            <div key={shift.id} className="text-[10px] text-muted-foreground italic">
-                              <Badge variant="secondary" className="text-[9px] px-1 py-0">
-                                {shift.bookings.length}/{shift.maxEmployees}
-                              </Badge>
-                            </div>
-                          )
-                        )}
+                            )),
+                            ...(offen > 0
+                              ? [<StatusBadge key={shift.id + "-offen"} ton="hinweis" klein>{offen} offen</StatusBadge>]
+                              : []),
+                          ];
+                        })}
                       </div>
                     )}
                   </td>

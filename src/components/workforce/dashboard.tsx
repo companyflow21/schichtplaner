@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowRight, Building2, Clock, MapPin, MessageSquareWarning } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { AlertTriangle, ArrowRight, Building2, ChevronRight, Clock, EyeOff, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
 import { monthLinkForOpen } from "@/components/schedule/month-grid";
 import { dateLabel, ErrorMessage, json, useAction } from "./client";
@@ -76,8 +76,16 @@ type ManagerData = Base & {
 type EmployeeData = Base & { manager: false; open: Shift[]; plans: { id: string; name: string; customer: { name: string } | null }[] };
 type Dashboard = ManagerData | EmployeeData;
 
+/** Einheitliche Abschnittsueberschrift: kurz, ohne Farbe. */
+const abschnittTitel = "text-[17px] font-semibold tracking-[-0.02em]";
+const textLink = "font-medium text-primary underline-offset-4 hover:underline";
+
 function stunden(minuten: number) {
   return (minuten / 60).toLocaleString("de-DE", { maximumFractionDigits: 1 }) + " h";
+}
+
+function anzahl(zahl: number, eins: string, mehr: string) {
+  return `${zahl} ${zahl === 1 ? eins : mehr}`;
 }
 
 export function Dashboard() {
@@ -96,19 +104,23 @@ export function Dashboard() {
   if (!data) return <DashboardSkeleton />;
 
   const eigeneMonatszeile = data.reports.employees.find((e) => e.userId === data.userId);
+  const nächste = data.manager ? undefined : data.own[0];
+  const offeneBestätigung = !!nächste && !nächste.bookings.find((b) => b.userId === data.userId)?.confirmedAt;
 
   return (
-    <div className="space-y-6">
-      {/* Der Verlauf der Dachmarke - einmal je Seite, ganz oben. */}
-      <header className="akro-marke-verlauf akro-auf-marke flex flex-wrap items-center justify-between gap-4 rounded-[var(--radius-panel)] px-5 py-4">
+    <div className="space-y-8">
+      {/* Kopf: Begruessung und die eine Hauptaktion. Datum und Uhrzeit
+          stehen ab Tablet bereits in der Kopfschiene. */}
+      <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[12px] text-white/70">{dateLabel(data.today)}</p>
-          <h1 className="text-[22px] leading-tight font-semibold tracking-[-0.03em] text-white">Guten Tag, {data.firstName}</h1>
+          <p className="akro-label md:hidden">{dateLabel(data.today)}</p>
+          <h1 className="text-[24px] leading-tight font-semibold tracking-[-0.03em]">Guten Tag, {data.firstName}</h1>
         </div>
-        <Button asChild variant="outline" size="sm" className="border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white">
+        {/* Wartet eine Bestaetigung, ist sie die Hauptaktion - dann tritt der Plan zurueck. */}
+        <Button asChild variant={offeneBestätigung ? "outline" : "default"}>
           <Link href={data.manager ? "/schedule/month" : "/schedule/employee"}>
-            Dienstplan öffnen
-            <ArrowRight className="size-3.5" />
+            {data.manager ? "Dienstplan öffnen" : "Mein Dienstplan"}
+            <ArrowRight className="size-4" />
           </Link>
         </Button>
       </header>
@@ -118,37 +130,36 @@ export function Dashboard() {
       <Requests manager={data.manager} userId={data.userId} />
 
       {/* Nur eine kurze Zusammenfassung; die Auswertung hat eine eigene Seite. */}
-      <section className="akro-panel p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-[17px] font-semibold tracking-[-0.02em]">{data.manager ? "Stunden im laufenden Monat" : "Deine Monatsstunden"}</h2>
-            <p className="tabular mt-1 text-[13px] text-muted-foreground">
-              {data.manager
-                ? `${data.reports.employees.length} ${data.reports.employees.length === 1 ? "Person" : "Personen"} in deiner Auswertung`
-                : eigeneMonatszeile
-                  ? `${stunden(eigeneMonatszeile.totalMinutes)} erfasst${eigeneMonatszeile.targetMinutes !== null ? ` · Soll ${stunden(eigeneMonatszeile.targetMinutes)}` : ""} · Abweichung zum Plan ${stunden(eigeneMonatszeile.deviationMinutes)}`
-                  : "Noch keine Zeiten erfasst"}
-            </p>
-          </div>
-          <Button asChild variant="outline" size="sm"><Link href="/reporting">Zur Auswertung</Link></Button>
+      <section className="akro-panel flex flex-wrap items-center justify-between gap-3 p-4" aria-labelledby="stunden-titel">
+        <div className="min-w-0">
+          <h2 id="stunden-titel" className="text-[15px] font-semibold tracking-[-0.02em]">{data.manager ? "Stunden im Monat" : "Deine Monatsstunden"}</h2>
+          <p className="tabular mt-0.5 text-[13px] text-muted-foreground">
+            {data.manager
+              ? anzahl(data.reports.employees.length, "Person", "Personen") + " in deiner Auswertung"
+              : eigeneMonatszeile
+                ? `${stunden(eigeneMonatszeile.totalMinutes)} erfasst${eigeneMonatszeile.targetMinutes !== null ? ` · Soll ${stunden(eigeneMonatszeile.targetMinutes)}` : ""} · Abweichung zum Plan ${stunden(eigeneMonatszeile.deviationMinutes)}`
+                : "Noch keine Zeiten erfasst"}
+          </p>
         </div>
+        <Button asChild variant="outline" size="sm"><Link href="/reporting">Zur Auswertung</Link></Button>
       </section>
     </div>
   );
 }
 
-/** Disposition: zuerst das, was eine Entscheidung braucht, dann Kunden und Standorte. */
+/** Disposition: erst was zu tun ist, dann Kunden und Standorte, dann der heutige Plan. */
 function ManagerStart({ data }: { data: ManagerData }) {
   const { overview, counts } = data;
   const cards = [...overview.customers.flatMap((c) => c.branches), ...overview.unassigned];
   const leer = !overview.customers.length && !overview.unassigned.length;
+  const admin = overview.legacyShifts !== null;
   const anträge = counts.pendingRequests === null && counts.pendingCorrections === null ? null : (counts.pendingRequests ?? 0) + (counts.pendingCorrections ?? 0);
 
   return (
     <>
-      <HandlungsLeiste
+      <OffeneAufgaben
         eintraege={[
-          { zahl: counts.openSlots, label: `offene Plätze · ${overview.horizon.days} Tage`, href: "#kunden", dringend: true },
+          { zahl: counts.openSlots, label: "offene Plätze", zusatz: `nächste ${overview.horizon.days} Tage`, href: "#kunden", dringend: true },
           { zahl: counts.unconfirmed, label: "Bestätigungen offen", href: "/schedule/month" },
           { zahl: anträge, label: "Anträge offen", href: "#antraege" },
           { zahl: counts.pendingAbsences, label: "Abwesenheiten zur Freigabe", href: "/employees/absences" },
@@ -157,50 +168,70 @@ function ManagerStart({ data }: { data: ManagerData }) {
         ]}
       />
 
-      <section id="kunden" className="space-y-3" aria-labelledby="kunden-titel">
+      <section id="kunden" className="scroll-mt-20 space-y-3" aria-labelledby="kunden-titel">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="kunden-titel" className="text-[17px] font-semibold tracking-[-0.02em]">Kunden und Standorte</h2>
-          <p className="tabular text-[12.5px] text-muted-foreground">Offene Plätze von {dateLabel(overview.horizon.from)} bis {dateLabel(overview.horizon.to)}, auch in Entwürfen</p>
+          <h2 id="kunden-titel" className={abschnittTitel}>Kunden und Standorte</h2>
+          <span className="tabular text-[12.5px] text-muted-foreground">
+            {dateLabel(overview.horizon.from)} – {dateLabel(overview.horizon.to)}
+          </span>
         </div>
 
         {overview.legacyShifts ? (
-          <p className="rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
-            <AlertTriangle className="mr-1.5 inline size-3.5 align-[-2px] text-warn" />
-            {overview.legacyShifts} {overview.legacyShifts === 1 ? "Schicht ist" : "Schichten sind"} noch keinem Standort zugeordnet (Altbestand).{" "}
-            <Link href="/schedule/flexible?standort=ohne" className="font-medium text-primary underline-offset-4 hover:underline">Zuordnen</Link>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
+            <AlertTriangle className="size-3.5 shrink-0 text-warn" aria-hidden="true" />
+            {anzahl(overview.legacyShifts, "Schicht", "Schichten")} ohne Standort
+            <Link href="/schedule/flexible?standort=ohne" className={textLink}>Zuordnen</Link>
           </p>
         ) : null}
 
         {leer ? (
           <div className="akro-panel p-5 text-[14px] text-muted-foreground">
-            {overview.legacyShifts !== null
-              ? <>Noch keine Kunden angelegt. Kunden und Standorte legst du unter <Link href="/divisions" className="font-medium text-primary underline-offset-4 hover:underline">Einsatzorte</Link> an.</>
-              : "Dir ist noch kein Standort freigegeben. Freigaben vergibt die Administration."}
+            {admin ? (
+              <>Noch keine Kunden. <Link href="/divisions" className={textLink}>Einsatzorte öffnen</Link></>
+            ) : (
+              "Dir ist noch kein Standort freigegeben."
+            )}
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {overview.customers.map((c) => (
-              <KundenKarte key={c.id} name={c.name} inaktiv={!c.isActive} branches={c.branches} admin={overview.legacyShifts !== null} />
+              <KundenKarte key={c.id} name={c.name} inaktiv={!c.isActive} branches={c.branches} admin={admin} />
             ))}
             {overview.unassigned.length > 0 && (
-              <KundenKarte name="Ohne Kunde" hinweis="Diese Standorte sind noch keinem Kunden zugeordnet." branches={overview.unassigned} admin={overview.legacyShifts !== null} />
+              <KundenKarte name="Ohne Kunde" ohneKunde branches={overview.unassigned} admin={admin} />
             )}
           </div>
         )}
         {cards.length > 0 && cards.every((b) => b.openSlots === null) && (
-          <p className="text-[13px] text-muted-foreground">Für deine Standorte ist „Dienstplan ansehen“ nicht freigegeben – Besetzungszahlen sind daher ausgeblendet.</p>
+          <p className="text-[13px] text-muted-foreground">Besetzung ausgeblendet: „Dienstplan ansehen“ ist nicht freigegeben.</p>
         )}
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Abschnitt
-          titel="Heutige Einsätze"
-          leer="Heute sind an deinen Standorten keine Schichten geplant."
+          titel="Heute im Dienstplan"
+          leer="Heute keine Schichten an deinen Standorten."
           eintraege={data.todayShifts}
           render={(s) => {
-            const offen = s.bookings.filter((b) => !b.confirmedAt).length;
-            const warnung = s.missing > 0 ? `${s.missing} ${s.missing === 1 ? "Platz" : "Plätze"} offen` : !s.isPublic ? "Entwurf" : offen > 0 ? `${offen} unbestätigt` : undefined;
-            return <SchichtZeile key={s.id} shift={s} namen={s.bookings.map((b) => `${b.user.firstName} ${b.user.lastName}`).join(", ")} warnung={warnung} />;
+            const unbestätigt = s.bookings.filter((b) => !b.confirmedAt).length;
+            return (
+              <SchichtZeile
+                key={s.id}
+                shift={s}
+                namen={s.bookings.map((b) => `${b.user.firstName} ${b.user.lastName}`).join(", ")}
+                status={
+                  s.missing > 0 ? (
+                    <StatusBadge ton="hinweis" klein>{s.missing} offen</StatusBadge>
+                  ) : !s.isPublic ? (
+                    <EntwurfBadge />
+                  ) : unbestätigt > 0 ? (
+                    <StatusBadge ton="neutral" klein>{unbestätigt} unbestätigt</StatusBadge>
+                  ) : (
+                    <StatusBadge ton="ok" klein>besetzt</StatusBadge>
+                  )
+                }
+              />
+            );
           }}
         />
         {data.own.length > 0 && (
@@ -211,23 +242,35 @@ function ManagerStart({ data }: { data: ManagerData }) {
   );
 }
 
-/** Kundenkarte mit ihren sichtbaren Standorten. */
-function KundenKarte({ name, branches, inaktiv = false, hinweis, admin }: { name: string; branches: BranchCard[]; inaktiv?: boolean; hinweis?: string; admin: boolean }) {
+/** Entwurf: fuer Mitarbeitende noch unsichtbar - ein Hinweis, kein Fehler. */
+function EntwurfBadge({ zusatz }: { zusatz?: string }) {
+  return (
+    <StatusBadge ton="hinweis" klein icon={EyeOff}>
+      {zusatz ? `${zusatz} Entwurf` : "Entwurf"}
+    </StatusBadge>
+  );
+}
+
+/** Kunde als Flaeche, seine Standorte als Zeilen darin. */
+function KundenKarte({ name, branches, inaktiv = false, ohneKunde = false, admin }: { name: string; branches: BranchCard[]; inaktiv?: boolean; ohneKunde?: boolean; admin: boolean }) {
   return (
     <article className="akro-panel flex flex-col overflow-hidden">
-      <div className="akro-panel-kopf border-b px-4 py-2.5">
-        <h3 className="text-[15px] font-semibold tracking-[-0.02em]">
+      <header className="akro-panel-kopf border-b px-4 py-2.5">
+        <p className="akro-label">Kunde</p>
+        <h3 className="flex flex-wrap items-center gap-2 text-[15px] font-semibold tracking-[-0.02em]">
           {name}
-          {inaktiv && <span className="ml-1.5 text-[12px] font-normal text-muted-foreground">(inaktiv)</span>}
+          {inaktiv && <StatusBadge ton="neutral" klein>inaktiv</StatusBadge>}
         </h3>
-        {hinweis && <p className="text-[12px] text-muted-foreground">{hinweis}{admin && <> <Link href="/divisions" className="text-primary underline-offset-4 hover:underline">Zuordnen</Link></>}</p>}
-      </div>
+        {ohneKunde && admin && (
+          <Link href="/divisions" className={cn(textLink, "text-[12.5px]")}>Kunden zuordnen</Link>
+        )}
+      </header>
       {branches.length === 0 ? (
         <p className="px-4 py-5 text-[14px] text-muted-foreground">
-          Noch keine Standorte.{admin && <> <Link href="/divisions" className="font-medium text-primary underline-offset-4 hover:underline">Standort anlegen</Link></>}
+          Noch keine Standorte.{admin && <> <Link href="/divisions" className={textLink}>Standort anlegen</Link></>}
         </p>
       ) : (
-        <ul className="divide-y divide-[var(--linie-fein)]">
+        <ul className="divide-y divide-[var(--linie-fein)]" aria-label={`Standorte von ${name}`}>
           {branches.map((b) => <StandortZeile key={b.id} branch={b} />)}
         </ul>
       )}
@@ -237,91 +280,92 @@ function KundenKarte({ name, branches, inaktiv = false, hinweis, admin }: { name
 
 function StandortZeile({ branch }: { branch: BranchCard }) {
   const planbar = branch.openSlots !== null;
-  const monat = monthLinkForOpen(branch.id, []);
+  const schichten = branch.shifts ?? 0;
+  const offen = branch.openSlots ?? 0;
   return (
-    <li className="px-4 py-3">
-      <div className="flex items-center gap-2">
-        <Building2 className="size-4 shrink-0 text-muted-foreground" />
+    <li className="flex items-start gap-3 px-4 py-3">
+      <Building2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <div className="min-w-0 flex-1">
         {planbar ? (
-          <Link href={monat} className="min-w-0 flex-1 truncate text-[14px] font-medium hover:underline">{branch.name}</Link>
+          <Link href={monthLinkForOpen(branch.id, [])} className="block truncate text-[14px] font-medium hover:text-primary hover:underline">{branch.name}</Link>
         ) : (
-          <span className="min-w-0 flex-1 truncate text-[14px] font-medium">{branch.name}</span>
+          <span className="block truncate text-[14px] font-medium">{branch.name}</span>
         )}
+        <div className="tabular mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12.5px] text-muted-foreground">
+          {planbar && (
+            <>
+              {offen > 0 ? (
+                <Link href={monthLinkForOpen(branch.id, branch.openDays)} className="rounded-full hover:opacity-80" title="Tage mit offenen Plätzen zeigen">
+                  <StatusBadge ton="hinweis" klein>{offen} offen</StatusBadge>
+                </Link>
+              ) : schichten > 0 ? (
+                <StatusBadge ton="ok" klein>besetzt</StatusBadge>
+              ) : null}
+              <span>{schichten > 0 ? anzahl(schichten, "Schicht", "Schichten") : "keine Schichten"}</span>
+              {branch.draftWeeks ? <EntwurfBadge zusatz={anzahl(branch.draftWeeks, "Woche", "Wochen")} /> : null}
+            </>
+          )}
+          {branch.issuesOpen ? (
+            <StatusBadge ton="hinweis" klein>{anzahl(branch.issuesOpen, "Meldung", "Meldungen")}</StatusBadge>
+          ) : null}
+          {!planbar && !branch.issuesOpen && <span>{branch.issuesOpen === null ? "keine Planansicht" : "keine offenen Meldungen"}</span>}
+        </div>
       </div>
-      <div className="tabular mt-1 flex flex-wrap gap-x-3 gap-y-1 pl-6 text-[12.5px]">
-        {planbar && (
-          <>
-            <span className="text-muted-foreground">{branch.shifts} {branch.shifts === 1 ? "Schicht" : "Schichten"}</span>
-            {branch.openSlots! > 0 ? (
-              <Link href={monthLinkForOpen(branch.id, branch.openDays)} className="font-medium text-destructive underline-offset-4 hover:underline">
-                <AlertTriangle className="mr-1 inline size-3 align-[-1px]" />
-                {branch.openSlots} {branch.openSlots === 1 ? "offener Platz" : "offene Plätze"}
-              </Link>
-            ) : (
-              <span className="text-muted-foreground">voll besetzt</span>
-            )}
-            {branch.draftWeeks ? <span className="text-muted-foreground">{branch.draftWeeks} {branch.draftWeeks === 1 ? "Woche" : "Wochen"} im Entwurf</span> : null}
-          </>
-        )}
-        {branch.issuesOpen !== null && (
-          <span className={cn(branch.issuesOpen > 0 ? "text-foreground" : "text-muted-foreground")}>
-            <MessageSquareWarning className="mr-1 inline size-3 align-[-1px]" />
-            {branch.issuesOpen} {branch.issuesOpen === 1 ? "Meldung" : "Meldungen"}
-          </span>
-        )}
-        {!planbar && branch.issuesOpen === null && <span className="text-muted-foreground">keine Planansicht freigegeben</span>}
-      </div>
+      {planbar && <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
     </li>
   );
 }
 
-/** Mitarbeitersicht: die naechste Schicht und die Zeiterfassung zuerst. */
+/** Mitarbeitersicht: die naechste Schicht zuerst - ihre Bestaetigung ist die Hauptaktion. */
 function MitarbeiterStart({ data, action }: { data: EmployeeData; action: ReturnType<typeof useAction> }) {
   const nächste = data.own[0];
   const eigeneBuchung = nächste?.bookings.find((b) => b.userId === data.userId);
+  const bestätigt = !!eigeneBuchung?.confirmedAt;
 
   return (
     <>
-      <section className="akro-panel p-4">
-        <h2 className="akro-label">Deine nächste Schicht</h2>
+      <section className="akro-panel overflow-hidden" aria-labelledby="naechste-titel">
+        <div className="akro-panel-kopf flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
+          <h2 id="naechste-titel" className="text-[14px] font-semibold tracking-[-0.02em]">Deine nächste Schicht</h2>
+          {nächste && (bestätigt ? <StatusBadge ton="ok" klein>bestätigt</StatusBadge> : <StatusBadge ton="hinweis" klein>nicht bestätigt</StatusBadge>)}
+        </div>
         {nächste ? (
-          <div className="mt-2 space-y-3">
-            <p className="akro-kennzahl text-[19px]">
+          <div className="space-y-3 p-4">
+            <p className="akro-kennzahl text-[20px]">
               {dateLabel(nächste.date)}
               <span className="px-2 text-border" aria-hidden="true">|</span>
               {nächste.shiftFrom}–{nächste.shiftTo}
             </p>
-            <p className="text-[14px]">
-              {nächste.title || "Schicht"}
-              {nächste.branch ? ` · ${nächste.branch.name}` : ""}
-              {nächste.branch?.customer ? ` · ${nächste.branch.customer.name}` : ""}
-            </p>
+            <div className="text-[14px]">
+              <p className="font-medium">{[nächste.branch?.name, nächste.title].filter(Boolean).join(" · ") || "Schicht"}</p>
+              {nächste.branch?.customer && <p className="text-muted-foreground">{nächste.branch.customer.name}</p>}
+            </div>
             {nächste.branch?.meetingPoint && (
               <p className="flex items-start gap-1.5 text-[14px] text-muted-foreground">
-                <MapPin className="mt-0.5 size-4 shrink-0" />
+                <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                 Treffpunkt: {nächste.branch.meetingPoint}
                 {nächste.branch.address ? ` · ${nächste.branch.address}` : ""}
               </p>
             )}
             <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant={eigeneBuchung?.confirmedAt ? "outline" : "default"}
-                disabled={!!eigeneBuchung?.confirmedAt || action.isPending}
-                onClick={() => action.mutate({ url: "/api/bookings", method: "PATCH", data: { shiftId: nächste.id }, message: "Schicht bestätigt" })}
-              >
-                {eigeneBuchung?.confirmedAt ? "Bestätigt" : "Schicht bestätigen"}
+              {!bestätigt && (
+                <Button
+                  disabled={action.isPending}
+                  onClick={() => action.mutate({ url: "/api/bookings", method: "PATCH", data: { shiftId: nächste.id }, message: "Schicht bestätigt" })}
+                >
+                  Schicht bestätigen
+                </Button>
+              )}
+              <Button variant="outline" asChild>
+                <Link href="/time"><Clock className="size-4" />Zeiterfassung</Link>
               </Button>
-              <Button size="sm" variant="outline" asChild>
-                <Link href="/time"><Clock className="size-3.5" />Zeiterfassung</Link>
-              </Button>
-              <Button size="sm" variant="ghost" disabled={action.isPending} onClick={() => action.mutate({ url: "/api/mod-requests", data: { shiftId: nächste.id, kind: "SWAP" }, message: "Schicht zum Tausch angeboten" })}>
+              <Button variant="ghost" disabled={action.isPending} onClick={() => action.mutate({ url: "/api/mod-requests", data: { shiftId: nächste.id, kind: "SWAP" }, message: "Schicht zum Tausch angeboten" })}>
                 Zum Tausch anbieten
               </Button>
             </div>
           </div>
         ) : (
-          <p className="mt-2 text-[14px] text-muted-foreground">Für dich ist noch keine kommende Schicht veröffentlicht. Sobald die Planung steht, erscheint sie hier.</p>
+          <p className="p-4 text-[14px] text-muted-foreground">Noch keine kommende Schicht veröffentlicht.</p>
         )}
       </section>
 
@@ -329,14 +373,14 @@ function MitarbeiterStart({ data, action }: { data: EmployeeData; action: Return
         <Abschnitt titel="Weitere eigene Schichten" leer="Keine weiteren Schichten geplant." eintraege={data.own.slice(1, 8)} render={(s) => <SchichtZeile key={s.id} shift={s} />} />
         <Abschnitt
           titel="Offene Schichten für dich"
-          leer="Aktuell keine passenden offenen Schichten an deinen freigegebenen Standorten."
+          leer="Keine passenden offenen Schichten."
           eintraege={data.open.slice(0, 8)}
           render={(s) => (
             <SchichtZeile
               key={s.id}
               shift={s}
               aktion={
-                <Button size="xs" variant="outline" disabled={action.isPending} onClick={() => action.mutate({ url: "/api/mod-requests", data: { shiftId: s.id }, message: "Übernahme angefragt" })}>
+                <Button size="sm" variant="outline" disabled={action.isPending} onClick={() => action.mutate({ url: "/api/mod-requests", data: { shiftId: s.id }, message: "Übernahme angefragt" })}>
                   Übernahme anfragen
                 </Button>
               }
@@ -346,15 +390,18 @@ function MitarbeiterStart({ data, action }: { data: EmployeeData; action: Return
       </div>
 
       {data.plans.length > 0 && (
-        <section className="akro-panel overflow-hidden">
-          <h2 className="akro-panel-kopf border-b px-4 py-2.5 text-[14px] font-semibold tracking-[-0.02em]">Freigegebene Standortpläne</h2>
+        <section className="akro-panel overflow-hidden" aria-labelledby="plaene-titel">
+          <h2 id="plaene-titel" className="akro-panel-kopf border-b px-4 py-2.5 text-[14px] font-semibold tracking-[-0.02em]">Standortpläne</h2>
           <ul className="divide-y divide-[var(--linie-fein)]">
             {data.plans.map((p) => (
               <li key={p.id}>
-                <Link href={`/schedule/month?standort=${p.id}`} className="flex items-center gap-2 px-4 py-2.5 text-[14px] hover:bg-[var(--flaeche-kopf)]">
-                  <Building2 className="size-4 text-muted-foreground" />
-                  <span className="flex-1">{p.name}</span>
-                  {p.customer && <span className="text-[12.5px] text-muted-foreground">{p.customer.name}</span>}
+                <Link href={`/schedule/month?standort=${p.id}`} className="flex items-center gap-3 px-4 py-3 text-[14px] hover:bg-[var(--flaeche-kopf)]">
+                  <Building2 className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{p.name}</span>
+                    {p.customer && <span className="block truncate text-[12.5px] text-muted-foreground">{p.customer.name}</span>}
+                  </span>
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 </Link>
               </li>
             ))}
@@ -365,29 +412,52 @@ function MitarbeiterStart({ data, action }: { data: EmployeeData; action: Return
   );
 }
 
-/** Zahlenleiste mit Sprungzielen - die Reihenfolge ist die Dringlichkeit. Felder ohne Recht (null) entfallen. */
-function HandlungsLeiste({ eintraege }: { eintraege: { zahl: number | null; label: string; href: string; dringend?: boolean }[] }) {
-  const sichtbar = eintraege.filter((e): e is { zahl: number; label: string; href: string; dringend?: boolean } => e.zahl !== null);
+type Aufgabe = { zahl: number | null; label: string; zusatz?: string; href: string; dringend?: boolean };
+
+/**
+ * Offene Aufgaben mit Sprungzielen - die Reihenfolge ist die Dringlichkeit.
+ * Felder ohne Recht (null) und erledigte (0) entfallen; bleibt nichts
+ * uebrig, steht dort genau das.
+ */
+function OffeneAufgaben({ eintraege }: { eintraege: Aufgabe[] }) {
+  const mitRecht = eintraege.filter((e): e is Aufgabe & { zahl: number } => e.zahl !== null);
+  const offen = mitRecht.filter((e) => e.zahl > 0);
+  if (!mitRecht.length) return null;
+
   return (
-    <div className="akro-panel overflow-hidden">
-      {/* Haarlinien statt Zwischenraeume: jedes Feld zieht links und oben eine Linie;
-          der Versatz um 1px legt die aeusseren unter den Rand der Flaeche. */}
-      <div className="-mt-px -ml-px grid grid-cols-2 sm:grid-cols-3 xl:auto-cols-fr xl:grid-flow-col xl:grid-cols-none">
-        {sichtbar.map((e) => (
-          <Link
-            key={e.label}
-            href={e.href}
-            className="flex flex-col gap-1 border-t border-l p-4 transition-colors hover:bg-[var(--flaeche-kopf)]"
-          >
-            <span className={cn("akro-kennzahl text-[28px]", e.dringend && e.zahl > 0 ? "text-destructive" : "text-foreground")}>{e.zahl}</span>
-            <span className="flex items-center gap-1 text-[13px] text-muted-foreground">
-              {e.dringend && e.zahl > 0 && <AlertTriangle className="size-3.5 shrink-0 text-destructive" />}
-              {e.label}
-            </span>
-          </Link>
-        ))}
-      </div>
-    </div>
+    <section className="space-y-3" aria-labelledby="aufgaben-titel">
+      <h2 id="aufgaben-titel" className={abschnittTitel}>Offene Aufgaben</h2>
+      {offen.length === 0 ? (
+        <div className="akro-panel flex items-center gap-3 p-4 text-[14px]">
+          <StatusBadge ton="ok">erledigt</StatusBadge>
+          <span className="text-muted-foreground">Nichts offen.</span>
+        </div>
+      ) : (
+        <div className="akro-panel overflow-hidden">
+          {/* Haarlinien statt Zwischenraeume; der Versatz legt die aeusseren Linien unter den Rand. */}
+          <ul className="-mr-px -mb-px grid sm:grid-cols-2 xl:grid-cols-3">
+            {offen.map((e) => {
+              const hinweis = e.dringend;
+              return (
+                <li key={e.label} className="border-r border-b">
+                  <Link href={e.href} className="flex h-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--flaeche-kopf)]">
+                    <span className={cn("akro-kennzahl min-w-9 text-[24px]", hinweis ? "text-warn" : "text-foreground")}>{e.zahl}</span>
+                    <span className="min-w-0 flex-1 text-[14px] leading-snug">
+                      <span className="flex items-center gap-1.5">
+                        {hinweis && <AlertTriangle className="size-3.5 shrink-0 text-warn" aria-hidden="true" />}
+                        {e.label}
+                      </span>
+                      {e.zusatz && <span className="block text-[12px] text-muted-foreground">{e.zusatz}</span>}
+                    </span>
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -403,15 +473,21 @@ function Abschnitt({ titel, leer, eintraege, render }: { titel: string; leer: st
   );
 }
 
-function SchichtZeile({ shift, namen, warnung, aktion }: { shift: Shift; namen?: string; warnung?: string; aktion?: React.ReactNode }) {
+/** Eine Schicht als Zeile: Zeit und Status oben, Ort und Namen darunter - auch auf dem Handy vollstaendig. */
+function SchichtZeile({ shift, namen, status, aktion }: { shift: Shift; namen?: string; status?: React.ReactNode; aktion?: React.ReactNode }) {
+  const ort = [shift.branch?.name, shift.title].filter(Boolean).join(" · ") || "Schicht";
   return (
-    <article className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 transition-colors hover:bg-[var(--flaeche-kopf)]">
-      <span className="tabular text-[14px] font-medium">{dateLabel(shift.date)} · {shift.shiftFrom}–{shift.shiftTo}</span>
-      <span className="min-w-0 flex-1 truncate text-[14px] text-muted-foreground">
-        {[shift.title, shift.branch?.name].filter(Boolean).join(" · ") || "Schicht"}
-        {namen ? ` · ${namen}` : ""}
-      </span>
-      {warnung && <Badge variant="secondary" className="tabular border-warn/45 bg-warn/10 text-warn">{warnung}</Badge>}
+    <article className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 transition-colors hover:bg-[var(--flaeche-kopf)]">
+      <div className="min-w-0 flex-1 basis-56">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="tabular text-[14px] font-medium">{dateLabel(shift.date)} · {shift.shiftFrom}–{shift.shiftTo}</span>
+          {status}
+        </div>
+        <p className="mt-0.5 text-[13px] text-muted-foreground">
+          {ort}
+          {namen ? ` · ${namen}` : ""}
+        </p>
+      </div>
       {aktion}
     </article>
   );
@@ -420,22 +496,31 @@ function SchichtZeile({ shift, namen, warnung, aktion }: { shift: Shift; namen?:
 /** Geruest in der Form des spaeteren Inhalts. */
 function DashboardSkeleton() {
   return (
-    <div className="space-y-6" aria-busy="true" aria-label="Übersicht wird geladen">
-      <Skeleton className="h-[86px] w-full rounded-[var(--radius-panel)]" />
-      <div className="akro-panel overflow-hidden">
-        <div className="-mt-px -ml-px grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6">
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="space-y-2 border-t border-l p-4">
-              <Skeleton className="h-7 w-10" />
-              <Skeleton className="h-4 w-28" />
-            </div>
-          ))}
+    <div className="space-y-8" aria-busy="true" aria-label="Übersicht wird geladen">
+      <div className="flex items-end justify-between gap-3">
+        <Skeleton className="h-8 w-56" />
+        <Skeleton className="h-9 w-40" />
+      </div>
+      <div className="space-y-3">
+        <Skeleton className="h-5 w-36" />
+        <div className="akro-panel overflow-hidden">
+          <div className="-mt-px -ml-px grid sm:grid-cols-2 xl:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex items-center gap-3 border-t border-l px-4 py-3">
+                <Skeleton className="h-7 w-9" />
+                <Skeleton className="h-4 w-36" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {[0, 1, 2].map((i) => (
           <div key={i} className="akro-panel overflow-hidden">
-            <div className="akro-panel-kopf border-b px-4 py-3"><Skeleton className="h-4 w-40" /></div>
+            <div className="akro-panel-kopf space-y-1.5 border-b px-4 py-2.5">
+              <Skeleton className="h-3 w-12" />
+              <Skeleton className="h-4 w-40" />
+            </div>
             <div className="space-y-3 p-4">
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-5/6" />

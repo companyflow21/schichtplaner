@@ -13,7 +13,7 @@ interface MonthGridWrapperProps {
 export function MonthGridWrapper({ month, year, standort, offen }: MonthGridWrapperProps) {
   if (!standort) {
     const monat = String(month).padStart(2, "0") + "-" + year;
-    return <BranchPicker title="Monatsdienstplan" href={(id) => `/schedule/month/${monat}?standort=${id}`} />;
+    return <BranchPicker title="Monatsplan" href={(id) => `/schedule/month/${monat}?standort=${id}`} />;
   }
   return <MonthGrid month={month} year={year} standort={standort} offen={offen} />;
 }

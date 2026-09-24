@@ -3,15 +3,17 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ChevronLeft, ChevronRight, Moon, CalendarRange } from "lucide-react";
+import { ChevronLeft, ChevronRight, EyeOff, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { ErrorMessage, json } from "@/components/workforce/client";
 import { berlinDate, isoWeek } from "@/lib/berlin";
 import { dayNames, formatKW, monthNames } from "@/lib/utils/calendar";
 import { cn } from "@/lib/utils";
 import type { ShiftData } from "@/types/schedule";
 import { BranchIssues } from "./branch-issues";
+import { ViewSwitcher } from "./view-switcher";
 
 type MonthDay = { date: string; weekday: number; isToday: boolean; shifts: ShiftData[]; continuations: ShiftData[]; missing: number };
 type MonthPlan = {
@@ -71,8 +73,16 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
     return result;
   }, [plan]);
 
-  if (query.error) return <ErrorMessage error={query.error} />;
-  if (!plan) return <MonthSkeleton />;
+  const ansicht = <ViewSwitcher month={String(month).padStart(2, "0") + "-" + year} standort={standort} />;
+  // Auch beim Laden und bei Fehlern bleibt der Wechsel in Woche oder Mitarbeitersicht erreichbar.
+  if (query.error || !plan) {
+    return (
+      <div className="space-y-5">
+        <div className="flex justify-end">{ansicht}</div>
+        {query.error ? <ErrorMessage error={query.error} /> : <MonthSkeleton />}
+      </div>
+    );
+  }
 
   const heuteMonat = berlinDate().slice(0, 7);
   const sichtbar = (s: ShiftData) => !nurOffen || (s.missing ?? 0) > 0;
@@ -81,24 +91,27 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
   return (
     <div className="space-y-5">
       {/* Kopf: Kunde, Standort, Monat */}
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
-          <p className="akro-label">{plan.branch.customer?.name ?? "Ohne Kunde"}</p>
-          <h1 className="text-[22px] leading-tight font-semibold tracking-[-0.03em]">
-            {plan.branch.name}
-            {!plan.branch.isActive && <span className="ml-2 text-[13px] font-normal text-muted-foreground">(inaktiv)</span>}
-          </h1>
-          {plan.branch.address && <p className="text-[13px] text-muted-foreground">{plan.branch.address}</p>}
+      <header className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+          <div className="w-full min-w-0 sm:w-auto sm:flex-1">
+            <p className="akro-label truncate">{plan.branch.customer?.name ?? "Ohne Kunde"}</p>
+            <h1 className="flex flex-wrap items-center gap-2 text-[22px] leading-tight font-semibold tracking-[-0.03em]">
+              {plan.branch.name}
+              {!plan.branch.isActive && <StatusBadge ton="neutral">inaktiv</StatusBadge>}
+            </h1>
+            {plan.branch.address && <p className="text-[13px] text-muted-foreground">{plan.branch.address}</p>}
+          </div>
+          {ansicht}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center overflow-hidden rounded-[var(--radius)] border bg-card">
-            <Link href={monthPath(shiftMonth(apiMonth, -1), standort, nurOffen)} aria-label="Vorheriger Monat" className="flex size-8 items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground">
+            <Link href={monthPath(shiftMonth(apiMonth, -1), standort, nurOffen)} aria-label="Vorheriger Monat" className="flex size-9 items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground">
               <ChevronLeft className="size-4" />
             </Link>
-            <span className="h-8 w-px bg-border" aria-hidden="true" />
-            <span className="tabular px-3 text-[14px] font-semibold">{monthNames[month - 1]} {year}</span>
-            <span className="h-8 w-px bg-border" aria-hidden="true" />
-            <Link href={monthPath(shiftMonth(apiMonth, 1), standort, nurOffen)} aria-label="Nächster Monat" className="flex size-8 items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground">
+            <span className="h-9 w-px bg-border" aria-hidden="true" />
+            <span className="tabular px-3 text-[15px] font-semibold">{monthNames[month - 1]} {year}</span>
+            <span className="h-9 w-px bg-border" aria-hidden="true" />
+            <Link href={monthPath(shiftMonth(apiMonth, 1), standort, nurOffen)} aria-label="Nächster Monat" className="flex size-9 items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground">
               <ChevronRight className="size-4" />
             </Link>
           </div>
@@ -107,28 +120,23 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
               <Link href={monthPath(heuteMonat, standort, nurOffen)}>Aktueller Monat</Link>
             </Button>
           )}
-          <Button variant="outline" size="sm" asChild>
-            <Link href={weekHref(plan.days.find((d) => d.isToday)?.date ?? plan.first, standort)}>
-              <CalendarRange className="size-3.5" />
-              Wochenplan
-            </Link>
-          </Button>
         </div>
       </header>
 
       {/* Lage des Monats */}
-      <div className="akro-panel flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 text-[13px]">
-        <span><span className="akro-kennzahl text-[16px]">{plan.totals.shifts}</span> <span className="text-muted-foreground">Schichten</span></span>
-        <span className={cn(plan.totals.missing > 0 && "text-destructive")}>
-          {plan.totals.missing > 0 && <AlertTriangle className="mr-1 inline size-3.5 align-[-2px]" />}
-          <span className="akro-kennzahl text-[16px]">{plan.totals.missing}</span> {plan.totals.missing === 1 ? "Platz offen" : "Plätze offen"}
-        </span>
-        {plan.access.planner && (
-          <span><span className="akro-kennzahl text-[16px]">{plan.totals.draftShifts}</span> <span className="text-muted-foreground">im Entwurf</span></span>
+      <div className="akro-panel flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-[13px]">
+        <span><span className="akro-kennzahl text-[16px]">{plan.totals.shifts}</span> <span className="text-muted-foreground">{plan.totals.shifts === 1 ? "Schicht" : "Schichten"}</span></span>
+        {plan.totals.missing > 0 ? (
+          <StatusBadge ton="hinweis">{plan.totals.missing} {plan.totals.missing === 1 ? "Platz offen" : "Plätze offen"}</StatusBadge>
+        ) : plan.totals.shifts > 0 ? (
+          <StatusBadge ton="ok">voll besetzt</StatusBadge>
+        ) : null}
+        {plan.access.planner && plan.totals.draftShifts > 0 && (
+          <StatusBadge ton="hinweis" icon={EyeOff}>{plan.totals.draftShifts} im Entwurf</StatusBadge>
         )}
-        {plan.issuesOpen !== null && (
-          <span><span className="akro-kennzahl text-[16px]">{plan.issuesOpen}</span> <span className="text-muted-foreground">{plan.issuesOpen === 1 ? "offene Meldung" : "offene Meldungen"}</span></span>
-        )}
+        {plan.issuesOpen ? (
+          <StatusBadge ton="hinweis">{plan.issuesOpen} {plan.issuesOpen === 1 ? "offene Meldung" : "offene Meldungen"}</StatusBadge>
+        ) : null}
         <Button size="sm" variant={nurOffen ? "default" : "outline"} className="ml-auto" aria-pressed={nurOffen} onClick={() => setNurOffen((v) => !v)} disabled={!offeneTage.length && !nurOffen}>
           Nur offene Plätze
         </Button>
@@ -136,13 +144,13 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
 
       {plan.totals.shifts === 0 && !plan.days[0].continuations.length ? (
         <div className="akro-panel p-6 text-[14px] text-muted-foreground">
-          {plan.access.planner ? "In diesem Monat sind keine Schichten geplant." : "Für diesen Monat ist noch kein Dienstplan veröffentlicht."}
+          {plan.access.planner ? "Keine Schichten in diesem Monat." : "Noch kein Plan veröffentlicht."}
           {plan.access.edit && plan.branch.isActive && (
             <> <Link className="font-medium text-primary underline-offset-4 hover:underline" href={weekHref(plan.first, standort)}>Im Wochenplan anlegen</Link></>
           )}
         </div>
       ) : nurOffen && !offeneTage.length ? (
-        <div className="akro-panel p-6 text-[14px] text-muted-foreground">In diesem Monat sind alle Plätze besetzt.</div>
+        <div className="akro-panel flex items-center gap-3 p-6 text-[14px]"><StatusBadge ton="ok">erledigt</StatusBadge><span className="text-muted-foreground">Alle Plätze besetzt.</span></div>
       ) : null}
 
       {/* Kalender ab Tablet */}
@@ -161,7 +169,7 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
             <div key={index} className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] border-t first:border-t-0">
               <div className="px-2 py-2 text-[11px] leading-tight text-muted-foreground">
                 <Link href={weekHref(firstDate, standort)} className="tabular font-semibold text-foreground hover:underline">{w.weekNumber}</Link>
-                {plan.access.planner && week?.isPublic === false && <p className="mt-1">Entwurf</p>}
+                {plan.access.planner && week?.isPublic === false && <p className="mt-1 font-medium text-warn">Entwurf</p>}
               </div>
               {row.map((day, i) => day ? <DayCell key={day.date} day={day} plan={plan} standort={standort} sichtbar={sichtbar} /> : <div key={"leer" + i} className="border-l akro-vertieft" />)}
             </div>
@@ -175,7 +183,7 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
           <div key={day.date} className={cn("akro-panel overflow-hidden", day.isToday && "border-primary/50")}>
             <Link href={weekHref(day.date, standort)} className="akro-panel-kopf flex items-baseline justify-between border-b px-4 py-2">
               <span className="text-[13px] font-semibold">{dayNames[day.weekday - 1]} {day.date.slice(8)}.{day.date.slice(5, 7)}.{day.isToday && <span className="ml-1.5 text-[11px] font-medium text-primary">heute</span>}</span>
-              {day.missing > 0 && <span className="text-[12px] font-medium text-destructive"><AlertTriangle className="mr-1 inline size-3 align-[-1px]" />{day.missing} offen</span>}
+              {day.missing > 0 && <StatusBadge ton="hinweis" klein>{day.missing} offen</StatusBadge>}
             </Link>
             <ul className="divide-y divide-[var(--linie-fein)]">
               {day.continuations.map((s) => <ShiftLine key={"f" + s.id} shift={s} fortsetzung />)}
@@ -196,12 +204,7 @@ function DayCell({ day, plan, standort, sichtbar }: { day: MonthDay; plan: Month
     <div className={cn("min-h-[7.5rem] border-l p-1.5", day.isToday ? "bg-[var(--flaeche-heute)]" : "bg-card")}>
       <Link href={weekHref(day.date, standort)} className="flex items-baseline justify-between gap-1 rounded-sm px-0.5 hover:bg-muted" title="Im Wochenplan öffnen">
         <span className={cn("tabular text-[13px] font-semibold", day.isToday && "text-primary")}>{Number(day.date.slice(8))}</span>
-        {day.missing > 0 && (
-          <span className="flex items-center gap-0.5 text-[11px] font-medium text-destructive">
-            <AlertTriangle className="size-3" />
-            {day.missing} offen
-          </span>
-        )}
+        {day.missing > 0 && <StatusBadge ton="hinweis" klein>{day.missing} offen</StatusBadge>}
       </Link>
       <div className="mt-1 space-y-1">
         {day.continuations.map((s) => (
@@ -223,13 +226,13 @@ function DayCell({ day, plan, standort, sichtbar }: { day: MonthDay; plan: Month
             >
               <div className="flex items-baseline justify-between gap-1">
                 <span className="tabular font-semibold">{s.shiftFrom}–{s.shiftTo}{s.endsNextDay && <span className="font-normal text-muted-foreground"> +1</span>}</span>
-                <span className={cn("tabular", fehlt > 0 ? "font-medium text-destructive" : "text-muted-foreground")}>
+                <span className={cn("tabular", fehlt > 0 ? "font-medium text-warn" : "text-muted-foreground")}>
                   {(s.occupiedCount ?? s.bookings.length)}/{s.maxEmployees}
                 </span>
               </div>
               {s.title && <div className="truncate text-muted-foreground">{s.title}</div>}
               {s.bookings.length > 0 && <div className="truncate">{names(s)}</div>}
-              {fehlt > 0 && <div className="font-medium text-destructive">{fehlt} {fehlt === 1 ? "Platz fehlt" : "Plätze fehlen"}</div>}
+              {fehlt > 0 && <div className="font-medium text-warn">{fehlt} {fehlt === 1 ? "Platz fehlt" : "Plätze fehlen"}</div>}
               {plan.access.planner && s.isPublic === false && <div className="text-muted-foreground">Entwurf</div>}
             </div>
           );
@@ -251,7 +254,7 @@ function ShiftLine({ shift, planner = false, fortsetzung = false }: { shift: Shi
         {fortsetzung ? "Fortsetzung vom Vortag · " : ""}{shift.title || "Schicht"}{shift.bookings.length ? " · " + names(shift) : ""}
       </span>
       {!fortsetzung && (
-        <span className={cn("tabular text-[12px]", fehlt > 0 ? "font-medium text-destructive" : "text-muted-foreground")}>
+        <span className={cn("tabular text-[12px]", fehlt > 0 ? "font-medium text-warn" : "text-muted-foreground")}>
           {(shift.occupiedCount ?? shift.bookings.length)}/{shift.maxEmployees}{fehlt > 0 ? " · " + fehlt + " fehlt" : ""}
         </span>
       )}

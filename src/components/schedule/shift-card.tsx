@@ -2,9 +2,10 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Pause, Plus, Users, X } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
 import { EmployeePicker } from "./employee-picker";
 import { WishRequestButton, WishCountBadge } from "./wish-plan";
@@ -28,6 +29,8 @@ interface ShiftCardProps {
   showPauses?: boolean;
   /** Wish request for this shift by current user (employee view) */
   userWishRequest?: WishRequest | null;
+  /** Standort auf der Karte zeigen - im Plan eines Standorts steht er schon im Kopf. */
+  zeigeStandort?: boolean;
 }
 
 function getInitials(firstName: string, lastName: string): string {
@@ -44,6 +47,7 @@ export function ShiftCard({
   showTitle = true,
   showPauses = true,
   userWishRequest,
+  zeigeStandort = true,
 }: ShiftCardProps) {
   const queryClient = useQueryClient();
   const bookedCount = shift.occupiedCount ?? shift.bookings.length;
@@ -60,8 +64,8 @@ export function ShiftCard({
   const hasPause = shift.pauseValue > 0;
   const pauseLabel =
     shift.pauseOption === "PER_HOUR"
-      ? `${shift.pauseValue} Min/Std`
-      : `${shift.pauseValue} Min/Schicht`;
+      ? `Pause ${shift.pauseValue} Min/Std`
+      : `Pause ${shift.pauseValue} Min`;
 
   // Book mutation
   const bookMutation = useMutation({
@@ -180,33 +184,24 @@ export function ShiftCard({
         {/* Kopfzeile: Zeit zuerst, dann die Besetzung.
             Besetzte Schichten bleiben ruhig, unbesetzte tragen das Signal -
             im Dienstplan zaehlt die Luecke, nicht die erledigte Zeile. */}
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="tabular text-[13px] leading-none font-semibold tracking-[-0.01em]">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+          <span className="tabular text-[13px] leading-5 font-semibold tracking-[-0.01em] whitespace-nowrap">
             {shift.shiftFrom}
             <span className="text-muted-foreground">–</span>
             {shift.shiftTo}
           </span>
-          <span
-            className={cn(
-              "tabular inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] leading-none font-medium",
-              isFull
-                ? "bg-muted text-muted-foreground"
-                : "bg-warn/10 text-warn"
-            )}
-            title={
-              isFull
-                ? "Schicht vollstaendig besetzt"
-                : `${emptySlots} Platz/Plätze noch offen`
-            }
+          <StatusBadge
+            ton={isFull ? "ok" : "hinweis"}
+            klein
+            title={`${bookedCount} von ${shift.maxEmployees} ${shift.maxEmployees === 1 ? "Platz" : "Plätzen"} besetzt`}
           >
-            <Users className="size-3" />
-            {bookedCount}/{shift.maxEmployees}
-          </span>
+            {isFull ? "besetzt" : `${emptySlots} offen`}
+          </StatusBadge>
         </div>
 
         {/* Einsatzort und Tätigkeit - Adresse, Treffpunkt und Hinweise
             stehen im Detailbereich, nicht auf jeder Karte. */}
-        {shift.branch && (
+        {zeigeStandort && shift.branch && (
           <div
             className="truncate text-[12.5px] leading-snug font-medium"
             title={shift.branch.name}
@@ -234,14 +229,11 @@ export function ShiftCard({
         {/* Nur der Hinweis, der eine Handlung ausloest. */}
         {canEdit && isFull && offeneBestätigungen > 0 && (
           <div className="text-[11px] text-muted-foreground">
-            {offeneBestätigungen} Bestätigung(en) offen
+            {offeneBestätigungen} unbestätigt
           </div>
         )}
         {showPauses && hasPause && (
-          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-            <Pause className="size-2.5" />
-            {pauseLabel}
-          </div>
+          <div className="text-[11px] text-muted-foreground">{pauseLabel}</div>
         )}
 
         {/* Wish plan indicators */}
@@ -281,7 +273,7 @@ export function ShiftCard({
                 {booking.user.firstName} {booking.user.lastName}
                 {/* Nur fuer die Planung: zaehlt nicht als wirksame Besetzung. */}
                 {booking.unavailable && (
-                  <span className="ml-1 text-[11px] font-medium text-destructive">· nicht verfügbar</span>
+                  <span className="ml-1 text-[11px] font-medium text-warn">· nicht verfügbar</span>
                 )}
               </span>
               {canUnbook && (

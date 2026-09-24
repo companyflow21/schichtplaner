@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { ViewSwitcher } from "@/components/schedule/view-switcher";
 import { MonthGridWrapper } from "@/components/schedule/month-grid-wrapper";
 
 interface MonthPageProps {
@@ -28,14 +27,6 @@ export default async function MonthViewPage({ params, searchParams }: MonthPageP
     redirect(`/schedule/month/${m}-${now.getFullYear()}${standort ? "?standort=" + encodeURIComponent(standort) : ""}`);
   }
 
-  return (
-    <div className="space-y-6">
-      {standort && (
-        <div className="flex items-center justify-end">
-          <ViewSwitcher month={monthParam} standort={standort} />
-        </div>
-      )}
-      <MonthGridWrapper month={parsed.month} year={parsed.year} standort={standort ?? null} offen={offen === "1"} />
-    </div>
-  );
+  // Kopf mit Kunde, Standort, Monat und Ansichtswahl steckt im Monatsplan selbst.
+  return <MonthGridWrapper month={parsed.month} year={parsed.year} standort={standort ?? null} offen={offen === "1"} />;
 }

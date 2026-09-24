@@ -175,7 +175,7 @@ export function LiveMode({ scheduleId, isManager }: LiveModeProps) {
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 text-[var(--brand)] hover:bg-accent hover:text-[var(--brand)]"
+                className="gap-1.5 text-primary hover:bg-accent hover:text-primary"
                 onClick={() => startMutation.mutate()}
                 disabled={isPending}
               >
@@ -261,7 +261,7 @@ function LivePanel({
   const queryClient = useQueryClient();
 
   return (
-    <div className="mt-3 rounded-lg border-2 text-[var(--brand)] bg-accent/50 p-4 space-y-4">
+    <div className="mt-3 rounded-lg border-2 text-primary bg-accent/50 p-4 space-y-4">
       {/* Timer */}
       <LiveTimer startedAt={session.startedAt} />
 
@@ -287,7 +287,7 @@ function LivePanel({
               className={cn(
                 "text-xs",
                 day.enabled
-                  ? "text-[var(--brand)] hover:text-[var(--brand)]"
+                  ? "text-primary hover:text-primary"
                   : "opacity-50"
               )}
             >
@@ -332,7 +332,7 @@ function LiveTimer({ startedAt }: { startedAt: string }) {
   }, [startedAt]);
 
   return (
-    <div className="flex items-center gap-2 text-sm text-[var(--brand)]">
+    <div className="flex items-center gap-2 text-sm text-primary">
       <Clock className="size-4" />
       <span className="tabular font-medium">{elapsed}</span>
       <span className="text-xs text-muted-foreground">aktiv</span>
@@ -386,7 +386,7 @@ function DayToggles({
 
   return (
     <div className="space-y-2">
-      <p className="text-xs font-medium text-[var(--brand)]">
+      <p className="text-xs font-medium text-primary">
         Tage fuer Self-Booking:
       </p>
       <div className="flex items-center gap-3 flex-wrap">
@@ -428,7 +428,7 @@ function LiveLogFeed({ logs }: { logs: LiveLogData[] }) {
 
   return (
     <div className="space-y-1.5 max-h-48 overflow-y-auto">
-      <p className="text-xs font-medium text-[var(--brand)]">Aktivitaet:</p>
+      <p className="text-xs font-medium text-primary">Aktivitaet:</p>
       {logs.map((log) => (
         <div
           key={log.id}
@@ -483,7 +483,7 @@ export function LiveBorder({
     <div className="relative">
       {/* Ruhige Markenkante statt Dauerpulsieren - die Live-Sitzung ist
           ein Zustand, kein Alarm. */}
-      <div className="pointer-events-none absolute inset-0 z-10 rounded-[var(--radius-panel)] border-2 border-[var(--brand)]" />
+      <div className="pointer-events-none absolute inset-0 z-10 rounded-[var(--radius-panel)] border-2 border-primary" />
       {children}
     </div>
   );

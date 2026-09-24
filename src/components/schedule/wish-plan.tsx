@@ -147,11 +147,12 @@ export function WishRequestButton({
         color: "text-ok",
         bg: "bg-ok/10",
       },
+      // Abgelehnt ist eine Entscheidung, kein Fehler - daher neutral.
       DECLINED: {
         icon: XCircle,
         label: "Abgelehnt",
-        color: "text-destructive",
-        bg: "bg-destructive/10",
+        color: "text-muted-foreground",
+        bg: "bg-muted",
       },
     };
     const config = stateConfig[existingRequest.state];
@@ -383,7 +384,7 @@ function WishRequestsList({ requests, scheduleId }: WishRequestsListProps) {
     },
     onSuccess: (data) => {
       toast.success(
-        `${data.accepted} Wuensche angenommen${data.failed > 0 ? `, ${data.failed} fehlgeschlagen` : ""}`
+        `${data.accepted} Wünsche angenommen${data.failed > 0 ? `, ${data.failed} fehlgeschlagen` : ""}`
       );
       queryClient.invalidateQueries({ queryKey: ["mod-requests"] });
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
@@ -402,7 +403,7 @@ function WishRequestsList({ requests, scheduleId }: WishRequestsListProps) {
     <div>
       <div className="px-3 py-2 border-b bg-muted/30 flex items-center justify-between">
         <span className="text-xs font-semibold">
-          {requests.length} {requests.length === 1 ? "Wunsch" : "Wuensche"}
+          {requests.length} {requests.length === 1 ? "Wunsch" : "Wünsche"}
         </span>
         {requests.length > 1 && (
           <Button
@@ -500,24 +501,22 @@ export function WishFilterToggle({
   if (wishCount === 0) return null;
 
   return (
+    // Filter: aktiv in AKRO-Blau wie jede Auswahl; die offenen Wuensche
+    // selbst tragen den Hinweiston.
     <Button
       variant={enabled ? "default" : "outline"}
       size="sm"
-      className={cn(
-        "gap-1.5",
-        enabled
-          ? "bg-warn hover:bg-warn"
-          : "border-warn/40 text-warn hover:bg-warn/10"
-      )}
+      className="gap-1.5"
+      aria-pressed={enabled}
       onClick={() => onToggle(!enabled)}
     >
-      <Star className={cn("size-3.5", enabled && "fill-white")} />
-      Wuensche
+      <Star className={cn("size-3.5", enabled ? "fill-current" : "text-warn")} />
+      Wünsche
       <Badge
         variant="secondary"
         className={cn(
-          "text-[9px] px-1 py-0 ml-0.5",
-          enabled ? "bg-warn text-white" : "bg-warn/10 text-warn"
+          "text-[10px] px-1 py-0 ml-0.5",
+          enabled ? "bg-primary-foreground/20 text-primary-foreground" : "bg-warn/10 text-warn"
         )}
       >
         {wishCount}

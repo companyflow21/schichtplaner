@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { isToday } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { dayNames, formatDateShort } from "@/lib/utils/calendar";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
 import { cn } from "@/lib/utils";
@@ -144,7 +145,7 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
   if (error || !data) {
     return (
       <div className="akro-panel space-y-2 p-5 text-[14px]">
-        <p>Dieser Standortplan ist für dich nicht freigegeben oder existiert nicht.</p>
+        <p>Dieser Standortplan ist nicht freigegeben oder existiert nicht.</p>
         <Link href="/schedule/month" className="font-medium text-primary underline-offset-4 hover:underline">Standort wählen</Link>
       </div>
     );
@@ -170,12 +171,12 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
 
       {canEdit && branch && !branch.plannable && (
         <p className="mb-4 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
-          {branch.isActive ? "Dieser Standort ist noch keinem Kunden zugeordnet. Neue Schichten sind erst nach der Zuordnung unter Einsatzorte möglich." : "Dieser Standort ist inaktiv. Neue Schichten sind nicht möglich."}
+          {branch.isActive ? "Standort ohne Kunde: neue Schichten erst nach der Zuordnung unter Einsatzorte." : "Standort inaktiv: keine neuen Schichten möglich."}
         </p>
       )}
       {standort === "ohne" && (
         <p className="mb-4 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
-          Altbestand ohne Standort: Diese Schichten sind nur für die Administration sichtbar. Beim Bearbeiten einen Standort wählen, um sie zuzuordnen.
+          Altbestand ohne Standort – nur für die Administration sichtbar. Beim Bearbeiten einen Standort wählen.
         </p>
       )}
 
@@ -211,6 +212,7 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
                         showTitle={showTitle}
                         showPauses={showPauses}
                         userWishRequest={userWishMap.get(shift.id) ?? null}
+                        zeigeStandort={false}
                       />
                     ))}
                     {canAdd && <SchichtHinzufuegen onClick={() => handleAddShift(dayOfWeek)} label="Schicht" />}
@@ -246,6 +248,7 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
                       showTitle={showTitle}
                       showPauses={showPauses}
                       userWishRequest={userWishMap.get(shift.id) ?? null}
+                      zeigeStandort={false}
                     />
                   ))}
                   {canAdd && <SchichtHinzufuegen onClick={() => handleAddShift(dayOfWeek)} label="Schicht hinzufügen" />}
@@ -284,10 +287,14 @@ function TagesKopf({ kuerzel, datum, anzahl, offen, heute, breit = false }: { ku
         </span>
         <span className="tabular text-[12px] text-muted-foreground">{datum}</span>
       </div>
-      <p className="tabular mt-0.5 text-[11px] text-muted-foreground">
-        {anzahl} {anzahl === 1 ? "Schicht" : "Schichten"}
-        {offen > 0 && <span className="font-medium text-destructive">{" · "}{offen} offen</span>}
-      </p>
+      <div className="tabular mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-muted-foreground">
+        <span>{anzahl} {anzahl === 1 ? "Schicht" : "Schichten"}</span>
+        {offen > 0 ? (
+          <StatusBadge ton="hinweis" klein>{offen} offen</StatusBadge>
+        ) : anzahl > 0 ? (
+          <StatusBadge ton="ok" klein>besetzt</StatusBadge>
+        ) : null}
+      </div>
     </div>
   );
 }

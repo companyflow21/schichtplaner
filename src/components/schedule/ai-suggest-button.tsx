@@ -216,7 +216,7 @@ export function AISuggestButton({ scheduleId }: AISuggestButtonProps) {
         <SheetContent side="right" className="flex flex-col sm:max-w-lg">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
-              <Sparkles className="size-4 text-[var(--brand)]" />
+              <Sparkles className="size-4 text-primary" />
               KI-Vorschlaege
             </SheetTitle>
             <SheetDescription>
@@ -256,8 +256,8 @@ export function AISuggestButton({ scheduleId }: AISuggestButtonProps) {
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2 min-w-0">
                       {/* Avatar placeholder */}
-                      <div className="size-8 rounded-full text-[var(--brand)] flex items-center justify-center shrink-0">
-                        <span className="text-xs font-medium text-[var(--brand)]">
+                      <div className="size-8 rounded-full text-primary flex items-center justify-center shrink-0">
+                        <span className="text-xs font-medium text-primary">
                           {suggestion.employeeName
                             .split(" ")
                             .map((n) => n[0])
