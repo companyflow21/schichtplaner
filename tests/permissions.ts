@@ -117,8 +117,8 @@ export async function permissionTests(t: TestContext) {
   check(merged.schedule.shifts.some((s: any) => s.id === shiftA.id) && merged.schedule.shifts.every((s: any) => s.branchId === b1.id), "manager A week view shows only the granted location");
 
   // --- Besetzen nur mit Personalzuordnung "Einplanen" ---------------------
-  const candidates = (await mA.request("/api/shifts/" + shiftA.id + "/candidates")).members.map((m: any) => m.userId);
-  check(candidates.includes(users.staffA.id) && !candidates.includes(users.staffB.id) && !candidates.includes(users.loner.id), "candidates limited to explicitly assigned staff");
+  const candidates = (await mA.request("/api/shifts/" + shiftA.id + "/candidates")).candidates.map((m: any) => m.userId);
+  check(candidates.includes(users.staffA.id) && !candidates.includes(users.staffB.id) && !candidates.includes(users.loner.id), "without location assignment only explicitly assigned staff are candidates");
   await mA.request("/api/bookings", "POST", { shiftId: shiftA.id, userId: users.staffB.id }, 403);
   await mA.request("/api/bookings", "POST", { shiftId: shiftA.id, userId: users.staffA.id });
   await mB.request("/api/bookings", "POST", { shiftId: shiftB.id, userId: users.staffB.id });

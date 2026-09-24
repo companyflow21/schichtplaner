@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Prisma, Schedule } from "@prisma/client";
 import { ApiError } from "./errors";
 import { timeSchema } from "./api";
-import { checkAssignment, notify, shiftInclude } from "./planning";
+import { assessAssignment, notify, shiftInclude } from "./planning";
 import { isoWeek, weekDate, addDate, shiftRange } from "./berlin";
 import { assertCan, branchHolders, type Access } from "./access";
 
@@ -84,8 +84,13 @@ export async function updateShift(tx: Tx, a: Access, id: string, data: z.output<
   if (effective.shiftFrom === effective.shiftTo) throw new ApiError("Beginn und Ende müssen unterschiedlich sein.");
   if (effective.maxEmployees < existing.bookings.length) throw new ApiError("Die Schicht hat mehr Zuweisungen als Plätze.", 409);
   for (const booking of existing.bookings) {
-    const warnings = await checkAssignment(tx, effective, booking.userId);
-    if (warnings.length) throw new ApiError(booking.user.firstName + ": " + warnings.join(" "), 409);
+    // Harte Sperren gelten immer. Ein Qualifikationshinweis, der schon vor der
+    // Aenderung bestand, wurde beim Einteilen bestaetigt und blockiert nicht
+    // erneut; erst durch die Aenderung entstehende Hinweise blockieren.
+    const after = await assessAssignment(tx, effective, booking.userId);
+    const before = after.warnings.length ? (await assessAssignment(tx, existing, booking.userId)).warnings : [];
+    const problems = [...after.blocks, ...after.warnings.filter(w => !before.includes(w))];
+    if (problems.length) throw new ApiError(booking.user.firstName + ": " + problems.join(" "), 409);
   }
   const shift = await tx.shift.update({ where: { id }, data: { ...fields, scheduleId: schedule.id }, include: shiftInclude });
   await tx.booking.updateMany({ where: { shiftId: id }, data: { confirmedAt: null } });

@@ -23,9 +23,13 @@ Als Admin angemeldet:
 1. **Einsatzorte** → „Kunde anlegen“, danach „Einsatzort anlegen“. Jeder Einsatzort gehört zu einem Kunden.
 2. **Mitarbeiter** → Person öffnen → Abschnitt **Freigaben**: Standorte freigeben und bei Managern
    Mitarbeitende zuordnen. „Entziehen“ bzw. „Zuordnung entfernen“ wirkt sofort.
+3. **Mitarbeiter** → „Neue Mitarbeiter anlegen“: je Person die Standorte wählen. Danach erscheinen die
+   Aktivierungslinks zum persönlichen Weitergeben. Manager mit dem Recht „Schichten erstellen und bearbeiten“
+   legen hier ebenfalls Mitarbeitende an – nur für ihre eigenen Standorte. Standorte ändern und neue Links gibt
+   es in der Mitarbeiterliste über „Standorte“ bzw. „Einladungslink“.
 
 Ohne Freigabe sehen Manager keine Standorte und Mitarbeitende nur ihre eigenen Schichten,
-Zeiten und Abwesenheiten. Details: `docs/AKRO-ERWEITERUNG.md`, Abschnitt 5.
+Zeiten und Abwesenheiten. Details: `docs/AKRO-ERWEITERUNG.md`, Abschnitte 5 und 6.
 
 ## Datenschutz-Einstellungen (in `.env`)
 | Schalter | Standard | Bedeutung |

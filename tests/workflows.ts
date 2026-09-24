@@ -11,6 +11,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 import { berlinDate, berlinTime, addDate, isoWeek, weekDate, recordMinutes } from "../src/lib/berlin";
 import { permissionTests, type TestContext, type TestPerson } from "./permissions";
+import { staffSiteTests } from "./staff-sites";
 
 async function main() {
 const sql = new PGlite();
@@ -121,7 +122,8 @@ try {
   const conflict = (await admin.request("/api/shifts", "POST", { ...create, shiftFrom: "23:00", shiftTo: "04:00" })).shifts[0];
   await admin.request("/api/bookings", "POST", { shiftId: conflict.id, userId: users.employee.id }, 409);
   const window = (await replacement.request("/api/availability", "POST", { date: day, timeFrom: "21:00", timeTo: "07:00", available: false })).availability;
-  check(!(await admin.request("/api/shifts/" + conflict.id + "/candidates")).members.some((m:any) => m.userId === users.replacement.id), "unavailable candidate excluded");
+  const unavailable = (await admin.request("/api/shifts/" + conflict.id + "/candidates")).candidates.find((m:any) => m.userId === users.replacement.id);
+  check(unavailable && !unavailable.selectable && unavailable.reasons.includes("Als nicht verfügbar eingetragen."), "unavailable candidate shown with reason, not selectable");
   await replacement.request("/api/availability", "DELETE", { id: window.id });
   const request = (await employee.request("/api/mod-requests", "POST", { shiftId: shift.id, kind: "SWAP" })).request;
   // Uebernehmen braucht eine Freigabe fuer offene Schichten an diesem Standort.
@@ -207,6 +209,7 @@ try {
 
   const context: TestContext = { base, users, password, categoryId: category.id, check, Session: Session as unknown as TestContext["Session"], counter: () => checks };
   await permissionTests(context);
+  await staffSiteTests(context);
   console.log("FINAL SUCCESS: " + checks + " assertions / HTTP checks passed.");
   if (process.argv.includes("--serve")) {
     console.log("BROWSER_PREVIEW " + base + " — admin@akro-test.invalid / " + password);

@@ -69,11 +69,11 @@ export function ShiftCard({
 
   // Book mutation
   const bookMutation = useMutation({
-    mutationFn: async (userId: string) => {
+    mutationFn: async ({ userId, confirm = false }: { userId: string; confirm?: boolean }) => {
       const res = await fetch(canEdit ? "/api/bookings" : "/api/mod-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shiftId: shift.id, userId }),
+        body: JSON.stringify({ shiftId: shift.id, userId, ...(canEdit && confirm ? { confirm: true } : {}) }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -134,8 +134,8 @@ export function ShiftCard({
     },
   });
 
-  function handleBook(userId: string) {
-    bookMutation.mutate(userId);
+  function handleBook(userId: string, confirm = false) {
+    bookMutation.mutate({ userId, confirm });
   }
 
   const isPending = bookMutation.isPending || unbookMutation.isPending || addPlaceMutation.isPending;

@@ -11,6 +11,8 @@ import {
   AlertTriangle,
   UserX,
   CalendarDays,
+  Link2,
+  MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,8 +30,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmployeeForm } from "./employee-form";
+import { EinladungDialog, StandortListe, StandorteDialog } from "./staff-sites";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
-import { STAFF_RIGHTS } from "@/lib/access-shared";
+import { STAFF_RIGHTS, summaryCan } from "@/lib/access-shared";
 
 type Employee = {
   id: string;
@@ -49,6 +52,10 @@ type Employee = {
   };
   /** Personalrechte der angemeldeten Person fuer diese Person; null fuer Admins. */
   rights: string[] | null;
+  /** Zugeordnete Standorte im eigenen Bereich; null fuer Manager und Admins (dort gelten Freigaben). */
+  sites: { id: string; name: string }[] | null;
+  canEditSites: boolean;
+  canInvite: boolean;
 };
 
 type EmployeeResponse = {
@@ -60,7 +67,31 @@ type EmployeeResponse = {
     not_activated: number;
     inactive: number;
   };
+  canCreate: boolean;
 };
+
+type Aktion = { kind: "sites" | "invite"; member: Employee } | null;
+
+/** Standorte ändern und Einladungslink - nur wo der Server es erlaubt. */
+function Aktionen({ emp, onAction }: { emp: Employee; onAction: (a: Aktion) => void }) {
+  if (!emp.canEditSites && !emp.canInvite) return null;
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+      {emp.canEditSites && (
+        <Button variant="outline" size="sm" onClick={() => onAction({ kind: "sites", member: emp })}>
+          <MapPin className="size-3.5" />
+          Standorte
+        </Button>
+      )}
+      {emp.canInvite && (
+        <Button variant="outline" size="sm" onClick={() => onAction({ kind: "invite", member: emp })}>
+          <Link2 className="size-3.5" />
+          Einladungslink
+        </Button>
+      )}
+    </div>
+  );
+}
 
 type FilterTab = "all" | "admin" | "manager" | "not_activated" | "inactive";
 
@@ -108,10 +139,13 @@ function getRoleBadge(role: string) {
 export function EmployeeList() {
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [search, setSearch] = useState("");
+  const [aktion, setAktion] = useState<Aktion>(null);
   const router = useRouter();
   const { data: currentMember } = useCurrentMember();
 
   const isAdmin = !!currentMember?.access.isAdmin;
+  // Wie canCreateStaff auf dem Server; der Server prüft jede Anlage erneut.
+  const kannAnlegen = isAdmin || (currentMember?.role === "MANAGER" && summaryCan(currentMember.access, "EDIT_SHIFTS"));
   // Das Profil oeffnet sich nur, wo der Server es auch ausliefert.
   const profil = (emp: Employee) => emp.rights === null || emp.rights.includes("VIEW_PROFILE");
   const rechte = (emp: Employee) => (emp.rights ?? []).map((r) => STAFF_RIGHTS.find((x) => x.key === r)?.label ?? r).join(" · ");
@@ -154,7 +188,7 @@ export function EmployeeList() {
             <CalendarDays className="size-4" />
             <span className="hidden sm:inline">Abwesenheiten</span>
           </Button>
-          {isAdmin && <EmployeeForm />}
+          {kannAnlegen && <EmployeeForm admin={isAdmin} />}
         </div>
       </div>
 
@@ -217,7 +251,9 @@ export function EmployeeList() {
               ? "Versuche eine andere Suche."
               : isAdmin
                 ? "Lege deinen ersten Mitarbeiter an."
-                : "Dir sind noch keine Mitarbeitenden zugeordnet. Zuordnungen vergibt die Administration."}
+                : kannAnlegen
+                  ? "Dir sind noch keine Mitarbeitenden zugeordnet. Lege Mitarbeitende für deine Standorte an oder wende dich an die Administration."
+                  : "Dir sind noch keine Mitarbeitenden zugeordnet. Zuordnungen vergibt die Administration."}
           </p>
         </Card>
       )}
@@ -231,9 +267,11 @@ export function EmployeeList() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>E-Mail</TableHead>
+                  <TableHead>Standorte</TableHead>
                   {!isAdmin && <TableHead>Deine Rechte</TableHead>}
                   <TableHead>Rolle</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead><span className="sr-only">Aktionen</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -271,6 +309,9 @@ export function EmployeeList() {
                     <TableCell className="text-muted-foreground">
                       {emp.user.email ?? "–"}
                     </TableCell>
+                    <TableCell className="max-w-[220px] text-sm">
+                      <StandortListe sites={emp.sites} />
+                    </TableCell>
                     {!isAdmin && (
                       <TableCell className="text-sm text-muted-foreground">
                         {rechte(emp)}
@@ -296,6 +337,9 @@ export function EmployeeList() {
                           Aktiv
                         </Badge>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <Aktionen emp={emp} onAction={setAktion} />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -330,6 +374,11 @@ export function EmployeeList() {
                     <div className="text-sm text-muted-foreground truncate">
                       {isAdmin ? emp.user.email : rechte(emp)}
                     </div>
+                    {emp.sites !== null && (
+                      <div className="mt-0.5 text-sm">
+                        <StandortListe sites={emp.sites} />
+                      </div>
+                    )}
                   </div>
                   <div>
                     {!emp.isActive ? (
@@ -339,10 +388,32 @@ export function EmployeeList() {
                     ) : null}
                   </div>
                 </div>
+                {(emp.canEditSites || emp.canInvite) && (
+                  <div className="mt-3">
+                    <Aktionen emp={emp} onAction={setAktion} />
+                  </div>
+                )}
               </Card>
             ))}
           </div>
         </>
+      )}
+
+      {aktion?.kind === "sites" && (
+        <StandorteDialog
+          memberId={aktion.member.id}
+          name={aktion.member.user.firstName + " " + aktion.member.user.lastName}
+          open
+          onOpenChange={(open) => { if (!open) setAktion(null); }}
+        />
+      )}
+      {aktion?.kind === "invite" && (
+        <EinladungDialog
+          memberId={aktion.member.id}
+          name={aktion.member.user.firstName + " " + aktion.member.user.lastName}
+          open
+          onOpenChange={(open) => { if (!open) setAktion(null); }}
+        />
       )}
     </div>
   );

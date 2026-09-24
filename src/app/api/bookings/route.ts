@@ -1,23 +1,29 @@
 import { z } from "zod";
 import { api, body, requireMember, serial, ApiError } from "@/lib/api";
 import { assertCan, requireAccess } from "@/lib/access";
-import { assign, assignableUserIds, notify } from "@/lib/planning";
+import { assign, notify, planningPool } from "@/lib/planning";
 import { emitToBranch } from "@/lib/emit";
 
 const input = z.object({ shiftId: z.string().min(1), userId: z.string().min(1) });
 
-/** Besetzen: Recht "Schichten bearbeiten" am Standort und - fuer Manager - eine Zuordnung mit "Einplanen". */
+/**
+ * Besetzen: Recht "Schichten bearbeiten" am Standort der Schicht. Manager
+ * planen Mitarbeitende dieses Standorts, anderer von ihnen verwalteter
+ * Standorte desselben Kunden und persoenlich mit "Einplanen" zugeordnete
+ * Personen (planningPool); Admins alle. confirm bestaetigt Hinweise wie eine
+ * fehlende Qualifikation; harte Sperren bleiben davon unberuehrt. Die
+ * Einteilung aendert die Standortzuordnung der Person nicht.
+ */
 export async function POST(request: Request) {
   return api(async () => {
     const a = await requireAccess();
-    const data = await body(request, input);
+    const data = await body(request, input.extend({ confirm: z.boolean().optional() }));
     const { booking, shift } = await serial(async tx => {
       const target = await tx.shift.findFirst({ where: { id: data.shiftId, deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null } }, include: { schedule: true } });
       if (!target) throw new ApiError("Schicht nicht gefunden.", 404);
       assertCan(a, "EDIT_SHIFTS", target.schedule.branchId);
-      const allowed = assignableUserIds(a);
-      if (allowed && !allowed.includes(data.userId)) throw new ApiError("Diese Person ist dir nicht zum Einplanen zugeordnet.", 403);
-      return assign(tx, a, data.shiftId, data.userId);
+      if (!a.isAdmin && !(await planningPool(tx, a, target.schedule.branchId)).has(data.userId)) throw new ApiError("Diese Person kannst du für diesen Standort nicht einplanen.", 403);
+      return assign(tx, a, data.shiftId, data.userId, data.confirm === true);
     });
     emitToBranch(a.orgId, shift.schedule.branchId, "booking:changed", [data.userId]);
     return { booking };

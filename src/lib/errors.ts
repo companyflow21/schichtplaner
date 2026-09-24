@@ -1,3 +1,4 @@
 export class ApiError extends Error {
-  constructor(message: string, public status = 400) { super(message); }
+  /** details: zusaetzliche Felder der Fehlerantwort, etwa eine bestaetigbare Warnung. */
+  constructor(message: string, public status = 400, public details?: Record<string, unknown>) { super(message); }
 }

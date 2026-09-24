@@ -251,3 +251,45 @@ Verknüpfungen über Organisationsgrenzen.
 - Vorläufig festgelegt: KI, Zeitkategorien und Dateiverwaltung nur für Admins; Sollstunden anderer nur für Admins;
   Themen und Portal-Dateien organisationsweit; Admin-Namen für alle als Ansprechpartner sichtbar.
 
+## 6. Mitarbeitende mit Standorten anlegen und besetzen
+
+### Standortzuordnung
+- Beim Anlegen erhält jede Person mit der Rolle Mitarbeiter einzelne Standorte, auch über Kunden hinweg.
+  Die Zuordnung ist für den Pilot die Freigabe „Offene Schichten sehen und anfragen“: offene Plätze ohne Namen
+  anderer und Übernahmeanträge – kein vollständiger Standortplan, keine Personaldaten.
+- Admins: alle Rollen und Standorte. Manager: nur die Rolle Mitarbeiter und nur Standorte, an denen sie selbst
+  „Schichten erstellen und bearbeiten“ haben; geprüft in `POST /api/employees`, eine abgelehnte Zeile verwirft die
+  ganze Anfrage. Manager legen nur neue E-Mail-Adressen an; bestehende Benutzerkonten bindet die Administration an.
+- Der anlegende Manager erhält für die neue Person genau das Personalrecht „In Schichten einplanen“.
+- Ändern: Mitarbeiterliste → „Standorte“ (`/api/employees/[id]/sites`). Manager nur für Personen, die sie einplanen
+  dürfen, und nur an eigenen Planungsstandorten; Freigaben mit mehr als der Zuordnung ändert nur die Administration.
+- Aktivierungslink: erscheint nach dem Anlegen im Dialog; einen neuen gibt es in der Mitarbeiterliste
+  („Einladungslink“). Manager nur für selbst angelegte, noch nicht aktivierte Konten (`createdByMemberId`,
+  Migration `20260924150000_member_created_by`).
+
+### Besetzen
+Voraussetzung ist „Schichten erstellen und bearbeiten“ am Standort der Schicht. Die Auswahl hat genau diese
+Reihenfolge; der Grund steht an der Person:
+1. Freie Mitarbeitende des Standorts der Schicht.
+2. Belegte oder abwesende Mitarbeitende dieses Standorts – sichtbar, nicht wählbar.
+3. Freie Mitarbeitende anderer Standorte desselben Kunden, die die planende Person mit „Schichten erstellen und
+   bearbeiten“ verwaltet.
+4. Belegte oder abwesende Mitarbeitende dieser Standorte – sichtbar, nicht wählbar.
+5. Übrige: bei Managern persönlich mit „In Schichten einplanen“ zugeordnete Personen, bei Admins alle weiteren.
+   Freie sind wählbar, gesperrte sichtbar.
+
+- Für die Gruppen 1–4 genügt die Standortzuordnung; eine Personalzuordnung ist nicht nötig. Dieselbe Regel gilt in
+  `GET /api/shifts/[id]/candidates` und `POST /api/bookings` (`planningPool` in `src/lib/planning.ts`). Die
+  Auswahl gibt nur Namen und kurze Gründe aus; ein Personalprofil entsteht daraus nicht.
+- Frei ist, wer keine zeitliche Überschneidung, keine genehmigte Abwesenheit und keine ausdrücklich eingetragene
+  Nichtverfügbarkeit hat; ohne Verfügbarkeitseintrag gilt eine Person als frei. Ausdrücklich Verfügbare stehen
+  innerhalb ihrer Gruppe zuerst.
+- Hinweise ändern Gruppe und Reihenfolge nicht und verlangen genau eine Bestätigung: fehlende Qualifikation,
+  unpassende Tätigkeit, fremder Arbeitsbereich, Schicht außerhalb der eingetragenen Verfügbarkeit. API:
+  `POST /api/bookings` antwortet ohne `confirm: true` mit 409 und `{ confirm: true, warnings }`. Eine bestätigte
+  Einteilung sperrt auch spätere Änderungen der Schicht nicht, solange kein neuer Hinweis entsteht.
+- Gesperrt, auch mit Bestätigung: Überschneidung, genehmigte Abwesenheit, eingetragene Nichtverfügbarkeit,
+  inaktives Konto, inaktiver Standort, fehlende Rechte, volle Schicht.
+- Eine Einteilung an einem anderen Standort ändert die Standortzuordnung der Person nicht. Mitarbeitende tragen
+  sich nie selbst ein; sie stellen Übernahme- oder Tauschanträge.
+
