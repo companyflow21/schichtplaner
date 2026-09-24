@@ -268,13 +268,28 @@ Verknüpfungen über Organisationsgrenzen.
   Migration `20260924150000_member_created_by`).
 
 ### Besetzen
-- Die Auswahl enthält nur Personen, die die planende Person einplanen darf (Admins alle, Manager mit „In Schichten
-  einplanen“). Reihenfolge: dem Standort zugeordnet mit eingetragener Verfügbarkeit, ohne Verfügbarkeitseintrag,
-  mit Qualifikationshinweis; danach einplanbare Personen anderer Standorte. Der Grund steht an der Person.
-- Fehlende Qualifikation und unpassende Tätigkeit: eine Bestätigung, danach keine Sperre – auch nicht bei späteren
-  Änderungen der Schicht, solange kein neuer Hinweis entsteht. API: `POST /api/bookings` antwortet ohne
-  `confirm: true` mit 409 und `{ confirm: true, warnings }`.
-- Gesperrt, auch mit Bestätigung: genehmigte Abwesenheit, zeitliche Überschneidung, eingetragene
-  Nichtverfügbarkeit, Schicht außerhalb der eingetragenen Verfügbarkeit, fremder Arbeitsbereich, inaktive Konten,
-  inaktiver Standort, fehlende Rechte, volle Schicht. Mitarbeitende tragen sich nicht selbst ein; sie stellen Anträge.
+Voraussetzung ist „Schichten erstellen und bearbeiten“ am Standort der Schicht. Die Auswahl hat genau diese
+Reihenfolge; der Grund steht an der Person:
+1. Freie Mitarbeitende des Standorts der Schicht.
+2. Belegte oder abwesende Mitarbeitende dieses Standorts – sichtbar, nicht wählbar.
+3. Freie Mitarbeitende anderer Standorte desselben Kunden, die die planende Person mit „Schichten erstellen und
+   bearbeiten“ verwaltet.
+4. Belegte oder abwesende Mitarbeitende dieser Standorte – sichtbar, nicht wählbar.
+5. Übrige: bei Managern persönlich mit „In Schichten einplanen“ zugeordnete Personen, bei Admins alle weiteren.
+   Freie sind wählbar, gesperrte sichtbar.
+
+- Für die Gruppen 1–4 genügt die Standortzuordnung; eine Personalzuordnung ist nicht nötig. Dieselbe Regel gilt in
+  `GET /api/shifts/[id]/candidates` und `POST /api/bookings` (`planningPool` in `src/lib/planning.ts`). Die
+  Auswahl gibt nur Namen und kurze Gründe aus; ein Personalprofil entsteht daraus nicht.
+- Frei ist, wer keine zeitliche Überschneidung, keine genehmigte Abwesenheit und keine ausdrücklich eingetragene
+  Nichtverfügbarkeit hat; ohne Verfügbarkeitseintrag gilt eine Person als frei. Ausdrücklich Verfügbare stehen
+  innerhalb ihrer Gruppe zuerst.
+- Hinweise ändern Gruppe und Reihenfolge nicht und verlangen genau eine Bestätigung: fehlende Qualifikation,
+  unpassende Tätigkeit, fremder Arbeitsbereich, Schicht außerhalb der eingetragenen Verfügbarkeit. API:
+  `POST /api/bookings` antwortet ohne `confirm: true` mit 409 und `{ confirm: true, warnings }`. Eine bestätigte
+  Einteilung sperrt auch spätere Änderungen der Schicht nicht, solange kein neuer Hinweis entsteht.
+- Gesperrt, auch mit Bestätigung: Überschneidung, genehmigte Abwesenheit, eingetragene Nichtverfügbarkeit,
+  inaktives Konto, inaktiver Standort, fehlende Rechte, volle Schicht.
+- Eine Einteilung an einem anderen Standort ändert die Standortzuordnung der Person nicht. Mitarbeitende tragen
+  sich nie selbst ein; sie stellen Übernahme- oder Tauschanträge.
 

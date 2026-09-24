@@ -1,7 +1,7 @@
 import type { Prisma, Shift, Schedule } from "@prisma/client";
 import { ApiError } from "./errors";
 import { addDate, overlaps, rangeMinutes, shiftRange } from "./berlin";
-import { can, type Access } from "./access";
+import { branchIds, can, type Access } from "./access";
 import { normalizeBranchRights } from "./access-shared";
 
 type Tx = Prisma.TransactionClient;
@@ -24,13 +24,15 @@ export function lastShiftDate(shift: { dayOfWeek: number; shiftFrom: string; shi
 
 /**
  * Pruefung einer Einteilung, getrennt nach Wirkung:
- * - blocks: harte Sperren, die keine Bestaetigung aufhebt (inaktives Konto,
- *   inaktiver Einsatzort, fremder Arbeitsbereich, genehmigte Abwesenheit,
- *   zeitliche Ueberschneidung, ausdruecklich eingetragene Nichtverfuegbarkeit,
- *   Schicht ausserhalb der eingetragenen Verfuegbarkeit).
- * - warnings: Qualifikationshinweise (fehlende Qualifikation, Taetigkeit passt
- *   nicht zum Einsatzort). Die Planung kann sie mit einer Bestaetigung uebersteuern.
- * - declared: fuer den Schichtzeitraum ist ausdruecklich Verfuegbarkeit eingetragen.
+ * - blocks: harte Sperren, die keine Bestaetigung aufhebt. "Frei" ist, wer
+ *   keine zeitliche Ueberschneidung, keine genehmigte Abwesenheit und keine
+ *   ausdruecklich eingetragene Nichtverfuegbarkeit hat; dazu kommen inaktives
+ *   Konto und inaktiver Einsatzort.
+ * - warnings: kurze Hinweise, die die Planung mit einer Bestaetigung
+ *   uebersteuert (fehlende Qualifikation, Taetigkeit, Arbeitsbereich, Schicht
+ *   ausserhalb der eingetragenen Verfuegbarkeit).
+ * - declared: fuer den Schichtzeitraum ist ausdruecklich Verfuegbarkeit
+ *   eingetragen. Ohne Eintrag gilt eine Person als frei.
  */
 export type Assessment = { blocks: string[]; warnings: string[]; declared: boolean };
 
@@ -46,21 +48,21 @@ export async function assessAssignment(tx: Tx, shift: PlannedShift, userId: stri
   const qualifications = new Set(member.qualifications.map(q => q.toLocaleLowerCase("de-DE")));
   if (shift.divisionId) {
     const division = await tx.division.findUnique({ where: { id: shift.divisionId }, include: { members: true } });
-    if (division && !division.isSystem && division.members.length && !division.members.some(m => m.userId === userId)) blocks.push("Mitarbeiter gehört nicht zum Arbeitsbereich.");
+    if (division && !division.isSystem && division.members.length && !division.members.some(m => m.userId === userId)) warnings.push("Gehört nicht zum Arbeitsbereich.");
   }
   const missing = shift.requiredQualifications.filter(q => !qualifications.has(q.toLocaleLowerCase("de-DE")));
   if (missing.length) warnings.push("Erforderliche Qualifikation fehlt: " + missing.join(", ") + ".");
   const range = shiftRange(shift);
   const lastDate = lastShiftDate(shift);
   const absences = await tx.absence.count({ where: { userId, status: "APPROVED", category: { organizationId: shift.schedule.organizationId }, dateFrom: { lte: new Date(lastDate) }, dateTo: { gte: new Date(range.date) } } });
-  // Der Grund bleibt Personaldaten; fuer die Planung genuegt "nicht verfuegbar".
-  if (absences) blocks.push("Mitarbeiter ist zu diesem Zeitpunkt nicht verfügbar.");
+  // Die Art der Abwesenheit bleibt Personaldaten; die Planung erfaehrt nur, dass sie genehmigt ist.
+  if (absences) blocks.push("Genehmigte Abwesenheit.");
   const bookings = await tx.booking.findMany({ where: { userId, shiftId: { not: excludeShiftId }, shift: { deletedAt: null, schedule: { deletedAt: null, organizationId: shift.schedule.organizationId, year: { gte: shift.schedule.year - 1, lte: shift.schedule.year + 1 } } } }, include: { shift: { include: { schedule: true } } } });
   if (bookings.some(b => overlaps(range, shiftRange(b.shift)))) blocks.push("Zeitliche Überschneidung mit einer anderen Schicht.");
   const windows = await tx.availability.findMany({ where: { organizationId: shift.schedule.organizationId, userId, date: { gte: new Date(addDate(range.date, -1)), lte: new Date(addDate(range.date, 1)) } } });
   const normalized = windows.map(w => { const start = w.date.getTime() / 60000 + Number(w.timeFrom.slice(0, 2)) * 60 + Number(w.timeFrom.slice(3)); return { ...w, start, end: start + rangeMinutes(w.timeFrom, w.timeTo) }; });
   if (normalized.some(w => !w.available && overlaps(range, w))) blocks.push("Als nicht verfügbar eingetragen.");
-  let declared = false;
+  let declared = false, outside = false;
   for (const day of [range.date, ...(lastDate !== range.date ? [lastDate] : [])]) {
     const start = Date.parse(day) / 60000, end = start + 1440;
     const segment = { start: Math.max(start, range.start), end: Math.min(end, range.end) };
@@ -69,10 +71,11 @@ export async function assessAssignment(tx: Tx, shift: PlannedShift, userId: stri
       declared = true;
       let covered = segment.start;
       for (const w of available) if (w.start <= covered) covered = Math.max(covered, w.end);
-      if (covered < segment.end) blocks.push("Schicht liegt außerhalb der eingetragenen Verfügbarkeit.");
+      if (covered < segment.end) outside = true;
     }
   }
-  return { blocks, warnings, declared: declared && !blocks.length };
+  if (outside) warnings.push("Schicht liegt außerhalb der eingetragenen Verfügbarkeit.");
+  return { blocks, warnings, declared: declared && !outside && !blocks.length };
 }
 
 /** Alle Einwaende ohne Unterscheidung - fuer Antraege von Mitarbeitenden, die nichts uebersteuern koennen. */
@@ -98,47 +101,89 @@ export function assignableUserIds(a: Access): string[] | null {
 }
 
 /**
- * Reihenfolge der Auswahl beim Besetzen:
- * available - dem Standort zugeordnet, Verfuegbarkeit ausdruecklich eingetragen
- * open      - dem Standort zugeordnet, kein Verfuegbarkeitseintrag
- * warning   - dem Standort zugeordnet, Qualifikationshinweis (eine Bestaetigung)
- * other     - einplanbar, aber diesem Standort nicht zugeordnet
+ * Wer fuer eine Schicht an diesem Standort eingeplant werden darf, mit Herkunft:
+ * - site:     Mitarbeitende, die dem Standort der Schicht zugeordnet sind
+ * - customer: Mitarbeitende anderer Standorte desselben Kunden, sofern die
+ *             planende Person dort "Schichten erstellen und bearbeiten" hat
+ * - rest:     Manager: persoenlich mit "In Schichten einplanen" zugeordnete
+ *             Personen; Admins: alle uebrigen aktiven Mitglieder
+ * Fuer site und customer genuegt die Standortzuordnung (Freigabe "Offene
+ * Schichten sehen und anfragen"); eine Personalzuordnung ist dort nicht noetig.
+ * Gilt fuer die Auswahl und fuer POST /api/bookings. Das Recht am Standort
+ * der Schicht selbst prueft der Aufrufer (assertCan EDIT_SHIFTS).
  */
-export const CANDIDATE_GROUPS = ["available", "open", "warning", "other"] as const;
-export type CandidateGroup = (typeof CANDIDATE_GROUPS)[number];
+export type PoolEntry = { tier: "site" | "customer" | "rest"; sites: string[] };
+
+export async function planningPool(tx: Tx, a: Access, branchId: string | null): Promise<Map<string, PoolEntry>> {
+  const pool = new Map<string, PoolEntry>();
+  const branch = branchId ? await tx.branch.findFirst({ where: { id: branchId, organizationId: a.orgId }, select: { id: true, customerId: true } }) : null;
+  if (branch) {
+    const managed = branchIds(a, "EDIT_SHIFTS");
+    const siblings = branch.customerId
+      ? await tx.branch.findMany({ where: { organizationId: a.orgId, customerId: branch.customerId, id: managed ? { in: managed.filter(id => id !== branch.id) } : { not: branch.id } }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+      : [];
+    const names = new Map(siblings.map(s => [s.id, s.name]));
+    const grants = await tx.branchAccess.findMany({
+      where: { organizationId: a.orgId, branchId: { in: [branch.id, ...names.keys()] }, member: { isActive: true, role: "EMPLOYEE" } },
+      select: { branchId: true, rights: true, member: { select: { userId: true, role: true } } },
+    });
+    const assigned = grants.filter(g => normalizeBranchRights(g.rights, g.member.role).includes("REQUEST_SHIFTS"));
+    for (const g of assigned) if (g.branchId === branch.id) pool.set(g.member.userId, { tier: "site", sites: [] });
+    for (const g of assigned) {
+      if (g.branchId === branch.id || pool.get(g.member.userId)?.tier === "site") continue;
+      const entry = pool.get(g.member.userId) ?? { tier: "customer" as const, sites: [] };
+      entry.sites.push(names.get(g.branchId)!);
+      pool.set(g.member.userId, entry);
+    }
+  }
+  const rest = a.isAdmin
+    ? (await tx.organizationMember.findMany({ where: { organizationId: a.orgId, isActive: true }, select: { userId: true } })).map(m => m.userId)
+    : assignableUserIds(a) ?? [];
+  for (const userId of rest) if (!pool.has(userId)) pool.set(userId, { tier: "rest", sites: [] });
+  return pool;
+}
 
 /**
- * Auswahl fuer eine Schicht. Grundlage sind nur Personen, die die angemeldete
- * Person ohnehin einplanen darf (assignableUserIds) - die Standortzuordnung
- * (Freigabe "Offene Schichten sehen und anfragen") sortiert, sie erweitert
- * nichts. Gesperrte Personen stehen getrennt, jeweils mit Grund.
+ * Auswahl fuer eine Schicht in genau dieser Reihenfolge:
+ * 1 frei, Standort der Schicht
+ * 2 belegt oder abwesend, Standort der Schicht (sichtbar, nicht waehlbar)
+ * 3 frei, andere verwaltete Standorte desselben Kunden
+ * 4 belegt oder abwesend, andere verwaltete Standorte desselben Kunden
+ * 5 uebrige einplanbare Personen (freie waehlbar, gesperrte sichtbar)
+ * Innerhalb einer Gruppe stehen ausdruecklich Verfuegbare zuerst. Hinweise
+ * (etwa fehlende Qualifikation) aendern Gruppe und Reihenfolge nicht.
+ * Ausgegeben werden nur Namen und kurze Gruende.
  */
 export async function shiftCandidates(tx: Tx, a: Access, shift: ShiftWithRelations) {
-  const allowed = assignableUserIds(a);
-  const branchId = shift.schedule.branchId;
-  const [people, grants] = await Promise.all([
-    tx.organizationMember.findMany({
-      where: { organizationId: a.orgId, isActive: true, isActivated: true, ...(allowed ? { userId: { in: allowed } } : {}) },
-      include: { user: { select: publicUser } },
-      orderBy: [{ user: { lastName: "asc" } }, { user: { firstName: "asc" } }],
-    }),
-    branchId ? tx.branchAccess.findMany({ where: { organizationId: a.orgId, branchId }, select: { rights: true, member: { select: { userId: true, role: true } } } }) : Promise.resolve([]),
-  ]);
-  const site = new Set(grants.filter(g => normalizeBranchRights(g.rights, g.member.role).includes("REQUEST_SHIFTS")).map(g => g.member.userId));
-  const members: { memberId: string; userId: string; role: string; user: (typeof people)[number]["user"]; group: CandidateGroup; reasons: string[]; confirm: boolean }[] = [];
-  const blocked: { memberId: string; userId: string; role: string; user: (typeof people)[number]["user"]; reasons: string[] }[] = [];
+  const pool = await planningPool(tx, a, shift.schedule.branchId);
+  const people = await tx.organizationMember.findMany({
+    where: { organizationId: a.orgId, isActive: true, isActivated: true, userId: { in: [...pool.keys()] } },
+    select: { userId: true, user: { select: { firstName: true, lastName: true } } },
+    orderBy: [{ user: { lastName: "asc" } }, { user: { firstName: "asc" } }],
+  });
+  // reasons: Herkunft und Zustand (frei, verfuegbar eingetragen oder Sperrgrund);
+  // hints: Hinweise, die vor der Zuweisung genau eine Bestaetigung verlangen.
+  const candidates: { userId: string; firstName: string; lastName: string; group: 1 | 2 | 3 | 4 | 5; selectable: boolean; confirm: boolean; declared: boolean; reasons: string[]; hints: string[] }[] = [];
   for (const p of people) {
     if (shift.bookings.some(b => b.userId === p.userId)) continue;
-    const person = { memberId: p.id, userId: p.userId, role: p.role, user: p.user };
+    const entry = pool.get(p.userId)!;
     const r = await assessAssignment(tx, shift, p.userId);
-    if (r.blocks.length) { blocked.push({ ...person, reasons: r.blocks }); continue; }
-    const atSite = site.has(p.userId);
-    const group: CandidateGroup = !atSite ? "other" : r.warnings.length ? "warning" : r.declared ? "available" : "open";
-    const reasons = group === "available" ? ["Verfügbarkeit eingetragen."] : group === "open" ? ["Keine Verfügbarkeit eingetragen."] : [...(atSite ? [] : ["Diesem Standort nicht zugeordnet."]), ...r.warnings];
-    members.push({ ...person, group, reasons, confirm: r.warnings.length > 0 });
+    const free = r.blocks.length === 0;
+    const group = entry.tier === "site" ? (free ? 1 : 2) : entry.tier === "customer" ? (free ? 3 : 4) : 5;
+    const origin = entry.tier === "customer" ? ["Standort " + entry.sites.join(", ") + "."] : entry.tier === "rest" && !a.isAdmin ? ["Persönlich zugeordnet."] : [];
+    const state = free ? [r.declared ? "Verfügbar eingetragen." : "Frei."] : r.blocks;
+    const hints = free ? r.warnings : [];
+    candidates.push({ userId: p.userId, firstName: p.user.firstName, lastName: p.user.lastName, group, selectable: free, confirm: hints.length > 0, declared: r.declared, reasons: [...origin, ...state], hints });
   }
-  members.sort((x, y) => CANDIDATE_GROUPS.indexOf(x.group) - CANDIDATE_GROUPS.indexOf(y.group));
-  return { members, blocked };
+  // Stabil: Gruppe, dann waehlbar vor gesperrt (Gruppe 5), dann eingetragene Verfuegbarkeit, dann Name.
+  candidates.sort((x, y) => x.group - y.group || Number(y.selectable) - Number(x.selectable) || Number(y.declared) - Number(x.declared));
+  return {
+    // Fuer die Ueberschriften der Gruppen.
+    site: shift.schedule.branch?.name ?? null,
+    customer: shift.schedule.branch?.customer?.name ?? null,
+    admin: a.isAdmin,
+    candidates: candidates.map(({ declared: _d, ...c }) => { void _d; return c; }),
+  };
 }
 
 /**

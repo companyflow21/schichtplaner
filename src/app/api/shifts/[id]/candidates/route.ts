@@ -3,11 +3,10 @@ import { assertCan, requireAccess } from "@/lib/access";
 import { shiftCandidates, shiftInclude } from "@/lib/planning";
 
 /**
- * Wer diese Schicht uebernehmen kann. Admins waehlen aus allen aktiven
- * Mitgliedern, Manager nur aus Personen, die ihnen ausdruecklich mit
- * "Einplanen" zugeordnet sind. Sortiert nach Standortzuordnung,
- * Verfuegbarkeit und Qualifikation; gesperrte Personen getrennt mit Grund.
- * Ausgegeben werden nur Namen und Gruende, keine Personaldaten.
+ * Auswahl beim Besetzen (Reihenfolge und Regeln: shiftCandidates in
+ * src/lib/planning.ts). Voraussetzung ist "Schichten bearbeiten" am Standort
+ * der Schicht. Ausgegeben werden nur Namen und kurze Gruende, keine Profile
+ * oder Kontaktdaten.
  */
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   return api(async () => {
