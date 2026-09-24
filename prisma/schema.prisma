@@ -80,6 +80,7 @@ model Organization {
   settings          OrgSettings?
   timeRecords       TimeRecord[]
   timeCorrections   TimeCorrection[]
+  qualificationCatalog Qualification[]
 
   @@map("organizations")
 }
@@ -96,6 +97,8 @@ model OrganizationMember {
   position       String?
   employmentType String @default("Vollzeit")
   targetHoursPerWeek Float @default(40)
+  /// Sollstunden pro Monat; null = nicht festgelegt (nicht dasselbe wie 0).
+  targetHoursPerMonth Float?
   qualifications String[] @default([])
   availabilities Availability[]
   joinedAt       DateTime @default(now())
@@ -130,6 +133,22 @@ enum NameFormat {
   LASTNAME
   FIRSTNAME
   NICKNAME
+}
+
+/// Qualifikationskatalog einer Organisation. Mitarbeitende und Schichten
+/// speichern weiterhin Namen; beim Speichern gilt die Schreibweise des
+/// Katalogs. normalizedName (getrimmt, klein) ist je Organisation eindeutig.
+model Qualification {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  normalizedName String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, normalizedName])
+  @@map("qualifications")
 }
 
 /// Kunde der AKRO-Organisation. Ausschliesslich interne Planungsdaten -

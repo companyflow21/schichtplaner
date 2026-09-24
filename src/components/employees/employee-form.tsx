@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LinkFeld, StandortAuswahl, type SiteOption } from "./staff-sites";
+import { QualifikationAuswahl } from "@/components/workforce/qualification-select";
 
 type EmployeeRow = {
   firstName: string;
@@ -31,6 +32,7 @@ type EmployeeRow = {
   email: string;
   role: "ADMIN" | "MANAGER" | "EMPLOYEE";
   branchIds: string[];
+  qualifications: string[];
 };
 
 type Created = { id: string; user: { firstName: string; lastName: string }; activationUrl: string };
@@ -41,6 +43,7 @@ const emptyRow: EmployeeRow = {
   email: "",
   role: "EMPLOYEE",
   branchIds: [],
+  qualifications: [],
 };
 
 /**
@@ -245,6 +248,14 @@ export function EmployeeForm({ admin }: { admin: boolean }) {
                     >
                       <Trash2 className="size-4" />
                     </Button>
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-sm font-medium">Qualifikationen</span>
+                    <QualifikationAuswahl
+                      value={row.qualifications}
+                      onChange={(v) => updateRow(index, "qualifications", v)}
+                      idPrefix={`neu-q-${index}`}
+                    />
                   </div>
                   {row.role === "EMPLOYEE" ? (
                     <div className="space-y-1.5">

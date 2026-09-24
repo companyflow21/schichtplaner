@@ -6,7 +6,7 @@ import { normalizeBranchRights } from "./access-shared";
 
 type Tx = Prisma.TransactionClient;
 
-export const publicUser = { id: true, firstName: true, lastName: true, nickname: true, profileImage: true } as const;
+export const publicUser = { id: true, firstName: true, lastName: true, profileImage: true } as const;
 export const branchView = { id: true, name: true, address: true, meetingPoint: true, notes: true, positions: true, isActive: true, customer: { select: { id: true, name: true } } } as const;
 export const shiftInclude = {
   schedule: { include: { branch: { select: branchView } } },

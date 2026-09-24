@@ -8,7 +8,6 @@ export type BookingUser = {
   id: string;
   firstName: string;
   lastName: string;
-  nickname: string | null;
   profileImage: string | null;
 };
 

@@ -38,7 +38,9 @@ export async function GET() {
       id: org.id,
       name: org.name,
       address: org.address,
-      nameFormat: org.nameFormat,
+      // "Spitzname" gibt es nicht mehr; ein gespeicherter Wert bleibt erhalten
+      // und wird wie "Vorname Nachname" behandelt.
+      nameFormat: org.nameFormat === "NICKNAME" ? "FIRSTNAME_LASTNAME" : org.nameFormat,
     },
     timeSettings: org.timeSettings ?? {
       whoCanUse: "ALL",
@@ -72,7 +74,6 @@ const updateSettingsSchema = z.object({
       "FIRSTNAME_LASTNAME",
       "LASTNAME",
       "FIRSTNAME",
-      "NICKNAME",
     ])
     .optional(),
 

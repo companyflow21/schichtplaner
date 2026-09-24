@@ -61,7 +61,6 @@ type EmployeeDetail = {
     lastName: string;
     email: string;
     phone: string | null;
-    nickname: string | null;
     profileImage: string | null;
     createdAt: string;
   };
@@ -461,14 +460,6 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
                 <InlineEdit
                   value={employee.user.lastName}
                   onSave={(v) => updateMutation.mutate({ lastName: v })}
-                  disabled={!canEdit}
-                />
-              </div>
-              <div className="grid grid-cols-[120px_1fr] items-center">
-                <span className="text-sm text-muted-foreground">Spitzname</span>
-                <InlineEdit
-                  value={employee.user.nickname || ""}
-                  onSave={(v) => updateMutation.mutate({ nickname: v })}
                   disabled={!canEdit}
                 />
               </div>

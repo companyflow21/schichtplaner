@@ -12,6 +12,7 @@ import bcrypt from "bcryptjs";
 import { berlinDate, berlinTime, addDate, isoWeek, weekDate, recordMinutes } from "../src/lib/berlin";
 import { permissionTests, type TestContext, type TestPerson } from "./permissions";
 import { staffSiteTests } from "./staff-sites";
+import { catalogTargetTests } from "./catalog-targets";
 
 async function main() {
 const sql = new PGlite();
@@ -24,7 +25,8 @@ const url = "postgresql://postgres:postgres@127.0.0.1:55439/postgres";
 const client = new PrismaClient({ adapter: new PrismaPg({ connectionString: url, max: 1 }) });
 const password = "AkroTest2026!Only";
 const passwordHash = await bcrypt.hash(password, 10);
-const org = await client.organization.create({ data: { name: "AKRO Integrationstest" } });
+// Altwert "Spitzname" als Namensformat - die App zeigt dafuer Vor- und Nachname.
+const org = await client.organization.create({ data: { name: "AKRO Integrationstest", nameFormat: "NICKNAME" } });
 const other = await client.organization.create({ data: { name: "Andere Organisation" } });
 const users: Record<string, TestPerson> = {};
 const people = [
@@ -34,7 +36,8 @@ const people = [
   ["staffA", "EMPLOYEE", org.id, "Emil", "Einser"], ["staffB", "EMPLOYEE", org.id, "Elke", "Zweier"], ["loner", "EMPLOYEE", org.id, "Edda", "Dreier"],
 ] as const;
 for (const [name, role, organizationId, firstName, lastName] of people) {
-  const user = await client.user.create({ data: { firstName, lastName, email: name.toLowerCase() + "@akro-test.invalid", passwordHash } });
+  // Ein gespeicherter Spitzname bleibt erhalten, wird aber nirgends mehr gezeigt.
+  const user = await client.user.create({ data: { firstName, lastName, email: name.toLowerCase() + "@akro-test.invalid", passwordHash, nickname: name === "staffB" ? "Elli" : null } });
   const m = await client.organizationMember.create({ data: { userId: user.id, organizationId, role, isActivated: true, position: "Sicherheit", qualifications: ["Erste Hilfe"] } });
   users[name] = { id: user.id, email: user.email, memberId: m.id, firstName, lastName };
 }
@@ -92,6 +95,8 @@ try {
   check(weekDate(2026,1) === "2025-12-29" && isoWeek("2027-01-01").year === 2026, "ISO week/year transition");
   const admin = new Session(), employee = new Session(), replacement = new Session(), foreign = new Session(), anonymous = new Session();
   await admin.login(users.admin.email); await employee.login(users.employee.email); await replacement.login(users.replacement.email); await foreign.login(users.foreign.email);
+  // Qualifikationen stammen aus dem Katalog der Organisation.
+  for (const name of ["Erste Hilfe", "Brandschutz"]) await admin.request("/api/qualifications", "POST", { name }, 201);
   await anonymous.request("/api/branches", "GET", undefined, 307);
   await employee.request("/api/branches", "POST", { name: "Nicht erlaubt" }, 403);
   // Ein Standort gehoert immer zu einem Kunden derselben Organisation.
@@ -210,6 +215,7 @@ try {
   const context: TestContext = { base, users, password, categoryId: category.id, check, Session: Session as unknown as TestContext["Session"], counter: () => checks };
   await permissionTests(context);
   await staffSiteTests(context);
+  await catalogTargetTests(context);
   console.log("FINAL SUCCESS: " + checks + " assertions / HTTP checks passed.");
   if (process.argv.includes("--serve")) {
     console.log("BROWSER_PREVIEW " + base + " — admin@akro-test.invalid / " + password);

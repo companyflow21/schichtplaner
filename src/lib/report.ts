@@ -9,6 +9,9 @@ import { branchIds, can, staffIds, type Access } from "./access";
  * die Person mit "Stunden einsehen" zugeordnet hat - und dann nur fuer
  * Standorte mit "Zeiterfassung einsehen". Sollstunden gelten
  * standortuebergreifend und erscheinen fuer andere Personen nur bei Admins.
+ * Sollstunden sind Monatswerte: targetStatus "hidden" (nicht sichtbar),
+ * "unset" (nicht festgelegt) oder "set"; aus fehlenden Werten wird kein Soll
+ * und keine Abweichung berechnet.
  * Mit branchId wird auf einen Standort eingeschraenkt.
  */
 export async function monthlyReport(a: Access, month: number, year: number, options: { branchId?: string | null; selfOnly?: boolean } = {}) {
@@ -41,12 +44,9 @@ export async function monthlyReport(a: Access, month: number, year: number, opti
     }),
   ]);
   const weeks = new Map<number, { weekNumber: number; label: string }>();
-  let weekdays = 0;
   for (let d = first; d <= last; d = addDate(d, 1)) {
     const week = isoWeek(d);
     weeks.set(week.weekNumber, { weekNumber: week.weekNumber, label: "KW " + week.weekNumber });
-    const day = new Date(d).getUTCDay();
-    if (day > 0 && day < 6) weekdays++;
   }
   const employees = people.map((p) => {
     const own = records.filter((t) => t.userId === p.userId);
@@ -54,9 +54,10 @@ export async function monthlyReport(a: Access, month: number, year: number, opti
     const totalMinutes = own.reduce((sum, r) => sum + recordMinutes(r), 0);
     const plannedMinutes = shifts.reduce((sum, b) => { const s = b.shift, gross = rangeMinutes(s.shiftFrom, s.shiftTo); return sum + Math.max(0, gross - (s.pauseOption === "PER_HOUR" ? Math.floor(gross / 60) * s.pauseValue : s.pauseValue)); }, 0);
     const showTarget = !branch && (a.isAdmin || p.userId === a.userId);
-    const targetMinutes = showTarget ? Math.round(p.targetHoursPerWeek / 5 * weekdays * 60) : null;
+    const targetStatus: "hidden" | "unset" | "set" = !showTarget ? "hidden" : p.targetHoursPerMonth === null ? "unset" : "set";
+    const targetMinutes = targetStatus === "set" ? Math.round(p.targetHoursPerMonth! * 60) : null;
     return {
-      userId: p.userId, ...p.user, totalMinutes, plannedMinutes, targetMinutes, deviationMinutes: totalMinutes - plannedMinutes, shiftCount: shifts.length,
+      userId: p.userId, ...p.user, totalMinutes, plannedMinutes, targetMinutes, targetStatus, deviationMinutes: totalMinutes - plannedMinutes, shiftCount: shifts.length,
       kwBreakdown: [...weeks.values()].map((w) => ({ weekNumber: w.weekNumber, totalMinutes: own.filter((r) => isoWeek(r.date.toISOString().slice(0, 10)).weekNumber === w.weekNumber).reduce((sum, r) => sum + recordMinutes(r), 0), shiftCount: shifts.filter((b) => b.shift.schedule.weekNumber === w.weekNumber).length })),
     };
   });

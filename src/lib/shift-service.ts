@@ -5,6 +5,7 @@ import { timeSchema } from "./api";
 import { assessAssignment, notify, shiftInclude } from "./planning";
 import { isoWeek, weekDate, addDate, shiftRange } from "./berlin";
 import { assertCan, branchHolders, type Access } from "./access";
+import { catalogQualifications } from "./qualifications";
 
 type Tx = Prisma.TransactionClient;
 
@@ -54,8 +55,9 @@ export async function createShifts(tx: Tx, a: Access, data: z.output<typeof shif
   if (data.branchId && data.branchId !== schedule.branchId) throw new ApiError("Der angegebene Standort passt nicht zum Plan.", 400);
   const branch = await plannableBranch(tx, a, schedule.branchId);
   await validateDivision(tx, a.orgId, data.divisionId);
-  const { repeatDays, repeatWeeks, branchId: _branchId, ...base } = data;
+  const { repeatDays, repeatWeeks, branchId: _branchId, ...rest } = data;
   void _branchId;
+  const base = { ...rest, requiredQualifications: await catalogQualifications(tx, a.orgId, rest.requiredQualifications) };
   const days = [...new Set(repeatDays?.length ? repeatDays : [data.dayOfWeek])];
   const shifts = [];
   const audience = await branchHolders(tx, a.orgId, branch.id, ["REQUEST_SHIFTS"], false);
@@ -72,7 +74,8 @@ export async function updateShift(tx: Tx, a: Access, id: string, data: z.output<
   if (!existing) throw new ApiError("Schicht nicht gefunden.", 404);
   assertCan(a, "EDIT_SHIFTS", existing.schedule.branchId);
   await validateDivision(tx, a.orgId, data.divisionId);
-  const { branchId, ...fields } = data;
+  const { branchId, ...patch } = data;
+  const fields = { ...patch, ...(patch.requiredQualifications !== undefined ? { requiredQualifications: await catalogQualifications(tx, a.orgId, patch.requiredQualifications) } : {}) };
   let schedule: Schedule = existing.schedule;
   if (branchId !== undefined && branchId !== existing.schedule.branchId) {
     // Umzug an einen anderen Standort: Recht an beiden Standorten, gleiche Woche.

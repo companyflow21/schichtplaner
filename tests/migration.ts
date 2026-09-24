@@ -185,6 +185,36 @@ async function main() {
   check((await rows(conflict, `SELECT 1 FROM information_schema.columns WHERE table_name='shifts' AND column_name='branchId'`)).length === 1, "contradictory legacy plans abort the migration without changes");
   await conflict.close();
 
+  // Qualifikationskatalog und Monatssoll: Altbestand ohne Verlust uebernehmen.
+  const CATALOG = "20260925090000_qualification_catalog_monthly_target";
+  const cat = await database(CATALOG);
+  await cat.exec(`
+    INSERT INTO "organizations" ("id","name","updatedAt","nameFormat") VALUES ('q1','Org Eins',${now},'NICKNAME'),('q2','Org Zwei',${now},'LASTNAME_FIRSTNAME');
+    INSERT INTO "users" ("id","email","firstName","lastName","nickname","updatedAt") VALUES ('qa','qa@akro-test.invalid','Anna','Alt','Anni',${now}),('qb','qb@akro-test.invalid','Bernd','Alt',NULL,${now}),('qc','qc@akro-test.invalid','Cleo','Fremd',NULL,${now});
+    INSERT INTO "organization_members" ("id","organizationId","userId","role","isActivated","qualifications","targetHoursPerWeek") VALUES
+      ('qm1','q1','qa','EMPLOYEE',true,ARRAY['Erste Hilfe',' Brandschutz '],38.5),
+      ('qm2','q1','qb','EMPLOYEE',true,ARRAY['erste hilfe','Erste Hilfe'],20),
+      ('qm3','q2','qc','EMPLOYEE',true,ARRAY['Erste Hilfe'],40);
+    INSERT INTO "schedules" ("id","organizationId","weekNumber","year","updatedAt") VALUES ('qp','q1',12,2026,${now});
+    INSERT INTO "shifts" ("id","scheduleId","dayOfWeek","shiftFrom","shiftTo","requiredQualifications","deletedAt") VALUES ('qs1','qp',1,'22:00','06:00',ARRAY['ERSTE HILFE','Nachtwache'],NULL),('qs2','qp',2,'08:00','16:00',ARRAY['Sachkunde 34a'],${now});
+  `);
+  await cat.exec(await readFile("prisma/migrations/" + CATALOG + "/migration.sql", "utf8"));
+  const catalog = await rows<{ organizationId: string; name: string; normalizedName: string }>(cat, `SELECT "organizationId","name","normalizedName" FROM "qualifications" ORDER BY "organizationId","normalizedName"`);
+  const names = (org: string) => catalog.filter((c) => c.organizationId === org).map((c) => c.name).join("|");
+  check(names("q1") === "Brandschutz|Erste Hilfe|Nachtwache|Sachkunde 34a", "catalog takes every qualification of members and shifts (also deleted shifts), trimmed, once per name");
+  check(names("q2") === "Erste Hilfe", "catalog stays per organisation");
+  check(catalog.every((c) => c.normalizedName === c.name.trim().toLowerCase()), "catalog stores the normalized name for uniqueness");
+  const members = await rows<{ id: string; qualifications: string[]; targetHoursPerWeek: number; targetHoursPerMonth: number | null }>(cat, `SELECT "id","qualifications","targetHoursPerWeek","targetHoursPerMonth" FROM "organization_members" ORDER BY "id"`);
+  check(members[0].qualifications.join("|") === "Erste Hilfe| Brandschutz " && members[1].qualifications.join("|") === "erste hilfe|Erste Hilfe", "existing member assignments stay unchanged");
+  check(members.every((m) => m.targetHoursPerMonth === null) && members[0].targetHoursPerWeek === 38.5 && members[1].targetHoursPerWeek === 20, "monthly target starts empty, weekly values stay, no conversion");
+  check((await rows<{ requiredQualifications: string[] }>(cat, `SELECT "requiredQualifications" FROM "shifts" WHERE "id"='qs1'`))[0].requiredQualifications.join("|") === "ERSTE HILFE|Nachtwache", "shift requirements stay unchanged");
+  check((await rows<{ nickname: string | null; nameFormat: string }>(cat, `SELECT u."nickname", o."nameFormat" FROM "users" u, "organizations" o WHERE u."id"='qa' AND o."id"='q1'`))[0].nickname === "Anni", "stored nicknames and name format stay untouched");
+  await assert.rejects(cat.exec(`INSERT INTO "qualifications" ("id","organizationId","name","normalizedName") VALUES ('dup','q1','ERSTE HILFE','erste hilfe')`), /unique|eindeutig|duplicate/i);
+  check(true, "catalog rejects a second entry with the same normalized name");
+  await cat.exec(`INSERT INTO "qualifications" ("id","organizationId","name","normalizedName") VALUES ('ok','q2','Brandschutz','brandschutz')`);
+  check((await rows(cat, `SELECT 1 FROM "qualifications" WHERE "organizationId"='q2'`)).length === 2, "same name is allowed in another organisation");
+  await cat.close();
+
   console.log("SUCCESS: " + checks + " migration checks passed.");
 }
 

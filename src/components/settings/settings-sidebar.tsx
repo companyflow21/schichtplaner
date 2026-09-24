@@ -7,6 +7,7 @@ import {
   Users,
   Umbrella,
   Building2,
+  BadgeCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +31,11 @@ const sections = [
     key: "employees",
     label: "Mitarbeiter",
     icon: Users,
+  },
+  {
+    key: "qualifications",
+    label: "Qualifikationen",
+    icon: BadgeCheck,
   },
   {
     key: "absences",

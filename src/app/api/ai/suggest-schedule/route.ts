@@ -88,7 +88,6 @@ export async function POST(request: NextRequest) {
         id: true,
         firstName: true,
         lastName: true,
-        nickname: true,
         profileImage: true,
       },
     });

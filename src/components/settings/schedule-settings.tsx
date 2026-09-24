@@ -55,7 +55,6 @@ export function ScheduleSettings({
               </SelectItem>
               <SelectItem value="LASTNAME">Nur Nachname</SelectItem>
               <SelectItem value="FIRSTNAME">Nur Vorname</SelectItem>
-              <SelectItem value="NICKNAME">Spitzname</SelectItem>
             </SelectContent>
           </Select>
         </div>

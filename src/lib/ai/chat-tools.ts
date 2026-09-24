@@ -384,7 +384,6 @@ async function executeSearchEmployees(
         OR: [
           { firstName: { contains: query, mode: "insensitive" } },
           { lastName: { contains: query, mode: "insensitive" } },
-          { nickname: { contains: query, mode: "insensitive" } },
         ],
       },
     },
@@ -394,7 +393,6 @@ async function executeSearchEmployees(
           id: true,
           firstName: true,
           lastName: true,
-          nickname: true,
           email: true,
         },
       },

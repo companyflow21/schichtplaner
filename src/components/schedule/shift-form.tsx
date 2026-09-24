@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { TimeInput } from "@/components/ui/time-input";
 import { Textarea } from "@/components/ui/textarea";
 import { json, useAction, selectClass, ErrorMessage } from "@/components/workforce/client";
+import { QualifikationAuswahl } from "@/components/workforce/qualification-select";
 import type { ShiftData, DivisionOption } from "@/types/schedule";
 
 type Props = { open: boolean; onOpenChange: (value: boolean) => void; scheduleId: string; branchId: string | null; defaultDayOfWeek?: number; shift?: ShiftData | null };
@@ -27,7 +28,7 @@ function Editor({ open, onOpenChange, scheduleId, branchId, defaultDayOfWeek = 1
   return <Sheet open={open} onOpenChange={onOpenChange}><SheetContent side="right" className="w-full overflow-y-auto p-4 sm:max-w-[30rem]"><SheetHeader className="p-0 pb-4"><SheetTitle>{shift ? "Schicht bearbeiten" : "Schicht erstellen"}</SheetTitle><SheetDescription>Bei einer Endzeit vor der Startzeit endet die Schicht am Folgetag.</SheetDescription></SheetHeader><ErrorMessage error={locations.error || divisions.error} />
     <form className="grid gap-4 sm:grid-cols-2" onSubmit={async e => {
       e.preventDefault(); const f = new FormData(e.currentTarget);
-      const common = { divisionId: f.get("divisionId") || null, title: f.get("title") || null, shiftFrom: f.get("shiftFrom"), shiftTo: f.get("shiftTo"), maxEmployees: Number(f.get("maxEmployees")), pauseOption: f.get("pauseOption"), pauseValue: Number(f.get("pauseValue")), description: f.get("description") || null, requiredQualifications: String(f.get("qualifications")).split(",").map(s => s.trim()).filter(Boolean) };
+      const common = { divisionId: f.get("divisionId") || null, title: f.get("title") || null, shiftFrom: f.get("shiftFrom"), shiftTo: f.get("shiftTo"), maxEmployees: Number(f.get("maxEmployees")), pauseOption: f.get("pauseOption"), pauseValue: Number(f.get("pauseValue")), description: f.get("description") || null, requiredQualifications: f.getAll("qualifications").map(String) };
       const data = shift
         ? { ...common, dayOfWeek: days[0], ...(f.get("branchId") && f.get("branchId") !== shift.branchId ? { branchId: f.get("branchId") } : {}) }
         : { ...common, scheduleId, dayOfWeek: days[0], repeatDays: days, repeatWeeks: Number(f.get("repeatWeeks") || 1) };
@@ -48,7 +49,7 @@ function Editor({ open, onOpenChange, scheduleId, branchId, defaultDayOfWeek = 1
       <label>Pause in Minuten<Input name="pauseValue" type="number" min={0} max={120} defaultValue={shift?.pauseValue || 0} required /></label><label>Pausenregel<select name="pauseOption" className={selectClass} defaultValue={shift?.pauseOption || "PER_SHIFT"}><option value="PER_SHIFT">Pro Schicht</option><option value="PER_HOUR">Pro Stunde</option></select></label>
       <fieldset className="sm:col-span-2"><legend className="mb-2">{shift ? "Wochentag" : "Wochentage"}</legend><div className="flex flex-wrap gap-2">{["Mo","Di","Mi","Do","Fr","Sa","So"].map((name,i) => <Button type="button" key={name} variant={days.includes(i+1) ? "default" : "outline"} aria-pressed={days.includes(i+1)} onClick={() => setDays(old => shift ? [i+1] : old.includes(i+1) ? old.length > 1 ? old.filter(d => d !== i+1) : old : [...old,i+1])}>{name}</Button>)}</div></fieldset>
       {!shift && <label>Wöchentlich wiederholen (Wochen)<Input name="repeatWeeks" type="number" min={1} max={52} defaultValue={1} required /></label>}
-      <label className="sm:col-span-2">Erforderliche Qualifikationen (Komma getrennt)<Input name="qualifications" defaultValue={shift?.requiredQualifications?.join(", ") || ""} /></label>
+      <fieldset className="sm:col-span-2"><legend className="mb-1.5">Erforderliche Qualifikationen</legend><QualifikationAuswahl name="qualifications" defaultValue={shift?.requiredQualifications ?? []} idPrefix={"schicht-" + (shift?.id ?? "neu")} /></fieldset>
       <label className="sm:col-span-2">Hinweise<Textarea name="description" defaultValue={shift?.description || ""} maxLength={2000} /></label>
       <div className="sm:col-span-2 flex flex-wrap justify-end gap-2">{shift && <ConfirmDialog title="Schicht absagen" description="Die Schicht wird gelöscht und alle Zuweisungen werden aufgehoben. Betroffene Mitarbeitende verlieren diesen Einsatz." confirmLabel="Schicht löschen" disabled={action.isPending} onConfirm={() => { action.mutateAsync({ url: "/api/shifts/" + shift.id, method: "DELETE", message: "Schicht abgesagt" }).then(() => onOpenChange(false)).catch(() => {}); }}><Button type="button" variant="destructive" disabled={action.isPending}>Schicht löschen</Button></ConfirmDialog>}<Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button><Button disabled={action.isPending}>Speichern</Button></div>
     </form>

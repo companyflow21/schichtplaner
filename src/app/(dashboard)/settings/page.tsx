@@ -14,6 +14,7 @@ import { ScheduleSettings } from "@/components/settings/schedule-settings";
 import { TimeSettings } from "@/components/settings/time-settings";
 import { AbsenceSettings } from "@/components/settings/absence-settings";
 import { AccountSettings } from "@/components/settings/account-settings";
+import { QualificationSettings } from "@/components/settings/qualification-settings";
 
 // ---------- Types ----------
 
@@ -190,6 +191,7 @@ export default function SettingsPage() {
             <option value="time">Zeiterfassung</option>
             <option value="wishplan">Wunschplaene</option>
             <option value="employees">Mitarbeiter</option>
+            <option value="qualifications">Qualifikationen</option>
             <option value="absences">Abwesenheiten</option>
             <option value="account">Account</option>
           </select>
@@ -248,6 +250,8 @@ export default function SettingsPage() {
               </Card>
             </div>
           )}
+
+          {activeSection === "qualifications" && <QualificationSettings />}
 
           {activeSection === "absences" && (
             <AbsenceSettings

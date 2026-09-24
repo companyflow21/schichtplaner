@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireAccess } from "@/lib/access";
 import { activationUrl, canCreateStaff, canManageSites, checkSites, siteScope, SITE_RIGHTS } from "@/lib/staff-sites";
 import { normalizeBranchRights } from "@/lib/access-shared";
+import { catalogQualifications } from "@/lib/qualifications";
 
 /**
  * Personalliste. Admins sehen alle, Manager nur ihnen ausdruecklich
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
           ...(a.isAdmin ? [{ email: { contains: search, mode: "insensitive" as const } }] : []),
         ] } } : {}),
       },
-      include: { user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, nickname: true, profileImage: true } } },
+      include: { user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, profileImage: true } } },
       orderBy: { joinedAt: "asc" },
     });
     const all = await db.organizationMember.findMany({ where: { organizationId: a.orgId, ...(staff ? { userId: { in: staff } } : {}) }, select: { role: true, isActive: true, isActivated: true } });
@@ -60,10 +61,10 @@ export async function GET(request: NextRequest) {
     return {
       members: members.map((m) => {
         const profile = a.isAdmin || (a.staff.get(m.userId)?.rights.has("VIEW_PROFILE") ?? false);
-        const { email, phone, nickname, ...name } = m.user;
+        const { email, phone, ...name } = m.user;
         return {
           id: m.id, role: m.role, isActive: m.isActive, isActivated: m.isActivated, joinedAt: m.joinedAt,
-          user: profile ? { ...name, email, phone, nickname } : { ...name, email: null, phone: null, nickname: null },
+          user: profile ? { ...name, email, phone } : { ...name, email: null, phone: null },
           rights: a.isAdmin ? null : [...(a.staff.get(m.userId)?.rights ?? [])],
           sites: m.role === "EMPLOYEE" ? grants.filter((g) => g.memberId === m.id && normalizeBranchRights(g.rights, m.role).includes("REQUEST_SHIFTS")).map((g) => g.branch) : null,
           canEditSites: canManageSites(a, m),
@@ -84,6 +85,8 @@ const createEmployeeSchema = z.object({
     role: z.enum(["ADMIN", "MANAGER", "EMPLOYEE"]),
     /** Standortzuordnung (nur Mitarbeitende), auch ueber Kunden hinweg. */
     branchIds: z.array(z.string().min(1)).max(200).optional(),
+    /** Aus dem Qualifikationskatalog der Organisation. */
+    qualifications: z.array(z.string().trim().min(1).max(100)).max(50).optional(),
   })).min(1).max(100),
 });
 
@@ -128,8 +131,8 @@ export async function POST(request: NextRequest) {
           ? existingUsers.find((u) => u.email.toLowerCase() === emp.email.toLowerCase())!
           : await tx.user.create({ data: { email: emp.email.toLowerCase(), firstName: emp.firstName, lastName: emp.lastName, passwordHash: await bcrypt.hash(crypto.randomUUID(), 10) } });
         const member = await tx.organizationMember.create({
-          data: { organizationId: a.orgId, userId: user.id, role: emp.role, isActivated: false, activationToken: crypto.randomUUID(), activationExpiresAt: new Date(Date.now() + 7 * 86400000), createdByMemberId: a.memberId },
-          include: { user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, nickname: true, profileImage: true } } },
+          data: { organizationId: a.orgId, userId: user.id, role: emp.role, isActivated: false, activationToken: crypto.randomUUID(), activationExpiresAt: new Date(Date.now() + 7 * 86400000), createdByMemberId: a.memberId, qualifications: await catalogQualifications(tx, a.orgId, emp.qualifications ?? []) },
+          include: { user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, profileImage: true } } },
         });
         const sites = [...new Set(emp.branchIds ?? [])];
         if (sites.length) await tx.branchAccess.createMany({ data: sites.map((branchId) => ({ organizationId: a.orgId, memberId: member.id, branchId, rights: SITE_RIGHTS })) });

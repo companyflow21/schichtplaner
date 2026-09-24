@@ -14,9 +14,11 @@ export async function GET(request: Request) {
     const { month, year, branchId } = reportPeriod(request);
     if (!Number.isInteger(month) || month < 1 || month > 12 || !Number.isInteger(year) || year < 2000 || year > 2100) throw new ApiError("Ungültiger Monat.");
     const report = await monthlyReport(a, month, year, { branchId });
-    const headers = ["Nachname", "Vorname", "Sollstunden", "Geplante Stunden", "Iststunden", "Abweichung Ist/Plan", "Schichten"];
+    const headers = ["Nachname", "Vorname", "Sollstunden (Monat)", "Geplante Stunden", "Iststunden", "Abweichung Ist/Plan", "Schichten"];
     const hours = (minutes: number | null) => minutes === null ? "–" : (minutes / 60).toFixed(2).replace(".", ",");
-    const rows = report.employees.map((e) => [e.lastName, e.firstName, hours(e.targetMinutes), hours(e.plannedMinutes), hours(e.totalMinutes), hours(e.deviationMinutes), e.shiftCount]);
+    // Soll: festgelegt -> Wert (auch 0), nicht festgelegt -> leer, nicht sichtbar -> "–".
+    const target = (e: (typeof report.employees)[number]) => e.targetStatus === "set" ? hours(e.targetMinutes) : e.targetStatus === "unset" ? "" : "–";
+    const rows = report.employees.map((e) => [e.lastName, e.firstName, target(e), hours(e.plannedMinutes), hours(e.totalMinutes), hours(e.deviationMinutes), e.shiftCount]);
     return new Response("﻿" + [headers, ...rows].map((row) => row.map(cell).join(";")).join("\r\n"), { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="Stunden_' + year + "-" + month + '.csv"' } });
   });
 }

@@ -47,7 +47,6 @@ type Employee = {
     // Kontaktdaten nur mit "Personalprofil ansehen" (sonst null).
     email: string | null;
     phone: string | null;
-    nickname: string | null;
     profileImage: string | null;
   };
   /** Personalrechte der angemeldeten Person fuer diese Person; null fuer Admins. */
@@ -298,11 +297,6 @@ export function EmployeeList() {
                           <div className="font-medium">
                             {emp.user.lastName}, {emp.user.firstName}
                           </div>
-                          {emp.user.nickname && (
-                            <div className="text-xs text-muted-foreground">
-                              &quot;{emp.user.nickname}&quot;
-                            </div>
-                          )}
                         </div>
                       </div>
                     </TableCell>

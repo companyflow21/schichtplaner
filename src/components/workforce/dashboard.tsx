@@ -56,6 +56,7 @@ type Reports = {
     totalMinutes: number;
     plannedMinutes: number;
     targetMinutes: number | null;
+    targetStatus?: "hidden" | "unset" | "set";
     deviationMinutes: number;
   }[];
 };
@@ -137,7 +138,7 @@ export function Dashboard() {
             {data.manager
               ? anzahl(data.reports.employees.length, "Person", "Personen") + " in deiner Auswertung"
               : eigeneMonatszeile
-                ? `${stunden(eigeneMonatszeile.totalMinutes)} erfasst${eigeneMonatszeile.targetMinutes !== null ? ` · Soll ${stunden(eigeneMonatszeile.targetMinutes)}` : ""} · Abweichung zum Plan ${stunden(eigeneMonatszeile.deviationMinutes)}`
+                ? `${stunden(eigeneMonatszeile.totalMinutes)} erfasst${eigeneMonatszeile.targetStatus === "unset" ? " · Soll nicht festgelegt" : eigeneMonatszeile.targetMinutes !== null ? ` · Soll ${stunden(eigeneMonatszeile.targetMinutes)}` : ""} · Abweichung zum Plan ${stunden(eigeneMonatszeile.deviationMinutes)}`
                 : "Noch keine Zeiten erfasst"}
           </p>
         </div>

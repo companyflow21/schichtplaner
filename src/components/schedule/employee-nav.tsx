@@ -22,7 +22,6 @@ type OrgEmployee = {
     firstName: string;
     lastName: string;
     email: string;
-    nickname: string | null;
     profileImage: string | null;
   };
 };

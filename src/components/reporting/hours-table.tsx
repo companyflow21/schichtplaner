@@ -50,6 +50,8 @@ type EmployeeReport = {
   plannedMinutes: number;
   /** Sollstunden: nur eigene und - fuer Admins - alle; nicht in der Standortansicht. */
   targetMinutes: number | null;
+  /** hidden: nicht sichtbar; unset: nicht festgelegt; set: Monatswert (auch 0). */
+  targetStatus: "hidden" | "unset" | "set";
   deviationMinutes: number;
   shiftCount: number;
   kwBreakdown: KWData[];
@@ -404,7 +406,7 @@ export function HoursTable({ month, year }: HoursTableProps) {
                     </button>
                   </TableHead>
                   <TableHead className="text-right">Plan</TableHead>
-                  <TableHead className="text-right">Soll</TableHead>
+                  <TableHead className="text-right">Soll (Monat)</TableHead>
                   <TableHead className="text-right">Ist − Plan</TableHead>
                 </TableRow>
               </TableHeader>
@@ -437,7 +439,7 @@ export function HoursTable({ month, year }: HoursTableProps) {
                         : "-"}
                     </TableCell>
                     <TableCell className="tabular text-right">{stunden(emp.plannedMinutes)}</TableCell>
-                    <TableCell className="tabular text-right">{stunden(emp.targetMinutes)}</TableCell>
+                    <TableCell className="tabular text-right">{emp.targetStatus === "unset" ? <span className="text-muted-foreground">Nicht festgelegt</span> : stunden(emp.targetMinutes)}</TableCell>
                     <TableCell className="tabular text-right">{stunden(emp.deviationMinutes)}</TableCell>
                   </TableRow>
                 ))}
