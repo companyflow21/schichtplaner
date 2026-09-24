@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { TimeInput } from "@/components/ui/time-input";
 import { Textarea } from "@/components/ui/textarea";
 import { json, useAction, selectClass, ErrorMessage } from "@/components/workforce/client";
 import type { ShiftData, DivisionOption } from "@/types/schedule";
@@ -32,7 +33,7 @@ function Editor({ open, onOpenChange, scheduleId, branchId, defaultDayOfWeek = 1
         : { ...common, scheduleId, dayOfWeek: days[0], repeatDays: days, repeatWeeks: Number(f.get("repeatWeeks") || 1) };
       await action.mutateAsync({ url: shift ? "/api/shifts/" + shift.id : "/api/shifts", method: shift ? "PATCH" : "POST", data, message: shift ? "Schicht geändert" : "Schicht angelegt" }).then(() => onOpenChange(false)).catch(() => {});
     }}>
-      <label>Beginn<Input type="time" name="shiftFrom" defaultValue={shift?.shiftFrom || "08:00"} required /></label><label>Ende<Input type="time" name="shiftTo" defaultValue={shift?.shiftTo || "17:00"} required /></label>
+      <label>Beginn<TimeInput name="shiftFrom" defaultValue={shift?.shiftFrom || "08:00"} required /></label><label>Ende<TimeInput name="shiftTo" defaultValue={shift?.shiftTo || "17:00"} required /></label>
       {shift ? (
         <label>Einsatzort<select name="branchId" defaultValue={shift.branchId || ""} className={selectClass} required={!shift.branchId}>
           {!shift.branchId && <option value="">Bitte zuordnen</option>}
