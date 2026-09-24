@@ -18,6 +18,15 @@ Der erste Start dauert einige Minuten. Danach im Browser: **https://localhost**
 1. Auf **Registrieren** klicken und die Firma + dein Admin-Konto anlegen.
 2. Danach ist die Registrierung automatisch gesperrt. Mitarbeiter legt nur noch der Admin an.
 
+## Kunden, Standorte und Freigaben
+Als Admin angemeldet:
+1. **Einsatzorte** → „Kunde anlegen“, danach „Einsatzort anlegen“. Jeder Einsatzort gehört zu einem Kunden.
+2. **Mitarbeiter** → Person öffnen → Abschnitt **Freigaben**: Standorte freigeben und bei Managern
+   Mitarbeitende zuordnen. „Entziehen“ bzw. „Zuordnung entfernen“ wirkt sofort.
+
+Ohne Freigabe sehen Manager keine Standorte und Mitarbeitende nur ihre eigenen Schichten,
+Zeiten und Abwesenheiten. Details: `docs/AKRO-ERWEITERUNG.md`, Abschnitt 5.
+
 ## Datenschutz-Einstellungen (in `.env`)
 | Schalter | Standard | Bedeutung |
 |---|---|---|
@@ -77,8 +86,25 @@ docker stats
 docker compose logs -f app postgres caddy
 ```
 
-## Stoppen / Backup
+## Backup
+Bei laufender App im Ordner `schichtplaner` (PowerShell):
+
+```
+docker compose exec -T postgres pg_dump -U schichtplaner -f /tmp/backup.sql schichtplaner
+docker compose cp postgres:/tmp/backup.sql "backups/schichtplaner-$(Get-Date -Format yyyy-MM-dd_HHmm).sql"
+docker compose exec -T postgres rm /tmp/backup.sql
+```
+
+Die Datei im Ordner `backups` enthält personenbezogene Daten: sicher aufbewahren, nicht weitergeben.
+
+## Aktualisieren
+1. Backup wie oben ziehen.
+2. `docker compose up -d --build` – baut die App neu und spielt ausstehende Datenbank-Migrationen automatisch ein.
+3. Prüfen: `docker compose ps` zeigt die App als `healthy`, danach **https://localhost** öffnen.
+
+## Stoppen
 ```
 docker compose down
-docker compose exec postgres pg_dump -U schichtplaner schichtplaner > backup.sql
 ```
+
+Die Daten bleiben erhalten. Niemals `docker compose down -v` ausführen – das löscht die Datenbank.

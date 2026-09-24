@@ -1,6 +1,7 @@
 # AKRO Dienstplaner – Erweiterung und Übergabe
 
-Stand: 19.09.2026. Das bestehende Projekt wurde erweitert; kein neues Projekt erstellt.
+Stand: 24.09.2026. Abschnitte 1–4 beschreiben die Erweiterung vom 19.09.2026, Abschnitt 5 die
+Trennung nach Kunde, Standort und Zuständigkeit vom 24.09.2026. Das bestehende Projekt wurde erweitert; kein neues Projekt erstellt.
 Vorhandene lokale Änderungen wurden erhalten. Betriebsdaten wurden nicht migriert oder mit Testdaten überschrieben.
 
 ## 1. Analyse und ergänzte Funktionen
@@ -31,7 +32,7 @@ Eine bestehende Abweichung zwischen Schema und Migration (`mod_requests.note`) w
 - Einmaliger Einladungslink mit sieben Tagen Gültigkeit und Passwortaktivierung.
   Ein neuer Link macht den alten ungültig. Links werden durch die Administration weitergegeben; kein E-Mail-Versand eingerichtet.
 - Einsatzorte mit Adresse, Treffpunkt, Tätigkeiten, Hinweisen und Aktivstatus
-  direkt im vorhandenen Bereich für Arbeitsbereiche. Keine Kundenverwaltung.
+  direkt im vorhandenen Bereich für Arbeitsbereiche. Seit 24.09.2026 gehört jeder Einsatzort zu einem Kunden (Abschnitt 5).
 
 ### Verfügbarkeit, Abwesenheiten und Anträge
 - Verfügbare/nicht verfügbare Zeitfenster im bestehenden Abwesenheitsbereich.
@@ -63,8 +64,8 @@ Eine bestehende Abweichung zwischen Schema und Migration (`mod_requests.note`) w
   fehlende Bestätigungen, Abwesenheiten, Anträge, Nachrichten und Monatsstunden.
 - Blau-türkise Palette, mobile Karten/Formulare und reduzierte rollengerechte Navigation.
   Bestehende optionale KI-Seiten wurden nicht entfernt, aber aus der Hauptnavigation genommen.
-- OWNER/ADMIN bleiben Administratoren; die bestehende MANAGER-Rolle behält ihre Planungsrechte.
-  Personalverwaltung und Abwesenheitsentscheidungen bleiben OWNER/ADMIN vorbehalten.
+- OWNER/ADMIN bleiben Administratoren. Seit 24.09.2026 planen Manager nur noch mit ausdrücklicher
+  Freigabe je Standort und je zugeordneter Person (Abschnitt 5).
 
 ## 2. Geänderte Dateien
 
@@ -172,4 +173,81 @@ Zeitkorrektur und Fremdzugriff; Stunden-/CSV-Auswertung; interne Nachricht und L
 
 Die Tests ersetzen keine Abnahme gegen echte Betriebsdaten, keinen produktiven
 Mehrbenutzer-Lasttest und keine Prüfung tariflicher/arbeitsrechtlicher Anforderungen.
+
+## 5. Kunden, Standorte und Freigaben (24.09.2026)
+
+### Struktur
+- Organisation → Kunde → Standort → Wochenplan je Standort und Kalenderwoche → Schicht.
+  `Shift.branchId` entfällt; der Standort einer Schicht ist der Standort ihres Plans. Arbeitsbereiche bleiben unverändert.
+- Neue Standorte brauchen einen Kunden. Standorte ohne Kunde (Altbestand) stehen unter „Ohne Kunde“;
+  neue Schichten sind dort erst nach der Zuordnung möglich. Pläne ohne Standort sieht nur die Administration.
+- Kein Kundenzugang: Kunden sind interne Planungsdaten.
+
+### Rollen und Freigaben
+- OWNER und ADMIN: organisationsweit. MANAGER: nur freigegebene Standorte und zugeordnete Personen.
+  EMPLOYEE: eigene Daten; mit Standortfreigabe zusätzlich offene Schichten bzw. der veröffentlichte Standortplan.
+- Ohne Freigabe kein Zugriff. Entzug und Deaktivierung wirken bei der nächsten Anfrage;
+  offene Echtzeitverbindungen werden sofort angepasst bzw. getrennt.
+
+| Standortrecht (`branch_access`) | Wirkung |
+| --- | --- |
+| Dienstplan ansehen | Vollständiger Standortplan mit Namen; Manager sehen auch Entwürfe |
+| Schichten erstellen und bearbeiten | Anlegen, ändern, kopieren, besetzen |
+| Dienstplan veröffentlichen | Wochenpläne freigeben oder zurückziehen |
+| Anträge und Schichtübernahmen bearbeiten | Übernahmen und Tausch entscheiden |
+| Zeiterfassung einsehen / bearbeiten | Zeiten des Standorts – für andere Personen nur zusammen mit „Stunden einsehen“ |
+| Standortmeldungen bearbeiten | Interne Meldungen mit Status, zuständiger Person und Zeitstempel |
+| Offene Schichten sehen und anfragen | Offene Plätze ohne Namen anderer; Übernahme anfragen |
+
+| Personalrecht (`staff_assignments`, nur Manager) | Wirkung |
+| --- | --- |
+| In Schichten einplanen | Person steht beim Besetzen zur Auswahl |
+| Personalprofil ansehen | Kontaktdaten, Tätigkeit, Qualifikationen |
+| Stammdaten bearbeiten | Tätigkeit, Beschäftigungsart, Sollstunden, Qualifikationen, Notizen |
+| Abwesenheiten einsehen und entscheiden | Anträge sehen, genehmigen, ablehnen |
+| Stunden einsehen | Zeitbuchungen und Monatswerte an Standorten mit „Zeiterfassung einsehen“ |
+
+Folgerechte werden automatisch gesetzt (Bearbeiten, Veröffentlichen und Anträge ⇒ Ansehen ⇒ Offene Schichten;
+Zeiten bearbeiten ⇒ Zeiten einsehen; Stammdaten bearbeiten ⇒ Profil ansehen). Mitarbeitende können nur
+„Dienstplan ansehen“ und „Offene Schichten“ erhalten. Voreinstellungen in der Oberfläche: Plan ansehen,
+Planen, Standortverantwortung; für Mitarbeitende Offene Schichten, Standortplan ansehen; für Personal
+Einplanen, Personalverantwortung.
+
+### Startseite, Monatsplan und Zeiterfassung
+- Startseite für Admins und Manager: Kundenkarten mit Standorten, offenen Plätzen der nächsten 28 Tage
+  (auch in Entwürfen), Entwurfswochen und Standortmeldungen. Ein Klick öffnet den Monatsplan, „offene Plätze“
+  die betroffenen Tage. Zähler erscheinen nur mit dem passenden Recht. Mitarbeitende behalten ihre Startseite.
+- Monatsplan je Standort in Europe/Berlin, inklusive Nachtschichten über Monats- und Jahresgrenzen.
+  Fehlende Besetzung = benötigte minus wirksam zugewiesene Plätze (inaktive oder abwesende Personen zählen nicht).
+- Zeitbuchungen erhalten einen Standort, wenn sie sich (Berliner Zeit) mit genau einem Standort einer
+  veröffentlichten, eigenen Schicht überschneiden; ohne Uhrzeit zählt das Datum. Unklare Buchungen sehen nur
+  die Person und die Administration, die sie in der Zeiterfassung zuordnen kann.
+
+### Durchsetzung
+Zentral in `src/lib/access.ts` für Seiten, Schnittstellen, Suche, Zählwerte, CSV-Export, Nachrichtenempfänger
+und Echtzeiträume. Zusammengesetzte Fremdschlüssel und der Trigger `akro_same_organization` verhindern
+Verknüpfungen über Organisationsgrenzen.
+
+### Migration `20260924090000_customers_branch_access`
+- Teilt Wochenpläne mit Schichten mehrerer Standorte verlustfrei auf: Schichten samt Buchungen und Anträgen,
+  Veröffentlichungsstatus und Darstellung, Briefings (kopiert), Live-Sitzungen (kopiert) und Live-Protokolle.
+  Bei widersprüchlichen Altdaten bricht sie ohne Änderung ab.
+- Legt keine Kunden und keine Freigaben an.
+- Geprüft mit `npm run test:migration` (flüchtige Datenbank) und `npm run test:migration:copy`
+  (Kopie echter Daten, Datenbankname mit copy, kopie oder migtest).
+- Am 24.09.2026 in die lokale Produktivinstallation (Docker-Projekt `schichtplaner`) eingespielt – nach Backup
+  `backups/schichtplaner-2026-09-24_1409.sql` und Probelauf auf einer Kopie davon (26/26 Prüfungen).
+  Datenstand danach: eine Organisation, ein Konto (Inhaber), keine Kunden, keine Standorte, 11 leere Wochenpläne ohne Standort.
+
+### Einrichtung durch die Administration
+1. **Einsatzorte**: „Kunde anlegen“, danach „Einsatzort anlegen“; Altstandorte über „Kunden zuordnen“.
+2. **Mitarbeiter** → Person → **Freigaben** → „Standort freigeben“, Umfang wählen, „Freigeben“.
+3. Bei Managern „Mitarbeitende zuordnen“; einzelne Rechte über „Rechte ändern“.
+4. „Entziehen“ bzw. „Zuordnung entfernen“ nimmt die Freigabe sofort zurück.
+
+### Offene fachliche Punkte
+- Welche Freigaben erhalten Manager und Mitarbeitende beim Anlegen?
+- Dürfen Admins eigene Zeitkorrekturen genehmigen (derzeit ja; Manager nein)?
+- Vorläufig festgelegt: KI, Zeitkategorien und Dateiverwaltung nur für Admins; Sollstunden anderer nur für Admins;
+  Themen und Portal-Dateien organisationsweit; Admin-Namen für alle als Ansprechpartner sichtbar.
 
