@@ -173,9 +173,9 @@ async function main() {
     await db.booking.upsert({ where: { shiftId_userId: { shiftId: suedSchicht, userId: k.userId } }, create: { shiftId: suedSchicht, userId: k.userId }, update: {} });
   }
 
-  // --- Entwuerfe fuer den Manager: eine Woche fuer den Funktionstest, eine fuer den Lastlauf ---
+  // --- Entwuerfe fuer den Manager: je eine Woche fuer Funktionstest, Lastlauf und gezielte Wiederholung ---
   const ziele: Record<string, { scheduleId: string; shiftId: string; week: { weekNumber: number; year: number } }> = {};
-  for (const [lauf, abstand] of [["funktion", 1], ["last", 2]] as const) {
+  for (const [lauf, abstand] of [["funktion", 1], ["last", 2], ["wiederholung", 3]] as const) {
     const w = naechste(abstand);
     const id = await plan(org.id, orte["Lasttest Objekt"], w, false);
     const ziel = await schicht(id, { title: "Lasttest besetzen", dayOfWeek: 2, shiftFrom: "08:00", shiftTo: "16:00", maxEmployees: 1, requiredQualifications: ["Sachkunde 34a"] });

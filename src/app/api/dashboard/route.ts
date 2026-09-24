@@ -2,7 +2,7 @@ import { api } from "@/lib/api";
 import { db } from "@/lib/db";
 import { addDate, berlinDate, berlinTime, minuteOfDay, shiftRange } from "@/lib/berlin";
 import { branchIds, can, requireAccess, staffIds, timeScope, type Access } from "@/lib/access";
-import { checkAssignment, shiftInclude, shiftView } from "@/lib/planning";
+import { checkAssignments, shiftInclude, shiftView } from "@/lib/planning";
 import { monthlyReport } from "@/lib/report";
 import { planningOverview } from "@/lib/overview";
 
@@ -27,14 +27,15 @@ async function requestableShifts(a: Access, today: string) {
     include: shiftInclude,
   });
   const now = Date.parse(today) / 60000 + minuteOfDay(berlinTime());
-  const open = [];
-  for (const s of shifts.map((s) => ({ s, r: shiftRange(s) })).filter(({ r }) => r.end > now && r.date <= addDate(today, 60)).sort((x, y) => x.r.start - y.r.start).map(({ s }) => s)) {
-    if (s.bookings.length >= s.maxEmployees || s.bookings.some((b) => b.userId === a.userId)) continue;
-    if ((await checkAssignment(db, s, a.userId)).length) continue;
-    open.push(shiftView(s, a));
-    if (open.length >= 20) break;
-  }
-  return open;
+  const candidates = shifts
+    .map((s) => ({ s, r: shiftRange(s) }))
+    .filter(({ r }) => r.end > now && r.date <= addDate(today, 60))
+    .sort((x, y) => x.r.start - y.r.start)
+    .map(({ s }) => s)
+    .filter((s) => s.bookings.length < s.maxEmployees && !s.bookings.some((b) => b.userId === a.userId));
+  // Alle Kandidaten gemeinsam pruefen statt je Schicht einzeln (feste Zahl von Abfragen).
+  const objections = await checkAssignments(db, candidates, a.userId);
+  return candidates.filter((s) => !objections.get(s.id)?.length).slice(0, 20).map((s) => shiftView(s, a));
 }
 
 export async function GET() {

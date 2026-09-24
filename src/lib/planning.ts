@@ -37,29 +37,84 @@ export function lastShiftDate(shift: { dayOfWeek: number; shiftFrom: string; shi
 export type Assessment = { blocks: string[]; warnings: string[]; declared: boolean };
 
 export async function assessAssignment(tx: Tx, shift: PlannedShift, userId: string, excludeShiftId = shift.id): Promise<Assessment> {
-  const member = await tx.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: shift.schedule.organizationId, userId } } });
+  return assess(shift, userId, await assessmentBasis(tx, [shift], [userId]), excludeShiftId);
+}
+
+/**
+ * Einwaende einer Person gegen viele Schichten auf einmal - dieselben Regeln
+ * wie checkAssignment, aber eine feste Zahl von Abfragen statt fuenf bis
+ * sechs je Schicht (Dashboard: anfragbare offene Schichten).
+ */
+export async function checkAssignments(tx: Tx, shifts: PlannedShift[], userId: string): Promise<Map<string, string[]>> {
+  const result = new Map<string, string[]>();
+  if (!shifts.length) return result;
+  const basis = await assessmentBasis(tx, shifts, [userId]);
+  for (const shift of shifts) {
+    const { blocks, warnings } = assess(shift, userId, basis, shift.id);
+    result.set(shift.id, [...blocks, ...warnings]);
+  }
+  return result;
+}
+
+type AssessmentBasis = {
+  members: Map<string, Prisma.OrganizationMemberGetPayload<object>>;
+  branches: Map<string, Prisma.BranchGetPayload<object>>;
+  divisions: Map<string, Prisma.DivisionGetPayload<{ include: { members: true } }>>;
+  absences: { userId: string; dateFrom: Date; dateTo: Date }[];
+  bookings: Prisma.BookingGetPayload<{ include: { shift: { include: { schedule: true } } } }>[];
+  windows: Prisma.AvailabilityGetPayload<object>[];
+};
+
+/** Alles, was assess fuer diese Schichten (eines Mandanten) und Personen braucht. */
+async function assessmentBasis(tx: Tx, shifts: PlannedShift[], userIds: string[]): Promise<AssessmentBasis> {
+  const orgId = shifts[0].schedule.organizationId;
+  const starts = shifts.map(s => shiftRange(s).date).sort();
+  const lasts = shifts.map(s => lastShiftDate(s)).sort();
+  const years = shifts.map(s => s.schedule.year);
+  const branchIdList = [...new Set(shifts.map(s => s.schedule.branchId).filter((id): id is string => !!id))];
+  const divisionIds = [...new Set(shifts.map(s => s.divisionId).filter((id): id is string => !!id))];
+  const members = await tx.organizationMember.findMany({ where: { organizationId: orgId, userId: { in: userIds } } });
+  const branches = branchIdList.length ? await tx.branch.findMany({ where: { id: { in: branchIdList } } }) : [];
+  const divisions = divisionIds.length ? await tx.division.findMany({ where: { id: { in: divisionIds } }, include: { members: true } }) : [];
+  // Die Art der Abwesenheit bleibt Personaldaten; die Planung erfaehrt nur, dass sie genehmigt ist.
+  const absences = await tx.absence.findMany({ where: { userId: { in: userIds }, status: "APPROVED", category: { organizationId: orgId }, dateFrom: { lte: new Date(lasts[lasts.length - 1]) }, dateTo: { gte: new Date(starts[0]) } }, select: { userId: true, dateFrom: true, dateTo: true } });
+  const bookings = await tx.booking.findMany({ where: { userId: { in: userIds }, shift: { deletedAt: null, schedule: { deletedAt: null, organizationId: orgId, year: { gte: Math.min(...years) - 1, lte: Math.max(...years) + 1 } } } }, include: { shift: { include: { schedule: true } } } });
+  const windows = await tx.availability.findMany({ where: { organizationId: orgId, userId: { in: userIds }, date: { gte: new Date(addDate(starts[0], -1)), lte: new Date(addDate(starts[starts.length - 1], 1)) } } });
+  return {
+    members: new Map(members.map(m => [m.userId, m])),
+    branches: new Map(branches.map(b => [b.id, b])),
+    divisions: new Map(divisions.map(d => [d.id, d])),
+    absences,
+    bookings,
+    windows,
+  };
+}
+
+/** Die Regeln einer Einteilung fuer eine Schicht und eine Person (Daten aus assessmentBasis). */
+function assess(shift: PlannedShift, userId: string, basis: AssessmentBasis, excludeShiftId: string): Assessment {
+  const member = basis.members.get(userId);
   if (!member?.isActive) return { blocks: ["Mitarbeiter ist nicht aktiv."], warnings: [], declared: false };
   const blocks: string[] = [], warnings: string[] = [];
   if (shift.schedule.branchId) {
-    const branch = await tx.branch.findUnique({ where: { id: shift.schedule.branchId } });
+    const branch = basis.branches.get(shift.schedule.branchId);
     if (!branch?.isActive) blocks.push("Einsatzort ist nicht aktiv.");
     if (branch?.positions.length && !branch.positions.some(p => p.toLocaleLowerCase("de-DE") === member.position?.toLocaleLowerCase("de-DE"))) warnings.push("Tätigkeit passt nicht zum Einsatzort.");
   }
   const qualifications = new Set(member.qualifications.map(q => q.toLocaleLowerCase("de-DE")));
   if (shift.divisionId) {
-    const division = await tx.division.findUnique({ where: { id: shift.divisionId }, include: { members: true } });
+    const division = basis.divisions.get(shift.divisionId);
     if (division && !division.isSystem && division.members.length && !division.members.some(m => m.userId === userId)) warnings.push("Gehört nicht zum Arbeitsbereich.");
   }
   const missing = shift.requiredQualifications.filter(q => !qualifications.has(q.toLocaleLowerCase("de-DE")));
   if (missing.length) warnings.push("Erforderliche Qualifikation fehlt: " + missing.join(", ") + ".");
   const range = shiftRange(shift);
   const lastDate = lastShiftDate(shift);
-  const absences = await tx.absence.count({ where: { userId, status: "APPROVED", category: { organizationId: shift.schedule.organizationId }, dateFrom: { lte: new Date(lastDate) }, dateTo: { gte: new Date(range.date) } } });
-  // Die Art der Abwesenheit bleibt Personaldaten; die Planung erfaehrt nur, dass sie genehmigt ist.
-  if (absences) blocks.push("Genehmigte Abwesenheit.");
-  const bookings = await tx.booking.findMany({ where: { userId, shiftId: { not: excludeShiftId }, shift: { deletedAt: null, schedule: { deletedAt: null, organizationId: shift.schedule.organizationId, year: { gte: shift.schedule.year - 1, lte: shift.schedule.year + 1 } } } }, include: { shift: { include: { schedule: true } } } });
+  const from = new Date(range.date).getTime(), to = new Date(lastDate).getTime();
+  if (basis.absences.some(x => x.userId === userId && x.dateFrom.getTime() <= to && x.dateTo.getTime() >= from)) blocks.push("Genehmigte Abwesenheit.");
+  const bookings = basis.bookings.filter(b => b.userId === userId && b.shiftId !== excludeShiftId && Math.abs(b.shift.schedule.year - shift.schedule.year) <= 1);
   if (bookings.some(b => overlaps(range, shiftRange(b.shift)))) blocks.push("Zeitliche Überschneidung mit einer anderen Schicht.");
-  const windows = await tx.availability.findMany({ where: { organizationId: shift.schedule.organizationId, userId, date: { gte: new Date(addDate(range.date, -1)), lte: new Date(addDate(range.date, 1)) } } });
+  const windowFrom = new Date(addDate(range.date, -1)).getTime(), windowTo = new Date(addDate(range.date, 1)).getTime();
+  const windows = basis.windows.filter(w => w.userId === userId && w.date.getTime() >= windowFrom && w.date.getTime() <= windowTo);
   const normalized = windows.map(w => { const start = w.date.getTime() / 60000 + Number(w.timeFrom.slice(0, 2)) * 60 + Number(w.timeFrom.slice(3)); return { ...w, start, end: start + rangeMinutes(w.timeFrom, w.timeTo) }; });
   if (normalized.some(w => !w.available && overlaps(range, w))) blocks.push("Als nicht verfügbar eingetragen.");
   let declared = false, outside = false;
