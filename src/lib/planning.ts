@@ -2,6 +2,7 @@ import type { Prisma, Shift, Schedule } from "@prisma/client";
 import { ApiError } from "./errors";
 import { addDate, overlaps, rangeMinutes, shiftRange } from "./berlin";
 import { can, type Access } from "./access";
+import { normalizeBranchRights } from "./access-shared";
 
 type Tx = Prisma.TransactionClient;
 
@@ -21,42 +22,63 @@ export function lastShiftDate(shift: { dayOfWeek: number; shiftFrom: string; shi
   return rangeMinutes(shift.shiftFrom, shift.shiftTo) + Number(shift.shiftFrom.slice(0, 2)) * 60 + Number(shift.shiftFrom.slice(3)) > 1440 ? addDate(range.date, 1) : range.date;
 }
 
-export async function checkAssignment(tx: Tx, shift: PlannedShift, userId: string, excludeShiftId = shift.id): Promise<string[]> {
+/**
+ * Pruefung einer Einteilung, getrennt nach Wirkung:
+ * - blocks: harte Sperren, die keine Bestaetigung aufhebt (inaktives Konto,
+ *   inaktiver Einsatzort, fremder Arbeitsbereich, genehmigte Abwesenheit,
+ *   zeitliche Ueberschneidung, ausdruecklich eingetragene Nichtverfuegbarkeit,
+ *   Schicht ausserhalb der eingetragenen Verfuegbarkeit).
+ * - warnings: Qualifikationshinweise (fehlende Qualifikation, Taetigkeit passt
+ *   nicht zum Einsatzort). Die Planung kann sie mit einer Bestaetigung uebersteuern.
+ * - declared: fuer den Schichtzeitraum ist ausdruecklich Verfuegbarkeit eingetragen.
+ */
+export type Assessment = { blocks: string[]; warnings: string[]; declared: boolean };
+
+export async function assessAssignment(tx: Tx, shift: PlannedShift, userId: string, excludeShiftId = shift.id): Promise<Assessment> {
   const member = await tx.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: shift.schedule.organizationId, userId } } });
-  if (!member?.isActive) return ["Mitarbeiter ist nicht aktiv."];
-  const warnings: string[] = [];
+  if (!member?.isActive) return { blocks: ["Mitarbeiter ist nicht aktiv."], warnings: [], declared: false };
+  const blocks: string[] = [], warnings: string[] = [];
   if (shift.schedule.branchId) {
     const branch = await tx.branch.findUnique({ where: { id: shift.schedule.branchId } });
-    if (!branch?.isActive) warnings.push("Einsatzort ist nicht aktiv.");
+    if (!branch?.isActive) blocks.push("Einsatzort ist nicht aktiv.");
     if (branch?.positions.length && !branch.positions.some(p => p.toLocaleLowerCase("de-DE") === member.position?.toLocaleLowerCase("de-DE"))) warnings.push("Tätigkeit passt nicht zum Einsatzort.");
   }
   const qualifications = new Set(member.qualifications.map(q => q.toLocaleLowerCase("de-DE")));
   if (shift.divisionId) {
     const division = await tx.division.findUnique({ where: { id: shift.divisionId }, include: { members: true } });
-    if (division && !division.isSystem && division.members.length && !division.members.some(m => m.userId === userId)) warnings.push("Mitarbeiter gehört nicht zum Arbeitsbereich.");
+    if (division && !division.isSystem && division.members.length && !division.members.some(m => m.userId === userId)) blocks.push("Mitarbeiter gehört nicht zum Arbeitsbereich.");
   }
-  if (shift.requiredQualifications.some(q => !qualifications.has(q.toLocaleLowerCase("de-DE")))) warnings.push("Erforderliche Qualifikation fehlt.");
+  const missing = shift.requiredQualifications.filter(q => !qualifications.has(q.toLocaleLowerCase("de-DE")));
+  if (missing.length) warnings.push("Erforderliche Qualifikation fehlt: " + missing.join(", ") + ".");
   const range = shiftRange(shift);
   const lastDate = lastShiftDate(shift);
   const absences = await tx.absence.count({ where: { userId, status: "APPROVED", category: { organizationId: shift.schedule.organizationId }, dateFrom: { lte: new Date(lastDate) }, dateTo: { gte: new Date(range.date) } } });
   // Der Grund bleibt Personaldaten; fuer die Planung genuegt "nicht verfuegbar".
-  if (absences) warnings.push("Mitarbeiter ist zu diesem Zeitpunkt nicht verfügbar.");
+  if (absences) blocks.push("Mitarbeiter ist zu diesem Zeitpunkt nicht verfügbar.");
   const bookings = await tx.booking.findMany({ where: { userId, shiftId: { not: excludeShiftId }, shift: { deletedAt: null, schedule: { deletedAt: null, organizationId: shift.schedule.organizationId, year: { gte: shift.schedule.year - 1, lte: shift.schedule.year + 1 } } } }, include: { shift: { include: { schedule: true } } } });
-  if (bookings.some(b => overlaps(range, shiftRange(b.shift)))) warnings.push("Zeitliche Überschneidung mit einer anderen Schicht.");
+  if (bookings.some(b => overlaps(range, shiftRange(b.shift)))) blocks.push("Zeitliche Überschneidung mit einer anderen Schicht.");
   const windows = await tx.availability.findMany({ where: { organizationId: shift.schedule.organizationId, userId, date: { gte: new Date(addDate(range.date, -1)), lte: new Date(addDate(range.date, 1)) } } });
   const normalized = windows.map(w => { const start = w.date.getTime() / 60000 + Number(w.timeFrom.slice(0, 2)) * 60 + Number(w.timeFrom.slice(3)); return { ...w, start, end: start + rangeMinutes(w.timeFrom, w.timeTo) }; });
-  if (normalized.some(w => !w.available && overlaps(range, w))) warnings.push("Als nicht verfügbar eingetragen.");
+  if (normalized.some(w => !w.available && overlaps(range, w))) blocks.push("Als nicht verfügbar eingetragen.");
+  let declared = false;
   for (const day of [range.date, ...(lastDate !== range.date ? [lastDate] : [])]) {
     const start = Date.parse(day) / 60000, end = start + 1440;
     const segment = { start: Math.max(start, range.start), end: Math.min(end, range.end) };
     const available = normalized.filter(w => w.available && overlaps({ start, end }, w)).sort((a,b) => a.start - b.start);
     if (available.length) {
+      declared = true;
       let covered = segment.start;
       for (const w of available) if (w.start <= covered) covered = Math.max(covered, w.end);
-      if (covered < segment.end) warnings.push("Schicht liegt außerhalb der eingetragenen Verfügbarkeit.");
+      if (covered < segment.end) blocks.push("Schicht liegt außerhalb der eingetragenen Verfügbarkeit.");
     }
   }
-  return warnings;
+  return { blocks, warnings, declared: declared && !blocks.length };
+}
+
+/** Alle Einwaende ohne Unterscheidung - fuer Antraege von Mitarbeitenden, die nichts uebersteuern koennen. */
+export async function checkAssignment(tx: Tx, shift: PlannedShift, userId: string, excludeShiftId = shift.id): Promise<string[]> {
+  const { blocks, warnings } = await assessAssignment(tx, shift, userId, excludeShiftId);
+  return [...blocks, ...warnings];
 }
 
 /**
@@ -75,13 +97,63 @@ export function assignableUserIds(a: Access): string[] | null {
   return [...a.staff].filter(([, s]) => s.rights.has("ASSIGN_SHIFTS")).map(([userId]) => userId);
 }
 
-export async function assign(tx: Tx, a: Access, shiftId: string, userId: string) {
+/**
+ * Reihenfolge der Auswahl beim Besetzen:
+ * available - dem Standort zugeordnet, Verfuegbarkeit ausdruecklich eingetragen
+ * open      - dem Standort zugeordnet, kein Verfuegbarkeitseintrag
+ * warning   - dem Standort zugeordnet, Qualifikationshinweis (eine Bestaetigung)
+ * other     - einplanbar, aber diesem Standort nicht zugeordnet
+ */
+export const CANDIDATE_GROUPS = ["available", "open", "warning", "other"] as const;
+export type CandidateGroup = (typeof CANDIDATE_GROUPS)[number];
+
+/**
+ * Auswahl fuer eine Schicht. Grundlage sind nur Personen, die die angemeldete
+ * Person ohnehin einplanen darf (assignableUserIds) - die Standortzuordnung
+ * (Freigabe "Offene Schichten sehen und anfragen") sortiert, sie erweitert
+ * nichts. Gesperrte Personen stehen getrennt, jeweils mit Grund.
+ */
+export async function shiftCandidates(tx: Tx, a: Access, shift: ShiftWithRelations) {
+  const allowed = assignableUserIds(a);
+  const branchId = shift.schedule.branchId;
+  const [people, grants] = await Promise.all([
+    tx.organizationMember.findMany({
+      where: { organizationId: a.orgId, isActive: true, isActivated: true, ...(allowed ? { userId: { in: allowed } } : {}) },
+      include: { user: { select: publicUser } },
+      orderBy: [{ user: { lastName: "asc" } }, { user: { firstName: "asc" } }],
+    }),
+    branchId ? tx.branchAccess.findMany({ where: { organizationId: a.orgId, branchId }, select: { rights: true, member: { select: { userId: true, role: true } } } }) : Promise.resolve([]),
+  ]);
+  const site = new Set(grants.filter(g => normalizeBranchRights(g.rights, g.member.role).includes("REQUEST_SHIFTS")).map(g => g.member.userId));
+  const members: { memberId: string; userId: string; role: string; user: (typeof people)[number]["user"]; group: CandidateGroup; reasons: string[]; confirm: boolean }[] = [];
+  const blocked: { memberId: string; userId: string; role: string; user: (typeof people)[number]["user"]; reasons: string[] }[] = [];
+  for (const p of people) {
+    if (shift.bookings.some(b => b.userId === p.userId)) continue;
+    const person = { memberId: p.id, userId: p.userId, role: p.role, user: p.user };
+    const r = await assessAssignment(tx, shift, p.userId);
+    if (r.blocks.length) { blocked.push({ ...person, reasons: r.blocks }); continue; }
+    const atSite = site.has(p.userId);
+    const group: CandidateGroup = !atSite ? "other" : r.warnings.length ? "warning" : r.declared ? "available" : "open";
+    const reasons = group === "available" ? ["Verfügbarkeit eingetragen."] : group === "open" ? ["Keine Verfügbarkeit eingetragen."] : [...(atSite ? [] : ["Diesem Standort nicht zugeordnet."]), ...r.warnings];
+    members.push({ ...person, group, reasons, confirm: r.warnings.length > 0 });
+  }
+  members.sort((x, y) => CANDIDATE_GROUPS.indexOf(x.group) - CANDIDATE_GROUPS.indexOf(y.group));
+  return { members, blocked };
+}
+
+/**
+ * Einteilen. Harte Sperren gelten immer. Qualifikationshinweise verlangen
+ * genau eine Bestaetigung (confirm); ohne sie antwortet der Server mit 409
+ * und { confirm: true, warnings }, damit die Oberflaeche einmal nachfragt.
+ */
+export async function assign(tx: Tx, a: Access, shiftId: string, userId: string, confirm = false) {
   const shift = await tx.shift.findFirst({ where: { id: shiftId, deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null } }, include: shiftInclude });
   if (!shift) throw new ApiError("Schicht nicht gefunden.", 404);
   if (shift.bookings.some(b => b.userId === userId)) throw new ApiError("Bereits zugewiesen.", 409);
   if (shift.bookings.length >= shift.maxEmployees) throw new ApiError("Schicht ist bereits besetzt.", 409);
-  const warnings = await checkAssignment(tx, shift, userId);
-  if (warnings.length) throw new ApiError(warnings.join(" "), 409);
+  const { blocks, warnings } = await assessAssignment(tx, shift, userId);
+  if (blocks.length) throw new ApiError([...blocks, ...warnings].join(" "), 409);
+  if (warnings.length && !confirm) throw new ApiError(warnings.join(" "), 409, { confirm: true, warnings });
   const booking = await tx.booking.create({ data: { shiftId, userId, bookedBy: a.userId }, include: { user: { select: publicUser } } });
   if (shift.schedule.isPublic) await notify(tx, a.orgId, a.userId, [userId], "Neue Schicht", shiftRange(shift).date + ": " + shift.shiftFrom + "–" + shift.shiftTo + ". Bitte bestätigen.", shiftId);
   return { booking, shift };

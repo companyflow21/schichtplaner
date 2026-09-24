@@ -41,6 +41,7 @@ erDiagram
     OrganizationMember ||--o{ StaffAssignment : "assigned to"
     OrganizationMember ||--o{ BranchIssue : "responsible for"
     OrganizationMember ||--o{ Availability : "has"
+    OrganizationMember |o--o{ OrganizationMember : "created"
 
     Customer }o--|| Organization : "belongs to"
     Customer ||--o{ Branch : "has"
@@ -116,6 +117,7 @@ erDiagram
         float targetHoursPerWeek
         string_array qualifications
         string activationToken UK
+        string createdByMemberId FK "who created the account (null = unknown)"
     }
 
     Customer {

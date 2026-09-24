@@ -21,7 +21,7 @@ export async function api(work: () => Promise<unknown>) {
     const result = await work();
     return result instanceof Response ? result : NextResponse.json(result);
   } catch (error) {
-    if (error instanceof ApiError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof ApiError) return NextResponse.json({ ...error.details, error: error.message }, { status: error.status });
     if (error instanceof z.ZodError) return NextResponse.json({ error: error.issues.map(i => i.message).join("; ") }, { status: 400 });
     if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2002", "P2034"].includes(error.code)) return NextResponse.json({ error: "Der Eintrag wurde inzwischen geändert oder existiert bereits. Bitte neu laden." }, { status: 409 });
     console.error("API error", error);

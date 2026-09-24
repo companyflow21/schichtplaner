@@ -11,6 +11,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 import { berlinDate, berlinTime, addDate, isoWeek, weekDate, recordMinutes } from "../src/lib/berlin";
 import { permissionTests, type TestContext, type TestPerson } from "./permissions";
+import { staffSiteTests } from "./staff-sites";
 
 async function main() {
 const sql = new PGlite();
@@ -207,6 +208,7 @@ try {
 
   const context: TestContext = { base, users, password, categoryId: category.id, check, Session: Session as unknown as TestContext["Session"], counter: () => checks };
   await permissionTests(context);
+  await staffSiteTests(context);
   console.log("FINAL SUCCESS: " + checks + " assertions / HTTP checks passed.");
   if (process.argv.includes("--serve")) {
     console.log("BROWSER_PREVIEW " + base + " — admin@akro-test.invalid / " + password);

@@ -99,9 +99,14 @@ model OrganizationMember {
   qualifications String[] @default([])
   availabilities Availability[]
   joinedAt       DateTime @default(now())
+  /// Wer das Konto angelegt hat. Manager erhalten den Aktivierungslink nur
+  /// fuer selbst angelegte Konten.
+  createdByMemberId String?
 
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdBy      OrganizationMember?  @relation("MemberCreator", fields: [createdByMemberId], references: [id], onDelete: SetNull)
+  createdMembers OrganizationMember[] @relation("MemberCreator")
   branchAccess   BranchAccess[]
   managedStaff   StaffAssignment[] @relation("StaffManager")
   staffManagers  StaffAssignment[] @relation("StaffEmployee")

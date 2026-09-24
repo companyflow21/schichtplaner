@@ -251,3 +251,30 @@ Verknüpfungen über Organisationsgrenzen.
 - Vorläufig festgelegt: KI, Zeitkategorien und Dateiverwaltung nur für Admins; Sollstunden anderer nur für Admins;
   Themen und Portal-Dateien organisationsweit; Admin-Namen für alle als Ansprechpartner sichtbar.
 
+## 6. Mitarbeitende mit Standorten anlegen und besetzen
+
+### Standortzuordnung
+- Beim Anlegen erhält jede Person mit der Rolle Mitarbeiter einzelne Standorte, auch über Kunden hinweg.
+  Die Zuordnung ist für den Pilot die Freigabe „Offene Schichten sehen und anfragen“: offene Plätze ohne Namen
+  anderer und Übernahmeanträge – kein vollständiger Standortplan, keine Personaldaten.
+- Admins: alle Rollen und Standorte. Manager: nur die Rolle Mitarbeiter und nur Standorte, an denen sie selbst
+  „Schichten erstellen und bearbeiten“ haben; geprüft in `POST /api/employees`, eine abgelehnte Zeile verwirft die
+  ganze Anfrage. Manager legen nur neue E-Mail-Adressen an; bestehende Benutzerkonten bindet die Administration an.
+- Der anlegende Manager erhält für die neue Person genau das Personalrecht „In Schichten einplanen“.
+- Ändern: Mitarbeiterliste → „Standorte“ (`/api/employees/[id]/sites`). Manager nur für Personen, die sie einplanen
+  dürfen, und nur an eigenen Planungsstandorten; Freigaben mit mehr als der Zuordnung ändert nur die Administration.
+- Aktivierungslink: erscheint nach dem Anlegen im Dialog; einen neuen gibt es in der Mitarbeiterliste
+  („Einladungslink“). Manager nur für selbst angelegte, noch nicht aktivierte Konten (`createdByMemberId`,
+  Migration `20260924150000_member_created_by`).
+
+### Besetzen
+- Die Auswahl enthält nur Personen, die die planende Person einplanen darf (Admins alle, Manager mit „In Schichten
+  einplanen“). Reihenfolge: dem Standort zugeordnet mit eingetragener Verfügbarkeit, ohne Verfügbarkeitseintrag,
+  mit Qualifikationshinweis; danach einplanbare Personen anderer Standorte. Der Grund steht an der Person.
+- Fehlende Qualifikation und unpassende Tätigkeit: eine Bestätigung, danach keine Sperre – auch nicht bei späteren
+  Änderungen der Schicht, solange kein neuer Hinweis entsteht. API: `POST /api/bookings` antwortet ohne
+  `confirm: true` mit 409 und `{ confirm: true, warnings }`.
+- Gesperrt, auch mit Bestätigung: genehmigte Abwesenheit, zeitliche Überschneidung, eingetragene
+  Nichtverfügbarkeit, Schicht außerhalb der eingetragenen Verfügbarkeit, fremder Arbeitsbereich, inaktive Konten,
+  inaktiver Standort, fehlende Rechte, volle Schicht. Mitarbeitende tragen sich nicht selbst ein; sie stellen Anträge.
+

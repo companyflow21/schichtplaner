@@ -6,18 +6,22 @@ import { emitToBranch } from "@/lib/emit";
 
 const input = z.object({ shiftId: z.string().min(1), userId: z.string().min(1) });
 
-/** Besetzen: Recht "Schichten bearbeiten" am Standort und - fuer Manager - eine Zuordnung mit "Einplanen". */
+/**
+ * Besetzen: Recht "Schichten bearbeiten" am Standort und - fuer Manager - eine
+ * Zuordnung mit "Einplanen". confirm bestaetigt Qualifikationshinweise;
+ * harte Sperren bleiben davon unberuehrt.
+ */
 export async function POST(request: Request) {
   return api(async () => {
     const a = await requireAccess();
-    const data = await body(request, input);
+    const data = await body(request, input.extend({ confirm: z.boolean().optional() }));
     const { booking, shift } = await serial(async tx => {
       const target = await tx.shift.findFirst({ where: { id: data.shiftId, deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null } }, include: { schedule: true } });
       if (!target) throw new ApiError("Schicht nicht gefunden.", 404);
       assertCan(a, "EDIT_SHIFTS", target.schedule.branchId);
       const allowed = assignableUserIds(a);
       if (allowed && !allowed.includes(data.userId)) throw new ApiError("Diese Person ist dir nicht zum Einplanen zugeordnet.", 403);
-      return assign(tx, a, data.shiftId, data.userId);
+      return assign(tx, a, data.shiftId, data.userId, data.confirm === true);
     });
     emitToBranch(a.orgId, shift.schedule.branchId, "booking:changed", [data.userId]);
     return { booking };
