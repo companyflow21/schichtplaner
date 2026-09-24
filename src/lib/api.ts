@@ -28,7 +28,38 @@ export async function api(work: () => Promise<unknown>) {
     return NextResponse.json({ error: "Speichern oder Laden fehlgeschlagen. Bitte erneut versuchen." }, { status: 500 });
   }
 }
-export function serial<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
-  return db.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 20000 });
+/**
+ * Vorübergehender Serialisierungskonflikt (SQLSTATE 40001): PostgreSQL hat
+ * die ganze Transaktion zurückgerollt, ein neuer Versuch ist daher sicher.
+ * Prisma meldet ihn als P2034 oder, beim COMMIT, als rohen Adapterfehler.
+ * Deadlocks, fachliche Sperren (ApiError) und alle anderen Fehler zählen nicht.
+ */
+function isSerializationFailure(error: unknown): boolean {
+  const adapter = error instanceof Prisma.PrismaClientKnownRequestError ? error.meta?.driverAdapterError : error;
+  const e = adapter as { name?: unknown; cause?: { originalCode?: unknown } } | null | undefined;
+  return e?.name === "DriverAdapterError" && e.cause?.originalCode === "40001";
+}
+const SERIAL_ATTEMPTS = 7;
+
+/**
+ * SERIALIZABLE-Transaktion. Mit retry wird sie bei einem Serialisierungs-
+ * konflikt höchstens SERIAL_ATTEMPTS-mal vollständig neu ausgeführt; work muss
+ * dann frei von Nebenwirkungen außerhalb von tx sein (Socket-Signale erst danach).
+ * Die Pausen wachsen exponentiell mit Zufallsanteil (zusammen höchstens ~3 s),
+ * damit gleichzeitige Versuche nicht erneut aufeinandertreffen.
+ */
+export async function serial<T>(work: (tx: Prisma.TransactionClient) => Promise<T>, options: { retry?: boolean } = {}): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await db.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 20000 });
+    } catch (error) {
+      if (!options.retry || !isSerializationFailure(error)) throw error;
+      if (attempt >= SERIAL_ATTEMPTS) {
+        console.warn("Serialisierungskonflikt nach " + attempt + " Versuchen");
+        throw new ApiError("Gleichzeitige Änderung, bitte erneut versuchen.", 409);
+      }
+      await new Promise(resolve => setTimeout(resolve, Math.random() * 25 * 2 ** attempt));
+    }
+  }
 }
 export const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Zeit bitte als HH:mm eingeben.");
