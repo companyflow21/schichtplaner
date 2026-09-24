@@ -142,7 +142,9 @@ async function main(): Promise<void> {
   console.log(`Konten: ${ANZAHL} (${kontoAdresse(1)} … ${kontoAdresse(ANZAHL)})`);
   console.log("");
 
-  const passwordHash = await bcrypt.hash(PASSWORT, 10);
+  // Gleicher Kostenfaktor wie bei Registrierung und Aktivierung (12), damit die
+  // Anmeldung im Lasttest so viel Rechenzeit kostet wie in Produktion.
+  const passwordHash = await bcrypt.hash(PASSWORT, 12);
   let neueKonten = 0;
   let aktualisierteKonten = 0;
   const benutzerIds: string[] = [];
