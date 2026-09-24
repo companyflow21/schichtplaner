@@ -2,8 +2,8 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "@/lib/db";
-import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { verifyPassword } from "@/lib/password";
 import {
   clearLoginFailures,
   isLoginBlocked,
@@ -38,10 +38,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        const valid = await bcrypt.compare(
-          parsed.data.password,
-          user.passwordHash
-        );
+        // Im Worker-Pool: eine Anmeldewelle blockiert keine anderen Anfragen.
+        const valid = await verifyPassword(parsed.data.password, user.passwordHash);
         if (!valid) {
           recordLoginFailure(email);
           return null;

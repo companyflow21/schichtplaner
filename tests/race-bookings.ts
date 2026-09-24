@@ -4,19 +4,24 @@
  *
  *  1. Parallele Bestaetigungen: alle Testkonten bestaetigen gleichzeitig ihre
  *     veroeffentlichten Schichten, einige doppelt (Doppelklick).
- *  2. Ueberbuchungsschutz: ein Manager besetzt eine Schicht mit zwei Plaetzen
- *     in drei gleichzeitigen Wellen mit mehr Personen, als Plaetze frei sind.
+ *  2. Besetzen durch Manager: acht gleichzeitige Anfragen auf den letzten
+ *     freien Platz einer Schicht und sechs gleichzeitige Anfragen fuer
+ *     dieselbe Person.
  *
  * Abgleich in der Datenbank: jede erfolgreiche Bestaetigung ist gespeichert,
  * keine Schicht ist ueberbucht, es entstehen keine zusaetzlichen Buchungen und
  * je erfolgreichem Vorgang genau eine Benachrichtigung und ein Socket-Signal.
+ * Beim Besetzen endet keine Anfrage mit 5xx; Ablehnungen sind verstaendlich.
  *
  *   DATABASE_URL="postgresql://…" LOAD_BASE_URL="http://127.0.0.1:18080" LOAD_USER_PASSWORD="…" \
  *     LOAD_SCENARIO_FILE=szenario.json npx tsx tests/race-bookings.ts
  *
+ * RACE_PARTS=besetzen (oder bestaetigen) fuehrt nur einen Teil aus.
+ *
  * Schreibt nur in die Testorganisation des Szenarios: setzt dort die
- * Bestaetigungen veroeffentlichter Schichten zurueck und legt die Schicht
- * "Lasttest Ueberbuchung" neu an (eine fruehere wird als geloescht markiert).
+ * Bestaetigungen veroeffentlichter Schichten zurueck und legt die Schichten
+ * "Lasttest Ueberbuchung" und "Lasttest Doppelanfrage" neu an (fruehere
+ * werden als geloescht markiert).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { readFileSync } from "node:fs";
@@ -50,7 +55,11 @@ type Szenario = {
 const szenario = JSON.parse(readFileSync(SZENARIO, "utf8")) as Szenario;
 const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: DATENBANK }) });
 const TITEL = "Lasttest Ueberbuchung";
+const TITEL_DOPPELT = "Lasttest Doppelanfrage";
 const PLAETZE = 2;
+const TEILE = (process.env.RACE_PARTS || "bestaetigen,besetzen").split(",").map((t) => t.trim());
+/** Verstaendliche Ablehnungen beim Besetzen; jede andere Antwort ausser 200 ist ein Fehler. */
+const ABLEHNUNGEN = ["Schicht ist bereits besetzt.", "Bereits zugewiesen.", "Gleichzeitige Änderung, bitte erneut versuchen."];
 
 type Antwort = { status: number; body: any };
 const warte = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -140,16 +149,16 @@ async function main() {
     if (!ok) fehler.push(text);
   };
 
-  // Vorbereitung: Bestaetigungen zuruecksetzen, fruehere Probeschicht entfernen.
+  // Vorbereitung: Bestaetigungen zuruecksetzen, fruehere Probeschichten entfernen.
   const veroeffentlicht = { deletedAt: null, schedule: { organizationId: org.id, isPublic: true, deletedAt: null } };
-  await db.shift.updateMany({ where: { title: TITEL, deletedAt: null, schedule: { organizationId: org.id } }, data: { deletedAt: new Date() } });
-  await db.booking.updateMany({ where: { shift: veroeffentlicht }, data: { confirmedAt: null } });
+  await db.shift.updateMany({ where: { title: { in: [TITEL, TITEL_DOPPELT] }, deletedAt: null, schedule: { organizationId: org.id } }, data: { deletedAt: new Date() } });
+  if (TEILE.includes("bestaetigen")) await db.booking.updateMany({ where: { shift: veroeffentlicht }, data: { confirmedAt: null } });
 
   const sitzungen = new Map(szenario.konten.map((k) => [k.email, new Sitzung(k.email)]));
   const admin = szenario.konten.find((k) => k.role === "ADMIN");
   const manager = sitzungen.get(szenario.manager.email);
   if (!admin || !manager) throw new Error("Admin oder Manager fehlt im Szenario.");
-  const ziele = (
+  const ziele = !TEILE.includes("bestaetigen") ? [] : (
     await db.booking.findMany({ where: { shift: veroeffentlicht }, select: { id: true, shiftId: true, user: { select: { email: true } } } })
   ).filter((b) => sitzungen.has(b.user.email));
 
@@ -171,59 +180,80 @@ async function main() {
   await manager.anfrage("/api/bookings", "POST", { shiftId: "aufwaermen", userId: "aufwaermen" });
 
   // --- 1. Parallele Bestaetigungen ---------------------------------------
-  const inOrg = { shift: { schedule: { organizationId: org.id } } };
-  const buchungenVorher = await db.booking.count({ where: inOrg });
-  const nachrichtenVorher = await db.message.count({ where: { organizationId: org.id } });
-  const doppelt = ziele.slice(0, 5);
-  const auftraege = [...ziele, ...doppelt];
-  signale = 0;
-  const start = performance.now();
-  const antworten = await Promise.all(auftraege.map((b) => sitzungen.get(b.user.email)!.anfrage("/api/bookings", "PATCH", { shiftId: b.shiftId })));
-  const dauer = Math.round(performance.now() - start);
-  await ruhe(() => signale);
-  const erfolge = antworten.filter((a) => a.status === 200).length;
-  console.log(`\nParallele Bestaetigungen: ${auftraege.length} gleichzeitige Anfragen (${ziele.length} Buchungen + ${doppelt.length} Doppelklicks), ${dauer} ms`);
-  console.log(`  Antworten: ${verteilung(antworten)}`);
-  pruefe(erfolge === auftraege.length, `alle Bestaetigungen erfolgreich (${erfolge}/${auftraege.length})`);
-  const bestaetigt = await db.booking.count({ where: { id: { in: ziele.map((b) => b.id) }, confirmedAt: { not: null } } });
-  pruefe(bestaetigt === ziele.length, `in der Datenbank bestaetigt: ${bestaetigt}/${ziele.length} Buchungen`);
-  const erfolgreich = [...new Set(auftraege.filter((_, i) => antworten[i].status === 200).map((b) => b.id))];
-  const gespeichert = await db.booking.count({ where: { id: { in: erfolgreich }, confirmedAt: { not: null } } });
-  pruefe(gespeichert === erfolgreich.length, `jede erfolgreiche Bestaetigung gespeichert (${gespeichert}/${erfolgreich.length})`);
-  const buchungenNachher = await db.booking.count({ where: inOrg });
-  pruefe(buchungenNachher === buchungenVorher, `keine zusaetzlichen oder verlorenen Buchungen (${buchungenVorher} → ${buchungenNachher})`);
-  const nachrichtenNachher = await db.message.count({ where: { organizationId: org.id } });
-  pruefe(nachrichtenNachher === nachrichtenVorher, `keine Benachrichtigungen durch Bestaetigungen (${nachrichtenVorher} → ${nachrichtenNachher})`);
-  pruefe(signale === erfolge, `Socket-Signale ${signale}, erwartet genau ${erfolge} (eins je Erfolg)`);
-
-  // --- 2. Ueberbuchungsschutz ---------------------------------------------
-  const plan = await db.schedule.findFirst({
-    where: { organizationId: org.id, branchId: szenario.orte["Lasttest Objekt"], weekNumber: szenario.woche.weekNumber, year: szenario.woche.year, isPublic: true, deletedAt: null },
-    select: { id: true },
-  });
-  if (!plan) throw new Error("Veroeffentlichter Wochenplan am Standort Lasttest Objekt fehlt.");
-  const schicht = await db.shift.create({ data: { scheduleId: plan.id, title: TITEL, dayOfWeek: 7, shiftFrom: "18:00", shiftTo: "22:00", maxEmployees: PLAETZE }, select: { id: true } });
-  type Kandidat = { userId: string; selectable: boolean; confirm: boolean };
-  const kandidaten = ((await manager.anfrage(`/api/shifts/${schicht.id}/candidates`)).body?.candidates ?? []) as Kandidat[];
-  const auswahl = kandidaten.filter((k) => k.selectable && !k.confirm).slice(0, 8).map((k) => k.userId);
-  pruefe(auswahl.length > PLAETZE + 1, `genug waehlbare Personen fuer die Probe (${auswahl.length})`);
-  signale = 0;
-  let besetzt = 0;
-  console.log(`\nUeberbuchungsschutz: Schicht mit ${PLAETZE} Plaetzen, ${auswahl.length} Personen je Welle plus ein Doppelklick`);
-  for (let welle = 1; welle <= 3; welle++) {
-    const wellenAntworten = await Promise.all([...auswahl, auswahl[0]].map((userId) => manager.anfrage("/api/bookings", "POST", { shiftId: schicht.id, userId })));
-    besetzt += wellenAntworten.filter((a) => a.status === 200).length;
-    console.log(`  Welle ${welle}: ${verteilung(wellenAntworten)}`);
+  if (TEILE.includes("bestaetigen")) {
+    const inOrg = { shift: { schedule: { organizationId: org.id } } };
+    const buchungenVorher = await db.booking.count({ where: inOrg });
+    const nachrichtenVorher = await db.message.count({ where: { organizationId: org.id } });
+    const doppelt = ziele.slice(0, 5);
+    const auftraege = [...ziele, ...doppelt];
+    signale = 0;
+    const start = performance.now();
+    const antworten = await Promise.all(auftraege.map((b) => sitzungen.get(b.user.email)!.anfrage("/api/bookings", "PATCH", { shiftId: b.shiftId })));
+    const dauer = Math.round(performance.now() - start);
+    await ruhe(() => signale);
+    const erfolge = antworten.filter((a) => a.status === 200).length;
+    console.log(`\nParallele Bestaetigungen: ${auftraege.length} gleichzeitige Anfragen (${ziele.length} Buchungen + ${doppelt.length} Doppelklicks), ${dauer} ms`);
+    console.log(`  Antworten: ${verteilung(antworten)}`);
+    pruefe(erfolge === auftraege.length, `alle Bestaetigungen erfolgreich (${erfolge}/${auftraege.length})`);
+    const bestaetigt = await db.booking.count({ where: { id: { in: ziele.map((b) => b.id) }, confirmedAt: { not: null } } });
+    pruefe(bestaetigt === ziele.length, `in der Datenbank bestaetigt: ${bestaetigt}/${ziele.length} Buchungen`);
+    const erfolgreich = [...new Set(auftraege.filter((_, i) => antworten[i].status === 200).map((b) => b.id))];
+    const gespeichert = await db.booking.count({ where: { id: { in: erfolgreich }, confirmedAt: { not: null } } });
+    pruefe(gespeichert === erfolgreich.length, `jede erfolgreiche Bestaetigung gespeichert (${gespeichert}/${erfolgreich.length})`);
+    const buchungenNachher = await db.booking.count({ where: inOrg });
+    pruefe(buchungenNachher === buchungenVorher, `keine zusaetzlichen oder verlorenen Buchungen (${buchungenVorher} → ${buchungenNachher})`);
+    const nachrichtenNachher = await db.message.count({ where: { organizationId: org.id } });
+    pruefe(nachrichtenNachher === nachrichtenVorher, `keine Benachrichtigungen durch Bestaetigungen (${nachrichtenVorher} → ${nachrichtenNachher})`);
+    pruefe(signale === erfolge, `Socket-Signale ${signale}, erwartet genau ${erfolge} (eins je Erfolg)`);
   }
-  await ruhe(() => signale);
-  const gebucht = (await db.booking.findMany({ where: { shiftId: schicht.id }, select: { userId: true } })).map((b) => b.userId).sort();
-  pruefe(gebucht.length === PLAETZE, `voll, aber nicht ueberbucht: ${gebucht.length} von ${PLAETZE} Plaetzen`);
-  pruefe(gebucht.length === besetzt, `jede erfolgreiche Besetzung genau einmal gespeichert (${gebucht.length}/${besetzt})`);
-  const empfaenger = (await db.message.findMany({ where: { shiftId: schicht.id }, select: { recipients: { select: { userId: true } } } }))
-    .flatMap((n) => n.recipients.map((r) => r.userId))
-    .sort();
-  pruefe(JSON.stringify(empfaenger) === JSON.stringify(gebucht), `genau eine Benachrichtigung je Besetzung (${empfaenger.length})`);
-  pruefe(signale === besetzt, `Socket-Signale ${signale}, erwartet genau ${besetzt}`);
+
+  // --- 2. Besetzen durch Manager ------------------------------------------
+  if (TEILE.includes("besetzen")) {
+    const plan = await db.schedule.findFirst({
+      where: { organizationId: org.id, branchId: szenario.orte["Lasttest Objekt"], weekNumber: szenario.woche.weekNumber, year: szenario.woche.year, isPublic: true, deletedAt: null },
+      select: { id: true },
+    });
+    if (!plan) throw new Error("Veroeffentlichter Wochenplan am Standort Lasttest Objekt fehlt.");
+    type Kandidat = { userId: string; selectable: boolean; confirm: boolean };
+    /** Neue Schicht mit zwei Plaetzen und die dafuer ohne Hinweis waehlbaren Personen. */
+    const neueSchicht = async (title: string, shiftFrom: string, shiftTo: string) => {
+      const { id } = await db.shift.create({ data: { scheduleId: plan.id, title, dayOfWeek: 7, shiftFrom, shiftTo, maxEmployees: PLAETZE }, select: { id: true } });
+      const liste = ((await manager.anfrage(`/api/shifts/${id}/candidates`)).body?.candidates ?? []) as Kandidat[];
+      return { id, title, personen: liste.filter((k) => k.selectable && !k.confirm).map((k) => k.userId) };
+    };
+    const besetze = (shiftId: string, userId: string) => manager.anfrage("/api/bookings", "POST", { shiftId, userId });
+    signale = 0;
+
+    // a) Letzter freier Platz: ein Platz ist belegt, acht Personen wollen den zweiten.
+    const platz = await neueSchicht(TITEL, "18:00", "22:00");
+    pruefe(platz.personen.length >= 9, `genug waehlbare Personen fuer die Probe (${platz.personen.length})`);
+    const erste = await besetze(platz.id, platz.personen[0]);
+    pruefe(erste.status === 200, "erster Platz einzeln besetzt");
+    const letzter = await Promise.all(platz.personen.slice(1, 9).map((userId) => besetze(platz.id, userId)));
+    console.log(`\nLetzter freier Platz: ${letzter.length} gleichzeitige Anfragen – ${verteilung(letzter)}`);
+    pruefe(letzter.filter((a) => a.status === 200).length === 1, "genau eine Anfrage erhaelt den letzten Platz");
+
+    // b) Doppelte Anfragen: dieselbe Person sechsmal gleichzeitig auf eine freie Schicht.
+    const doppelt = await neueSchicht(TITEL_DOPPELT, "08:00", "12:00");
+    const doppelte = await Promise.all(Array.from({ length: 6 }, () => besetze(doppelt.id, doppelt.personen[0])));
+    console.log(`Doppelte Anfragen: ${doppelte.length} gleichzeitige Anfragen fuer dieselbe Person – ${verteilung(doppelte)}`);
+    pruefe(doppelte.filter((a) => a.status === 200).length === 1, "genau eine der doppelten Anfragen bucht");
+
+    const alle = [erste, ...letzter, ...doppelte];
+    const besetzt = alle.filter((a) => a.status === 200).length;
+    const andere = alle.filter((a) => a.status !== 200 && !(a.status === 409 && ABLEHNUNGEN.includes(a.body?.error)));
+    pruefe(andere.length === 0, `keine 5xx, nur verstaendliche Ablehnungen${andere.length ? " – sonst: " + verteilung(andere) : ""}`);
+    await ruhe(() => signale);
+    for (const [schicht, erwartet] of [[platz, PLAETZE], [doppelt, 1]] as const) {
+      const gebucht = (await db.booking.findMany({ where: { shiftId: schicht.id }, select: { userId: true } })).map((b) => b.userId).sort();
+      pruefe(gebucht.length === erwartet, `${schicht.title}: ${gebucht.length} Buchung(en), erwartet ${erwartet} (${PLAETZE} Plaetze)`);
+      const empfaenger = (await db.message.findMany({ where: { shiftId: schicht.id }, select: { recipients: { select: { userId: true } } } }))
+        .flatMap((n) => n.recipients.map((r) => r.userId))
+        .sort();
+      pruefe(JSON.stringify(empfaenger) === JSON.stringify(gebucht), `${schicht.title}: genau eine Benachrichtigung je Buchung (${empfaenger.length})`);
+    }
+    pruefe(signale === besetzt, `Socket-Signale ${signale}, erwartet genau ${besetzt} (eins je Erfolg)`);
+  }
 
   const schichten = await db.shift.findMany({
     where: { deletedAt: null, schedule: { organizationId: org.id, deletedAt: null } },
