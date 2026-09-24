@@ -47,7 +47,11 @@ export async function DELETE(request: Request) {
   });
 }
 
-/** Eigene, veroeffentlichte Schicht bestaetigen. */
+/**
+ * Eigene, veroeffentlichte Schicht bestaetigen. Gleichzeitige Bestaetigungen
+ * kollidieren leicht; die Transaktion wird dann begrenzt neu ausgefuehrt
+ * (nur Serialisierungskonflikte, sie aendert nur confirmedAt).
+ */
 export async function PATCH(request: Request) {
   return api(async () => {
     const member = await requireMember();
@@ -57,7 +61,7 @@ export async function PATCH(request: Request) {
       if (!booking) throw new ApiError("Schicht nicht gefunden.", 404);
       const updated = await tx.booking.update({ where: { id: booking.id }, data: { confirmedAt: new Date() } });
       return { booking: updated, branchId: booking.shift.schedule.branchId };
-    });
+    }, { retry: true });
     emitToBranch(member.organizationId, result.branchId, "booking:changed", [member.userId]);
     return { booking: { id: result.booking.id, shiftId: result.booking.shiftId, userId: result.booking.userId, confirmedAt: result.booking.confirmedAt } };
   });
