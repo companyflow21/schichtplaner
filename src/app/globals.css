@@ -19,11 +19,10 @@
   --color-foreground: var(--foreground);
   --font-sans: "Archivo", Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
-  /* Status: vier Bedeutungen, je Farbschema eigene Werte (siehe :root/.dark).
-     ok = passend/erledigt, warn = Hinweis, destructive = Fehler, info. */
+  /* Status: drei Bedeutungen, je Farbschema eigene Werte (siehe :root/.dark).
+     ok = passend/erledigt, warn = Hinweis, destructive = Fehler. */
   --color-ok: var(--status-ok);
   --color-warn: var(--status-hinweis);
-  --color-info: var(--status-info);
   --color-brand: var(--brand);
   --color-ink: var(--ink);
   /* Ohne Schatten: Tiefe entsteht aus Flaeche und Linie. */
@@ -137,7 +136,6 @@
   --status-ok: var(--service);
   --status-hinweis: #a15700;
   --status-fehler: var(--fire);
-  --status-info: var(--security);
 
   /* Diagramme: Sparten zuerst, dann Tiefblau und Sekundaertext. */
   --chart-1: var(--security);
@@ -218,13 +216,12 @@
   --input: #355687;
   --ring: #4d7dff;
 
-  /* Statusfarben auf dunkler Flaeche: Tuerkis und Sicherheit-Blau aus den
-     dunklen Markenwerten (chart-1/2); Orange und Rot aufgehellt, damit
-     Hinweis und Fehler auf #102e5b lesbar und unterscheidbar bleiben. */
+  /* Statusfarben auf dunkler Flaeche: Tuerkis aus den dunklen
+     Markenwerten (chart-2); Orange und Rot aufgehellt, damit Hinweis und
+     Fehler auf #102e5b lesbar und unterscheidbar bleiben. */
   --status-ok: #4fbf9b;
   --status-hinweis: #f0a24a;
   --status-fehler: #ff8a80;
-  --status-info: #6f9fd8;
 
   --chart-1: #6f9fd8;
   --chart-2: #4fbf9b;
