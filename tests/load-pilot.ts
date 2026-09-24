@@ -6,6 +6,7 @@
  * Quelltext; fehlt etwas, bricht der Lauf mit einer Meldung ab. Benutzer
  * werden nie angelegt - es werden nur vorhandene Testkonten verwendet.
  */
+import { readFileSync, writeFileSync } from "node:fs";
 import { io, type Socket } from "socket.io-client";
 import { berlinDate, isoWeek } from "../src/lib/berlin";
 
@@ -31,6 +32,24 @@ const NUTZER = Math.floor(zahl("LOAD_USERS", 30));
 const DAUER_MINUTEN = zahl("LOAD_DURATION_MINUTES", 15);
 const SPITZE = Math.floor(zahl("LOAD_SPIKE_USERS", 40));
 const SCHREIBEN_ERLAUBT = (process.env.LOAD_ALLOW_WRITES ?? "false").toLowerCase() === "true";
+/** Optional: Rollen-Szenario aus tests/seed-load-roles.ts (IDs, erwartete Sichtbarkeit, keine Passwoerter). */
+const SZENARIO_DATEI = process.env.LOAD_SCENARIO_FILE ?? "";
+/** Optional: Messwerte, Befunde und Schreibprotokoll als JSON fuer die Nachpruefung. */
+const ERGEBNIS_DATEI = process.env.LOAD_RESULT_FILE ?? "";
+/** Welcher Entwurf aus dem Szenario besetzt und veroeffentlicht wird ("funktion" oder "last"). */
+const MANAGER_LAUF = process.env.LOAD_MANAGER_RUN || "last";
+
+type SzenarioKonto = { email: string; role: string; orte: string[]; kunden: string[]; planen: boolean };
+type Ziel = { scheduleId: string; shiftId: string; week: { weekNumber: number; year: number } };
+type Szenario = {
+  organisation: string;
+  woche: { weekNumber: number; year: number };
+  orte: Record<string, string>;
+  manager: { email: string; ziele: Record<string, Ziel> };
+  fremd: { organisation: string; kunde: string; ortId: string; schichtId: string };
+  konten: SzenarioKonto[];
+};
+const szenario: Szenario | null = SZENARIO_DATEI ? JSON.parse(readFileSync(SZENARIO_DATEI, "utf8")) : null;
 
 /** Nennplan des Lasttests; kuerzere Laufzeiten verkuerzen ihn anteilig. */
 const PHASEN = [
@@ -47,12 +66,27 @@ const LESEN = [
   "/api/dashboard",
   "/api/schedules",
   "/api/messages/unread-count",
+  // Rollen-Szenario
+  "/api/branches",
+  "/api/schedules?standort",
+  "/api/shifts/:id/candidates",
+  "/api/mod-requests",
+  "/api/messages",
+  "/api/messages/recipients",
+  "/api/time",
+  "/api/schedules (Mitarbeiter-Sicht)",
+  "Gleichzeitig /api/dashboard",
+  "Gleichzeitig /api/schedules",
 ];
 /** Endpunkte, deren p95 als Schreibzugriff bewertet wird. */
 const SCHREIBEN = [
   "/api/bookings (PATCH)",
   "/api/mod-requests (POST)",
   "/api/messages (POST)",
+  // Rollen-Szenario
+  "/api/time (POST)",
+  "/api/bookings (POST)",
+  "/api/schedules (PATCH)",
 ];
 
 const GRENZE_FEHLERQUOTE = 1; // Prozent
@@ -85,6 +119,11 @@ function pruefeKonfiguration(): void {
   }
   if (adresse.protocol !== "http:" && adresse.protocol !== "https:") {
     console.error(`LOAD_BASE_URL muss http oder https verwenden, gelesen wurde: ${adresse.protocol}`);
+    process.exit(1);
+  }
+  // Harte Sperre: nie gegen die Produktivumgebung, egal was sonst konfiguriert ist.
+  if (/(^|\.)akro-group\.com$/i.test(adresse.hostname)) {
+    console.error(`LOAD_BASE_URL zeigt auf die Produktivumgebung (${adresse.hostname}). Der Lasttest startet nicht.`);
     process.exit(1);
   }
 }
@@ -131,7 +170,24 @@ const zaehler = {
   schreibvorgaenge: 0,
   authFehler: 0,
   mandantFehler: 0,
+  // Rollen-Szenario
+  sicherheitsPruefungen: 0,
+  sicherheitsFehler: 0,
+  datenFehler: 0,
+  socketEreignisse: 0,
+  socketsJetzt: 0,
+  socketsMax: 0,
+  gleichzeitigNutzer: 0,
+  managerBesetzt: false,
+  managerVeroeffentlicht: false,
+  sichtbarNachVeroeffentlichung: false,
 };
+
+/** Sicherheits- und Datenbefunde; Konten nur mit Nummer, ohne Adresse oder Passwort. */
+const befunde: string[] = [];
+/** Erfolgreiche Schreibvorgaenge fuer die Nachpruefung in der Datenbank. */
+const schreibprotokoll: { typ: string; konto: number; shiftId?: string; userId?: string; id?: string }[] = [];
+const zeitplan: { phase: string; start: string; nutzer: number }[] = [];
 
 /** Nearest-Rank-Perzentil auf einer bereits sortierten Liste. */
 function perzentil(sortiert: number[], anteil: number): number {
@@ -149,7 +205,15 @@ function ms(wert: number): string {
 // ---------------------------------------------------------------------------
 
 type Buchung = { userId: string; confirmedAt: string | null };
-type Schicht = { id: string; bookings: Buchung[] };
+type Schicht = {
+  id: string;
+  bookings: Buchung[];
+  title?: string | null;
+  maxEmployees?: number;
+  missing?: number;
+  occupiedCount?: number;
+};
+type Antraege = { requests?: { shiftId: string; state: string; userId: string | null }[] };
 type Plan = { schedule?: { id: string; shifts?: Schicht[] } };
 type Konto = { organizationId?: string; organizationName?: string; user?: { id: string } };
 
@@ -164,8 +228,20 @@ class Nutzer {
   orgId = "";
   orgName = "";
   userId = "";
+  /** Laufende Nummer des Kontos; Befunde nennen nur sie. */
+  readonly nr: number;
+  /** Erwartete Rolle und Sichtbarkeit aus dem Szenario. */
+  readonly erwartet: SzenarioKonto | null;
+  angemeldet = false;
+  /** Gehoert laut /api/me nicht zur Organisation des ersten Kontos - dann nie schreiben. */
+  fremdeOrganisation = false;
+  private ortPlan: Plan | null = null;
+  private antraege: Antraege | null = null;
 
-  constructor(readonly email: string) {}
+  constructor(readonly email: string) {
+    this.nr = Number(email.match(/(\d+)@/)?.[1] ?? 0);
+    this.erwartet = szenario?.konten.find((k) => k.email === email) ?? null;
+  }
 
   private cookieKopf(): string {
     return [...this.jar].map(([k, v]) => k + "=" + v).join("; ");
@@ -292,9 +368,15 @@ class Nutzer {
       return;
     }
     zaehler.socketsOk++;
+    zaehler.socketsJetzt++;
+    zaehler.socketsMax = Math.max(zaehler.socketsMax, zaehler.socketsJetzt);
     // Eigener Organisationsraum - der Server prueft die Zugehoerigkeit.
     verbindung.emit("join:org", this.orgId);
+    verbindung.onAny(() => {
+      zaehler.socketEreignisse++;
+    });
     verbindung.on("disconnect", () => {
+      zaehler.socketsJetzt--;
       if (this.aktiv) zaehler.socketAbbrueche++;
     });
   }
@@ -304,6 +386,7 @@ class Nutzer {
     this.socket = null;
     if (!verbindung) return;
     verbindung.removeAllListeners("disconnect");
+    if (verbindung.connected) zaehler.socketsJetzt--;
     verbindung.close();
   }
 
@@ -322,9 +405,140 @@ class Nutzer {
     );
     if (!this.aktiv) return;
     await this.anfrage("/api/messages/unread-count", "/api/messages/unread-count");
-    if (darfSchreiben() && this.geschrieben < SCHREIBGRENZE && this.aktiv) {
+    if (szenario && this.erwartet && this.aktiv) await this.szenarioLesen();
+    if (darfSchreiben() && !this.fremdeOrganisation && this.geschrieben < SCHREIBGRENZE && this.aktiv) {
       await this.schreibe(plan);
     }
+  }
+
+  /** Weitere Ansichten des Rollen-Szenarios: Standortplan, Kandidaten, Antraege, Nachrichten, Zeiten. */
+  private async szenarioLesen(): Promise<void> {
+    const woche = isoWeek(berlinDate());
+    const ort = this.erwartet?.orte[0];
+    if (ort) {
+      this.ortPlan = await this.anfrage<Plan>(
+        "/api/schedules?standort",
+        `/api/schedules?kw=${woche.weekNumber}&year=${woche.year}&standort=${encodeURIComponent(ort)}`
+      );
+    }
+    if (!this.aktiv) return;
+    const schichten = this.ortPlan?.schedule?.shifts ?? [];
+    if (this.erwartet?.planen && schichten.length) {
+      const offen = schichten.find((x) => offenePlaetze(x) > 0) ?? schichten[0];
+      await this.anfrage("/api/shifts/:id/candidates", `/api/shifts/${offen.id}/candidates`);
+    }
+    if (!this.aktiv) return;
+    this.antraege = await this.anfrage<Antraege>("/api/mod-requests", "/api/mod-requests");
+    if (!this.aktiv) return;
+    await this.anfrage("/api/messages", "/api/messages");
+    if (!this.aktiv) return;
+    await this.anfrage("/api/time", `/api/time?month=${berlinDate().slice(0, 7)}`);
+  }
+
+  /** Anfrage, deren Ablehnung erwartet wird: gemessen, aber nicht als Lastfehler gezaehlt. */
+  private async sonde(pfad: string): Promise<{ status: number; body: unknown }> {
+    const start = performance.now();
+    try {
+      const res = await fetch(BASIS + pfad, { redirect: "manual", headers: { Cookie: this.cookieKopf() } });
+      const text = await res.text();
+      erfasse("Sichtbarkeitspruefung", performance.now() - start, true);
+      let body: unknown = null;
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = null;
+      }
+      return { status: res.status, body };
+    } catch {
+      erfasse("Sichtbarkeitspruefung", performance.now() - start, false);
+      return { status: 0, body: null };
+    }
+  }
+
+  /**
+   * Fremde Kunden und Einsatzorte muessen verborgen bleiben: gleicher Mandant
+   * mit anderem Kunden bzw. Einsatzort und ein fremder Mandant. Jeder Treffer
+   * ist ein Sicherheitsfehler.
+   */
+  async pruefeSichtbarkeit(): Promise<void> {
+    if (!szenario || !this.erwartet) return;
+    const erwartet = this.erwartet;
+    zaehler.sicherheitsPruefungen++;
+    const fehler = (text: string) => {
+      zaehler.sicherheitsFehler++;
+      befunde.push(`Konto ${this.nr} (${erwartet.role}): ${text}`);
+    };
+    const admin = erwartet.role === "ADMIN";
+    const eigene = new Set(admin ? Object.values(szenario.orte) : erwartet.orte);
+
+    const orte = await this.anfrage<{ branches: { id: string; customer?: { name: string } | null }[] }>("/api/branches", "/api/branches");
+    for (const b of orte?.branches ?? []) {
+      if (b.id === szenario.fremd.ortId || b.customer?.name === szenario.fremd.kunde) fehler("sieht Einsatzort oder Kunden des fremden Mandanten");
+      else if (!eigene.has(b.id)) fehler("sieht einen nicht zugeordneten Einsatzort");
+    }
+
+    // Wochenplaene fremder Einsatzorte. "Lasttest Objekt" bleibt aussen vor,
+    // weil dort alle Konten eine eigene Schicht haben.
+    const woche = szenario.woche;
+    const fremdeOrte = Object.entries(szenario.orte)
+      .filter(([name, id]) => !admin && name !== "Lasttest Objekt" && !eigene.has(id))
+      .map(([, id]) => id);
+    fremdeOrte.push(szenario.fremd.ortId);
+    for (const id of fremdeOrte) {
+      const r = await this.sonde(`/api/schedules?kw=${woche.weekNumber}&year=${woche.year}&standort=${encodeURIComponent(id)}`);
+      const zahl = (r.body as Plan | null)?.schedule?.shifts?.length ?? 0;
+      if (r.status >= 200 && r.status < 300 && zahl > 0) fehler(`sieht den Wochenplan eines fremden Einsatzorts (${zahl} Schichten)`);
+    }
+    const k = await this.sonde(`/api/shifts/${szenario.fremd.schichtId}/candidates`);
+    if (k.status >= 200 && k.status < 300) fehler("erhaelt die Kandidatenliste einer Schicht des fremden Mandanten");
+
+    const dash = JSON.stringify((await this.sonde("/api/dashboard")).body ?? "");
+    if (dash.includes(szenario.fremd.kunde) || dash.includes(szenario.fremd.organisation)) fehler("Dashboard enthaelt Daten des fremden Mandanten");
+    for (const [name, id] of Object.entries(szenario.orte)) {
+      if (admin || name === "Lasttest Objekt" || eigene.has(id)) continue;
+      if (dash.includes(`"${name}"`)) fehler(`Dashboard nennt den nicht zugeordneten Einsatzort ${name}`);
+    }
+  }
+
+  /**
+   * Manager besetzt waehrend der Last eine Schicht (mit bestaetigtem Hinweis,
+   * falls noetig) und veroeffentlicht den Wochenplan. Danach muss die
+   * eingeteilte Person die Schicht sehen.
+   */
+  async managerAktion(): Promise<void> {
+    if (!szenario) return;
+    const ziel = szenario.manager.ziele[MANAGER_LAUF];
+    if (!ziel) return;
+    const datenfehler = (text: string) => {
+      zaehler.datenFehler++;
+      befunde.push(`Manager (Konto ${this.nr}): ${text}`);
+    };
+    type Kandidat = { userId: string; group: number; selectable: boolean; confirm: boolean };
+    const liste = await this.anfrage<{ candidates: Kandidat[] }>("/api/shifts/:id/candidates", `/api/shifts/${ziel.shiftId}/candidates`);
+    const wahl = liste?.candidates.find((c) => c.group === 1 && c.selectable);
+    if (!wahl) return datenfehler("kein waehlbarer Kandidat in Gruppe 1");
+    const buchung = await this.anfrage<{ booking?: { id: string } }>("/api/bookings (POST)", "/api/bookings", "POST", {
+      shiftId: ziel.shiftId,
+      userId: wahl.userId,
+      ...(wahl.confirm ? { confirm: true } : {}),
+    });
+    if (!buchung) return datenfehler("Besetzen fehlgeschlagen");
+    zaehler.managerBesetzt = true;
+    schreibprotokoll.push({ typ: "Besetzung durch Manager", konto: this.nr, shiftId: ziel.shiftId, userId: wahl.userId, id: buchung.booking?.id });
+    const veroeffentlicht = await this.anfrage("/api/schedules (PATCH)", `/api/schedules/${ziel.scheduleId}`, "PATCH", { isPublic: true });
+    if (veroeffentlicht === null) return datenfehler("Veroeffentlichen fehlgeschlagen");
+    zaehler.managerVeroeffentlicht = true;
+    schreibprotokoll.push({ typ: "Veroeffentlichung durch Manager", konto: this.nr, id: ziel.scheduleId });
+
+    const person = nutzer.find((n) => n.userId === wahl.userId && n.angemeldet);
+    if (!person) return datenfehler("eingeteilte Person ist nicht angemeldet - Sicht nicht pruefbar");
+    const sicht = await person.anfrage<Plan>(
+      "/api/schedules (Mitarbeiter-Sicht)",
+      `/api/schedules?kw=${ziel.week.weekNumber}&year=${ziel.week.year}`
+    );
+    const sichtbar = sicht?.schedule?.shifts?.some((x) => x.id === ziel.shiftId && x.bookings?.some((b) => b.userId === wahl.userId));
+    if (!sichtbar) return datenfehler("eingeteilte Person sieht die veroeffentlichte Schicht nicht");
+    zaehler.sichtbarNachVeroeffentlichung = true;
   }
 
   /**
@@ -343,9 +557,13 @@ class Nutzer {
       const ok = await this.anfrage("/api/bookings (PATCH)", "/api/bookings", "PATCH", {
         shiftId: unbestaetigt.id,
       });
-      if (ok !== null) this.zaehleSchreiben();
+      if (ok !== null) {
+        this.zaehleSchreiben();
+        schreibprotokoll.push({ typ: "Bestaetigung", konto: this.nr, shiftId: unbestaetigt.id, userId: this.userId });
+      }
       return;
     }
+    if (szenario && this.erwartet) return this.schreibeSzenario();
     if (eigene.length > 0) {
       const ok = await this.anfrage("/api/mod-requests (POST)", "/api/mod-requests", "POST", {
         shiftId: eigene[0].id,
@@ -364,6 +582,58 @@ class Nutzer {
     if (ok !== null) this.zaehleSchreiben();
   }
 
+  /** Zweiter Schreibvorgang im Rollen-Szenario: Uebernahmeantrag, Zeitbuchung oder Nachricht. */
+  private async schreibeSzenario(): Promise<void> {
+    if (this.erwartet?.role !== "EMPLOYEE") return;
+    const art = this.nr % 4;
+    if (art === 0) {
+      const r = await this.anfrage<{ record?: { id: string } }>("/api/time (POST)", "/api/time", "POST", {
+        type: "MANUAL",
+        userId: this.userId,
+        date: berlinDate(),
+        timeFrom: "05:00",
+        timeTo: "05:30",
+        breakMinutes: 0,
+        comment: "Lasttest",
+      });
+      if (r) {
+        this.zaehleSchreiben();
+        schreibprotokoll.push({ typ: "Zeitbuchung", konto: this.nr, userId: this.userId, id: r.record?.id });
+      }
+      return;
+    }
+    if (art === 1) {
+      const liste = await this.anfrage<{ recipients?: { id: string }[] }>("/api/messages/recipients", "/api/messages/recipients");
+      const empfaenger = liste?.recipients?.[0]?.id;
+      if (!empfaenger) return;
+      const r = await this.anfrage<{ message?: { id: string } }>("/api/messages (POST)", "/api/messages", "POST", {
+        subject: "Lasttest",
+        body: "Automatisch erzeugte Testnachricht des Lasttests.",
+        recipientIds: [empfaenger],
+      });
+      if (r) {
+        this.zaehleSchreiben();
+        schreibprotokoll.push({ typ: "Nachricht", konto: this.nr, userId: empfaenger, id: r.message?.id });
+      }
+      return;
+    }
+    const offen = new Set(
+      (this.antraege?.requests ?? []).filter((x) => x.state === "OPEN" && x.userId === this.userId).map((x) => x.shiftId)
+    );
+    const schicht = (this.ortPlan?.schedule?.shifts ?? []).find(
+      (x) => x.title === "Lasttest offen" && offenePlaetze(x) > 0 && !x.bookings?.some((b) => b.userId === this.userId) && !offen.has(x.id)
+    );
+    if (!schicht) return;
+    const r = await this.anfrage<{ request?: { id: string } }>("/api/mod-requests (POST)", "/api/mod-requests", "POST", {
+      shiftId: schicht.id,
+      kind: "TAKEOVER",
+    });
+    if (r) {
+      this.zaehleSchreiben();
+      schreibprotokoll.push({ typ: "Uebernahmeantrag", konto: this.nr, shiftId: schicht.id, userId: this.userId, id: r.request?.id });
+    }
+  }
+
   private zaehleSchreiben(): void {
     this.geschrieben++;
     zaehler.schreibvorgaenge++;
@@ -374,6 +644,18 @@ class Nutzer {
     if (this.aktiv) return;
     this.aktiv = true;
     this.schleife = (async () => {
+      if (!this.angemeldet) {
+        // Anmeldung erst beim Einstieg - so laeuft sie unter der Last der anderen.
+        const ok = (await this.anmelden()) && (await this.ladeKonto());
+        if (!ok) {
+          this.aktiv = false;
+          return;
+        }
+        this.angemeldet = true;
+        pruefeMandant(this);
+        await this.pruefeSichtbarkeit();
+        if (!this.aktiv) return;
+      }
       await this.verbinde();
       while (this.aktiv) {
         await this.durchgang();
@@ -418,6 +700,19 @@ const nutzer: Nutzer[] = [];
 let testumgebung = false;
 let schreibgrund = "";
 
+function offenePlaetze(s: Schicht): number {
+  return s.missing ?? Math.max(0, (s.maxEmployees ?? 0) - (s.occupiedCount ?? s.bookings?.length ?? 0));
+}
+
+/** Jedes spaeter angemeldete Konto muss zur Organisation des ersten gehoeren. */
+function pruefeMandant(n: Nutzer): void {
+  const erste = nutzer.find((x) => x.angemeldet && x !== n);
+  if (!erste || erste.orgId === n.orgId) return;
+  zaehler.mandantFehler++;
+  n.fremdeOrganisation = true;
+  befunde.push(`Konto ${n.nr}: gehoert zu einer anderen Organisation als Konto ${erste.nr}`);
+}
+
 function darfSchreiben(): boolean {
   return SCHREIBEN_ERLAUBT && testumgebung;
 }
@@ -434,9 +729,11 @@ function anderesTestkonto(eigeneId: string): string | null {
  */
 function pruefeTestumgebung(): void {
   const alleUngueltig = nutzer.every((n) => n.email.toLowerCase().endsWith(".invalid"));
-  const orgName = nutzer[0]?.orgName ?? "";
+  // Angemeldet sind hier nur die vorab gepruefte(n) Konten; spaetere prueft pruefeMandant.
+  const angemeldete = nutzer.filter((n) => n.angemeldet);
+  const orgName = angemeldete[0]?.orgName ?? "";
   const heisstTest = /test|pilot|staging/i.test(orgName);
-  const eineOrganisation = new Set(nutzer.map((n) => n.orgId)).size === 1;
+  const eineOrganisation = new Set(angemeldete.map((n) => n.orgId)).size === 1;
   testumgebung = alleUngueltig && heisstTest && eineOrganisation;
   if (testumgebung) return;
   if (!alleUngueltig) schreibgrund = "Testkonten liegen nicht auf der reservierten Endung .invalid";
@@ -479,14 +776,36 @@ async function anmeldung(anzahl: number): Promise<string[]> {
   const fehlend: string[] = [];
   const gleichzeitig = 5;
   for (let start = 0; start < anzahl; start += gleichzeitig) {
-    const gruppe = nutzer.slice(start, start + gleichzeitig);
+    const gruppe = nutzer.slice(start, Math.min(start + gleichzeitig, anzahl));
     await Promise.all(
       gruppe.map(async (n) => {
         if (!(await n.anmelden()) || !(await n.ladeKonto())) fehlend.push(n.email);
+        else n.angemeldet = true;
       })
     );
   }
   return fehlend;
+}
+
+/** Wartet, bis die Zielzahl angemeldet und aktiv ist (hoechstens eine Minute). */
+async function warteAufAnmeldung(ziel: number): Promise<void> {
+  const ende = Date.now() + 60_000;
+  while (Date.now() < ende && !abbruch) {
+    if (nutzer.filter((n) => n.aktiv && n.angemeldet).length >= ziel) return;
+    await schlafe(500);
+  }
+}
+
+/** Kontrollierter gleichzeitiger Abruf: alle aktiven Nutzer im selben Augenblick. */
+async function gleichzeitigerAbruf(): Promise<void> {
+  const bereit = nutzer.filter((n) => n.aktiv && n.angemeldet);
+  zaehler.gleichzeitigNutzer = bereit.length;
+  console.log(`  Gleichzeitiger Abruf durch ${bereit.length} Nutzer …`);
+  const woche = isoWeek(berlinDate());
+  await Promise.all(bereit.map((n) => n.anfrage("Gleichzeitig /api/dashboard", "/api/dashboard")));
+  await Promise.all(
+    bereit.map((n) => n.anfrage("Gleichzeitig /api/schedules", `/api/schedules?kw=${woche.weekNumber}&year=${woche.year}`))
+  );
 }
 
 async function setzeZielzahl(ziel: number): Promise<void> {
@@ -508,7 +827,7 @@ async function setzeZielzahl(ziel: number): Promise<void> {
 }
 
 function tabelle(): void {
-  const zeilen = [...LESEN, ...SCHREIBEN, "Login", "Socket.IO"].filter((endpunkt) =>
+  const zeilen = [...LESEN, ...SCHREIBEN, "Login", "Socket.IO", "Sichtbarkeitspruefung"].filter((endpunkt) =>
     messung.has(endpunkt)
   );
   const breite = Math.max(28, ...zeilen.map((z) => z.length + 2));
@@ -571,6 +890,17 @@ function bewerte(laufzeitMs: number): string[] {
   console.log("Unerwartete Abbrueche    " + zaehler.socketAbbrueche);
   console.log("Schreibvorgaenge         " + zaehler.schreibvorgaenge);
   console.log("Testdauer                " + (laufzeitMs / 60_000).toFixed(1) + " Minuten");
+  if (szenario) {
+    console.log("Sockets gleichzeitig max " + zaehler.socketsMax);
+    console.log("Socket-Ereignisse        " + zaehler.socketEreignisse);
+    console.log("Gleichzeitiger Abruf     " + zaehler.gleichzeitigNutzer + " Nutzer");
+    console.log("Sichtbarkeitspruefungen  " + zaehler.sicherheitsPruefungen + " Konten, " + zaehler.sicherheitsFehler + " Befunde");
+    console.log("Manager besetzt          " + (zaehler.managerBesetzt ? "ja" : "nein"));
+    console.log("Manager veroeffentlicht  " + (zaehler.managerVeroeffentlicht ? "ja" : "nein"));
+    console.log("Sicht nach Veroeffentl.  " + (zaehler.sichtbarNachVeroeffentlichung ? "ja" : "nein"));
+    console.log("Datenfehler              " + zaehler.datenFehler);
+    for (const befund of befunde) console.log("Befund: " + befund);
+  }
 
   if (anfragen === 0) gruende.push("Es wurde keine einzige Anfrage ausgefuehrt.");
   if (quote >= GRENZE_FEHLERQUOTE) {
@@ -606,6 +936,15 @@ function bewerte(laufzeitMs: number): string[] {
   if (zaehler.mandantFehler > 0) {
     gruende.push(`${zaehler.mandantFehler} Antworten aus einer fremden Organisation.`);
   }
+  // Sicherheits- und Datenfehler sind immer ein Fehlschlag.
+  if (zaehler.sicherheitsFehler > 0) {
+    gruende.push(`${zaehler.sicherheitsFehler} Sicherheitsfehler: fremde Kunden, Einsatzorte oder Mandanten sichtbar.`);
+  }
+  if (zaehler.datenFehler > 0) gruende.push(`${zaehler.datenFehler} Datenfehler im Ablauf des Managers.`);
+  if (szenario && !zaehler.managerVeroeffentlicht) gruende.push("Der Manager hat keinen Plan besetzt und veroeffentlicht.");
+  if (szenario && zaehler.sicherheitsPruefungen < nutzer.filter((n) => n.angemeldet).length) {
+    gruende.push("Nicht fuer jedes angemeldete Konto lief die Sichtbarkeitspruefung.");
+  }
   // Ein Schreibtest ohne einen einzigen Schreibvorgang hat nichts belegt.
   if (SCHREIBEN_ERLAUBT && zaehler.schreibvorgaenge === 0) {
     gruende.push(
@@ -629,7 +968,9 @@ async function main(): Promise<void> {
   console.log("");
   console.log("Melde Testkonten an …");
 
-  const fehlend = await anmeldung(benoetigt);
+  // Im Rollen-Szenario meldet sich vorab nur das erste Konto an (Pruefung der
+  // Zugangsdaten); alle anderen melden sich beim Einstieg unter Last an.
+  const fehlend = await anmeldung(szenario ? 1 : benoetigt);
   if (fehlend.length) {
     console.error("");
     console.error("Diese Testkonten konnten sich nicht anmelden:");
@@ -642,6 +983,7 @@ async function main(): Promise<void> {
   }
 
   pruefeTestumgebung();
+  if (szenario) await nutzer[0].pruefeSichtbarkeit();
   console.log(`Organisation: ${nutzer[0].orgName}`);
   if (SCHREIBEN_ERLAUBT && !testumgebung) {
     console.log(`Schreibtests abgelehnt: ${schreibgrund}.`);
@@ -669,9 +1011,28 @@ async function main(): Promise<void> {
     console.log(
       `\n${phase.name}: ${ziel} Nutzer für ${(dauer / 60_000).toFixed(1)} Minuten`
     );
+    const phasenStart = performance.now();
+    zeitplan.push({ phase: phase.name, start: new Date().toISOString(), nutzer: ziel });
     await setzeZielzahl(ziel);
     if (abbruch) break;
-    await phasenPause(dauer);
+    if (szenario && phase.name === "Phase 3") {
+      // Unter voller Last: ein Manager besetzt eine Schicht und veroeffentlicht.
+      await phasenPause(Math.min(60_000, dauer / 3));
+      if (abbruch) break;
+      const manager = nutzer.find((n) => n.email === szenario.manager.email && n.angemeldet);
+      console.log("  Manager besetzt eine Schicht und veroeffentlicht den Plan …");
+      if (manager) await manager.managerAktion();
+      else {
+        zaehler.datenFehler++;
+        befunde.push("Manager-Konto war waehrend Phase 3 nicht angemeldet.");
+      }
+    }
+    if (szenario && phase.name === "Phase 4") {
+      await warteAufAnmeldung(ziel);
+      if (!abbruch) await gleichzeitigerAbruf();
+    }
+    const rest = dauer - (performance.now() - phasenStart);
+    if (rest > 0 && !abbruch) await phasenPause(rest);
   }
 
   console.log("\nPhase 5: Verbindungen abbauen …");
@@ -682,6 +1043,18 @@ async function main(): Promise<void> {
   const laufzeit = performance.now() - start;
   tabelle();
   const gruende = bewerte(laufzeit);
+  if (ERGEBNIS_DATEI) {
+    const endpunkte = Object.fromEntries(
+      [...messung].map(([name, r]) => {
+        const d = [...r.dauern].sort((a, b) => a - b);
+        return [name, { anfragen: r.anfragen, fehler: r.fehler, p50: perzentil(d, 0.5), p95: perzentil(d, 0.95), p99: perzentil(d, 0.99), max: d[d.length - 1] ?? 0 }];
+      })
+    );
+    writeFileSync(
+      ERGEBNIS_DATEI,
+      JSON.stringify({ ziel: BASIS, laufzeitMinuten: laufzeit / 60_000, zeitplan, zaehler, gruende, befunde, schreibprotokoll, endpunkte }, null, 2)
+    );
+  }
   console.log("");
   if (gruende.length === 0 && !abbruch) {
     console.log("Ergebnis: BESTANDEN");
