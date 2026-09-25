@@ -16,40 +16,56 @@ export function toTime(value: string): string | null {
   return String(hours).padStart(2, "0") + ":" + String(minutes).padStart(2, "0")
 }
 
+const FORMAT_MESSAGE = "Bitte Uhrzeit im 24-Stunden-Format eingeben, z. B. 14:00."
+
 /**
- * Uhrzeitfeld im 24-Stunden-Format, unabhaengig von Browser- und
- * Systemsprache (type="time" zeigt dort je nach Sprache AM/PM). Fuer
+ * Uhrzeitfeld im 24-Stunden-Format mit Beschriftung, unabhaengig von Browser-
+ * und Systemsprache (type="time" zeigt dort je nach Sprache AM/PM). Fuer
  * Formulare mit defaultValue und FormData: Kurzformen werden beim Verlassen
  * des Feldes und bei Enter zu "HH:MM" ergaenzt, alles andere blockiert das
- * Absenden mit einer Meldung.
+ * Absenden. Die Meldung steht sichtbar unter dem Feld, ist per
+ * aria-describedby verknuepft und wird angesagt; die Beschriftung haengt
+ * ueber htmlFor am Feld, damit die Meldung nicht Teil des Namens wird.
  */
-function TimeInput({ onBlur, onKeyDown, onInput, onInvalid, ...props }: Omit<React.ComponentProps<"input">, "type" | "value">) {
-  const [invalid, setInvalid] = React.useState(false)
+function TimeInput({ label, id, onBlur, onKeyDown, onInput, onInvalid, "aria-describedby": describedBy, ...props }: Omit<React.ComponentProps<"input">, "type" | "value"> & { label: string }) {
+  const generatedId = React.useId()
+  const inputId = id ?? generatedId
+  const errorId = inputId + "-error"
+  const [error, setError] = React.useState<string | null>(null)
   const complete = (el: HTMLInputElement) => {
     const time = toTime(el.value)
     if (time) el.value = time
     el.setCustomValidity("")
-    setInvalid(el.value !== "" && !time)
+    setError(el.value !== "" && !time ? FORMAT_MESSAGE : null)
   }
   return (
-    <Input
-      inputMode="numeric"
-      autoComplete="off"
-      spellCheck={false}
-      placeholder="HH:MM"
-      maxLength={5}
-      pattern="([01]\d|2[0-3]):[0-5]\d"
-      aria-invalid={invalid || undefined}
-      {...props}
-      type="text"
-      onBlur={e => { complete(e.currentTarget); onBlur?.(e) }}
-      onKeyDown={e => { if (e.key === "Enter") complete(e.currentTarget); onKeyDown?.(e) }}
-      onInput={e => { e.currentTarget.setCustomValidity(""); setInvalid(false); onInput?.(e) }}
-      onInvalid={e => {
-        if (e.currentTarget.validity.patternMismatch) e.currentTarget.setCustomValidity("Bitte Uhrzeit im 24-Stunden-Format eingeben, z. B. 14:00.")
-        onInvalid?.(e)
-      }}
-    />
+    <div>
+      <label htmlFor={inputId}>{label}</label>
+      <Input
+        id={inputId}
+        inputMode="numeric"
+        autoComplete="off"
+        spellCheck={false}
+        placeholder="HH:MM"
+        maxLength={5}
+        pattern="([01]\d|2[0-3]):[0-5]\d"
+        {...props}
+        type="text"
+        aria-invalid={!!error}
+        aria-describedby={[describedBy, error && errorId].filter(Boolean).join(" ") || undefined}
+        onBlur={e => { complete(e.currentTarget); onBlur?.(e) }}
+        onKeyDown={e => { if (e.key === "Enter") complete(e.currentTarget); onKeyDown?.(e) }}
+        onInput={e => { e.currentTarget.setCustomValidity(""); setError(null); onInput?.(e) }}
+        onInvalid={e => {
+          if (e.currentTarget.validity.patternMismatch) {
+            e.currentTarget.setCustomValidity(FORMAT_MESSAGE)
+            setError(FORMAT_MESSAGE)
+          }
+          onInvalid?.(e)
+        }}
+      />
+      <p id={errorId} aria-live="polite" className={error ? "pt-1 text-xs text-destructive" : undefined}>{error}</p>
+    </div>
   )
 }
 
