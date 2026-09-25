@@ -7,6 +7,8 @@
  *  2. Besetzen durch Manager: acht gleichzeitige Anfragen auf den letzten
  *     freien Platz einer Schicht und sechs gleichzeitige Anfragen fuer
  *     dieselbe Person.
+ *  3. Idempotency-Key beim Besetzen: derselbe Key gleichzeitig und spaeter,
+ *     fuer eine andere Person, ungueltig, und eine gemerkte Ablehnung (409).
  *
  * Abgleich in der Datenbank: jede erfolgreiche Bestaetigung ist gespeichert,
  * keine Schicht ist ueberbucht, es entstehen keine zusaetzlichen Buchungen und
@@ -16,14 +18,15 @@
  *   DATABASE_URL="postgresql://…" LOAD_BASE_URL="http://127.0.0.1:18080" LOAD_USER_PASSWORD="…" \
  *     LOAD_SCENARIO_FILE=szenario.json npx tsx tests/race-bookings.ts
  *
- * RACE_PARTS=besetzen (oder bestaetigen) fuehrt nur einen Teil aus.
+ * RACE_PARTS=besetzen (oder bestaetigen, idempotenz) fuehrt nur diese Teile aus.
  *
  * Schreibt nur in die Testorganisation des Szenarios: setzt dort die
  * Bestaetigungen veroeffentlichter Schichten zurueck und legt die Schichten
- * "Lasttest Ueberbuchung" und "Lasttest Doppelanfrage" neu an (fruehere
- * werden als geloescht markiert).
+ * "Lasttest Ueberbuchung", "Lasttest Doppelanfrage" und "Lasttest Idempotenz"
+ * neu an (fruehere werden als geloescht markiert).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { io, type Socket } from "socket.io-client";
 import { PrismaClient } from "@prisma/client";
@@ -56,12 +59,13 @@ const szenario = JSON.parse(readFileSync(SZENARIO, "utf8")) as Szenario;
 const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: DATENBANK }) });
 const TITEL = "Lasttest Ueberbuchung";
 const TITEL_DOPPELT = "Lasttest Doppelanfrage";
+const TITEL_IDEMPOTENZ = "Lasttest Idempotenz";
 const PLAETZE = 2;
-const TEILE = (process.env.RACE_PARTS || "bestaetigen,besetzen").split(",").map((t) => t.trim());
+const TEILE = (process.env.RACE_PARTS || "bestaetigen,besetzen,idempotenz").split(",").map((t) => t.trim());
 /** Verstaendliche Ablehnungen beim Besetzen; jede andere Antwort ausser 200 ist ein Fehler. */
 const ABLEHNUNGEN = ["Schicht ist bereits besetzt.", "Bereits zugewiesen.", "Gleichzeitige Änderung, bitte erneut versuchen."];
 
-type Antwort = { status: number; body: any };
+type Antwort = { status: number; body: any; replayed?: boolean };
 const warte = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 class Sitzung {
@@ -77,12 +81,12 @@ class Sitzung {
       if (i > 0) this.jar.set(paar.slice(0, i), paar.slice(i + 1));
     }
   }
-  async anfrage(pfad: string, method = "GET", data?: unknown): Promise<Antwort> {
+  async anfrage(pfad: string, method = "GET", data?: unknown, kopf: Record<string, string> = {}): Promise<Antwort> {
     try {
       const res = await fetch(BASIS + pfad, {
         method,
         redirect: "manual",
-        headers: { Cookie: this.cookie(), "Content-Type": "application/json" },
+        headers: { Cookie: this.cookie(), "Content-Type": "application/json", ...kopf },
         ...(data === undefined ? {} : { body: JSON.stringify(data) }),
       });
       this.merke(res);
@@ -93,7 +97,7 @@ class Sitzung {
       } catch {
         // kein JSON
       }
-      return { status: res.status, body };
+      return { status: res.status, body, replayed: res.headers.get("idempotent-replayed") === "true" };
     } catch {
       return { status: 0, body: null };
     }
@@ -151,7 +155,7 @@ async function main() {
 
   // Vorbereitung: Bestaetigungen zuruecksetzen, fruehere Probeschichten entfernen.
   const veroeffentlicht = { deletedAt: null, schedule: { organizationId: org.id, isPublic: true, deletedAt: null } };
-  await db.shift.updateMany({ where: { title: { in: [TITEL, TITEL_DOPPELT] }, deletedAt: null, schedule: { organizationId: org.id } }, data: { deletedAt: new Date() } });
+  await db.shift.updateMany({ where: { title: { in: [TITEL, TITEL_DOPPELT, TITEL_IDEMPOTENZ] }, deletedAt: null, schedule: { organizationId: org.id } }, data: { deletedAt: new Date() } });
   if (TEILE.includes("bestaetigen")) await db.booking.updateMany({ where: { shift: veroeffentlicht }, data: { confirmedAt: null } });
 
   const sitzungen = new Map(szenario.konten.map((k) => [k.email, new Sitzung(k.email)]));
@@ -207,21 +211,23 @@ async function main() {
     pruefe(signale === erfolge, `Socket-Signale ${signale}, erwartet genau ${erfolge} (eins je Erfolg)`);
   }
 
+  // Veroeffentlichter Wochenplan fuer die Probeschichten der Teile 2 und 3.
+  const plan = await db.schedule.findFirst({
+    where: { organizationId: org.id, branchId: szenario.orte["Lasttest Objekt"], weekNumber: szenario.woche.weekNumber, year: szenario.woche.year, isPublic: true, deletedAt: null },
+    select: { id: true },
+  });
+  type Kandidat = { userId: string; selectable: boolean; confirm: boolean };
+  /** Neue Schicht mit zwei Plaetzen und die dafuer ohne Hinweis waehlbaren Personen. */
+  const neueSchicht = async (title: string, shiftFrom: string, shiftTo: string) => {
+    if (!plan) throw new Error("Veroeffentlichter Wochenplan am Standort Lasttest Objekt fehlt.");
+    const { id } = await db.shift.create({ data: { scheduleId: plan.id, title, dayOfWeek: 7, shiftFrom, shiftTo, maxEmployees: PLAETZE }, select: { id: true } });
+    const liste = ((await manager.anfrage(`/api/shifts/${id}/candidates`)).body?.candidates ?? []) as Kandidat[];
+    return { id, title, personen: liste.filter((k) => k.selectable && !k.confirm).map((k) => k.userId) };
+  };
+  const besetze = (shiftId: string, userId: string, kopf: Record<string, string> = {}) => manager.anfrage("/api/bookings", "POST", { shiftId, userId }, kopf);
+
   // --- 2. Besetzen durch Manager ------------------------------------------
   if (TEILE.includes("besetzen")) {
-    const plan = await db.schedule.findFirst({
-      where: { organizationId: org.id, branchId: szenario.orte["Lasttest Objekt"], weekNumber: szenario.woche.weekNumber, year: szenario.woche.year, isPublic: true, deletedAt: null },
-      select: { id: true },
-    });
-    if (!plan) throw new Error("Veroeffentlichter Wochenplan am Standort Lasttest Objekt fehlt.");
-    type Kandidat = { userId: string; selectable: boolean; confirm: boolean };
-    /** Neue Schicht mit zwei Plaetzen und die dafuer ohne Hinweis waehlbaren Personen. */
-    const neueSchicht = async (title: string, shiftFrom: string, shiftTo: string) => {
-      const { id } = await db.shift.create({ data: { scheduleId: plan.id, title, dayOfWeek: 7, shiftFrom, shiftTo, maxEmployees: PLAETZE }, select: { id: true } });
-      const liste = ((await manager.anfrage(`/api/shifts/${id}/candidates`)).body?.candidates ?? []) as Kandidat[];
-      return { id, title, personen: liste.filter((k) => k.selectable && !k.confirm).map((k) => k.userId) };
-    };
-    const besetze = (shiftId: string, userId: string) => manager.anfrage("/api/bookings", "POST", { shiftId, userId });
     signale = 0;
 
     // a) Letzter freier Platz: ein Platz ist belegt, acht Personen wollen den zweiten.
@@ -253,6 +259,49 @@ async function main() {
       pruefe(JSON.stringify(empfaenger) === JSON.stringify(gebucht), `${schicht.title}: genau eine Benachrichtigung je Buchung (${empfaenger.length})`);
     }
     pruefe(signale === besetzt, `Socket-Signale ${signale}, erwartet genau ${besetzt} (eins je Erfolg)`);
+  }
+
+  // --- 3. Idempotency-Key beim Besetzen -----------------------------------
+  if (TEILE.includes("idempotenz")) {
+    const schicht = await neueSchicht(TITEL_IDEMPOTENZ, "13:00", "16:00");
+    const [p0, p1, p2] = schicht.personen;
+    const mitKey = (key: string, userId: string) => besetze(schicht.id, userId, { "Idempotency-Key": key });
+    const [k1, k2, k3, k4] = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
+    signale = 0;
+
+    const gleich = await Promise.all(Array.from({ length: 6 }, () => mitKey(k1, p0)));
+    const ids = [...new Set(gleich.map((a) => a.body?.booking?.id))];
+    const wiederholt = gleich.filter((a) => a.replayed).length;
+    console.log(`\nIdempotenz: 6 gleichzeitige Anfragen mit demselben Key – ${verteilung(gleich)}, davon ${wiederholt} als Wiederholung`);
+    pruefe(gleich.every((a) => a.status === 200) && ids.length === 1 && wiederholt === 5, "gleicher Key gleichzeitig: sechsmal 200, eine Buchung, fuenf Wiederholungen");
+    const spaeter = await mitKey(k1, p0);
+    pruefe(spaeter.status === 200 && spaeter.replayed === true && spaeter.body?.booking?.id === ids[0], "gleicher Key spaeter: 200 als Wiederholung mit derselben Buchung");
+    const fremd = await mitKey(k1, p1);
+    pruefe(fremd.status === 422, `gleicher Key fuer eine andere Person: ${fremd.status} "${fremd.body?.error}"`);
+    const ungueltig = await mitKey("keine-uuid", p1);
+    pruefe(ungueltig.status === 400, `ungueltiger Key: ${ungueltig.status} "${ungueltig.body?.error}"`);
+
+    pruefe((await mitKey(k2, p1)).status === 200, "zweiter Platz besetzt");
+    const voll = await mitKey(k3, p2);
+    pruefe(voll.status === 409 && voll.body?.error === "Schicht ist bereits besetzt." && !voll.replayed, `volle Schicht: ${voll.status} "${voll.body?.error}"`);
+    const frei = await manager.anfrage("/api/bookings", "DELETE", { shiftId: schicht.id, userId: p1 });
+    pruefe(frei.status === 200, "ein Platz wieder frei");
+    const nochmal = await mitKey(k3, p2);
+    pruefe(nochmal.status === 409 && nochmal.replayed === true, `gleicher Key nach der Freigabe: ${nochmal.status} als Wiederholung, nicht neu ausgefuehrt`);
+    const neu = await mitKey(k4, p2);
+    pruefe(neu.status === 200 && !neu.replayed, `neuer Key bucht den freien Platz: ${neu.status}`);
+
+    await ruhe(() => signale);
+    const gebucht = (await db.booking.findMany({ where: { shiftId: schicht.id }, select: { userId: true } })).map((b) => b.userId).sort();
+    pruefe(JSON.stringify(gebucht) === JSON.stringify([p0, p2].sort()), `${TITEL_IDEMPOTENZ}: ${gebucht.length} Buchungen, erwartet die erste und die dritte Person`);
+    const empfaenger = (await db.message.findMany({ where: { shiftId: schicht.id, subject: "Neue Schicht" }, select: { recipients: { select: { userId: true } } } }))
+      .flatMap((n) => n.recipients.map((r) => r.userId))
+      .sort();
+    pruefe(JSON.stringify(empfaenger) === JSON.stringify([p0, p1, p2].sort()), `genau eine Benachrichtigung je ausgefuehrter Buchung (${empfaenger.length})`);
+    const gespeichert = await db.idempotencyKey.findMany({ where: { key: { in: [k1, k2, k3, k4] } }, select: { key: true, status: true } });
+    const status = (k: string) => gespeichert.find((g) => g.key === k)?.status;
+    pruefe(gespeichert.length === 4 && status(k1) === 200 && status(k3) === 409, `gespeicherte Keys: ${gespeichert.length}, Ergebnis erster Key ${status(k1)}, abgelehnter Key ${status(k3)}`);
+    pruefe(signale === 4, `Socket-Signale ${signale}, erwartet 4 (drei Buchungen, eine Freigabe, keine fuer Wiederholungen)`);
   }
 
   const schichten = await db.shift.findMany({

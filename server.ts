@@ -4,6 +4,7 @@ import next from "next";
 import { Server as SocketIOServer, type Socket } from "socket.io";
 import { decode } from "next-auth/jwt";
 import { db } from "./src/lib/db";
+import { removeExpiredIdempotencyKeys } from "./src/lib/idempotency";
 import { allowedRooms, canJoinSchedule, type RealtimeSession } from "./src/lib/realtime";
 
 const dev = process.env.NODE_ENV !== "production";
@@ -190,6 +191,10 @@ app.prepare().then(() => {
 
   const pruefung = setInterval(() => void alleAbgleichen(), RECHTE_PRUEFUNG_MS);
   pruefung.unref();
+
+  // Abgelaufene Idempotency-Keys (24 h) stuendlich entfernen.
+  const keys = setInterval(() => void removeExpiredIdempotencyKeys().catch((error) => console.error("Idempotency-Keys nicht aufgeraeumt", error)), 60 * 60 * 1000);
+  keys.unref();
 
   (globalThis as Record<string, unknown>).__socketIO = io;
   (globalThis as Record<string, unknown>).__akroRefreshRealtime = alleAbgleichen;

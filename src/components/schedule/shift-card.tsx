@@ -1,12 +1,13 @@
 "use client";
 
+import { useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Plus, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { cn } from "@/lib/utils";
+import { cn, newIdempotencyKey } from "@/lib/utils";
 import { EmployeePicker } from "./employee-picker";
 import { WishRequestButton, WishCountBadge } from "./wish-plan";
 import type { ShiftData, ScheduleLayout } from "@/types/schedule";
@@ -67,14 +68,22 @@ export function ShiftCard({
       ? `Pause ${shift.pauseValue} Min/Std`
       : `Pause ${shift.pauseValue} Min`;
 
+  // Ein Idempotency-Key je Zuweisung, bis eine Antwort ohne Serverfehler da ist:
+  // ein erneuter Klick nach Zeitueberschreitung erhaelt das erste Ergebnis.
+  const bookingKeys = useRef(new Map<string, string>());
+
   // Book mutation
   const bookMutation = useMutation({
     mutationFn: async ({ userId, confirm = false }: { userId: string; confirm?: boolean }) => {
+      const intent = userId + (confirm ? ":confirm" : "");
+      const key = canEdit ? (bookingKeys.current.get(intent) ?? newIdempotencyKey()) : null;
+      if (key) bookingKeys.current.set(intent, key);
       const res = await fetch(canEdit ? "/api/bookings" : "/api/mod-requests", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(key ? { "Idempotency-Key": key } : {}) },
         body: JSON.stringify({ shiftId: shift.id, userId, ...(canEdit && confirm ? { confirm: true } : {}) }),
       });
+      if (res.status < 500) bookingKeys.current.delete(intent);
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Fehler beim Buchen");

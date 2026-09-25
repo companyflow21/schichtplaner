@@ -3,6 +3,7 @@ import { api, body, requireMember, serial, ApiError } from "@/lib/api";
 import { assertCan, requireAccess } from "@/lib/access";
 import { assign, notify, planningPool } from "@/lib/planning";
 import { emitToBranch } from "@/lib/emit";
+import { idempotencyKeyHeader, rememberRejection, rememberResponse, replay, storedResponse } from "@/lib/idempotency";
 
 const input = z.object({ shiftId: z.string().min(1), userId: z.string().min(1) });
 
@@ -17,20 +18,38 @@ const input = z.object({ shiftId: z.string().min(1), userId: z.string().min(1) }
  * Transaktion (Pruefungen, Buchung, Benachrichtigung) dann begrenzt neu aus,
  * sie sieht die inzwischen gespeicherten Buchungen. Das Socket-Signal folgt
  * erst nach dem Commit.
+ * Mit Header "Idempotency-Key" (UUIDv4) erhalten Wiederholungen derselben
+ * Anfrage das erste Ergebnis (200 oder endgueltige 409), ohne erneut zu buchen.
  */
 export async function POST(request: Request) {
   return api(async () => {
     const a = await requireAccess();
     const data = await body(request, input.extend({ confirm: z.boolean().optional() }));
-    const { booking, shift } = await serial(async tx => {
-      const target = await tx.shift.findFirst({ where: { id: data.shiftId, deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null } }, include: { schedule: true } });
-      if (!target) throw new ApiError("Schicht nicht gefunden.", 404);
-      assertCan(a, "EDIT_SHIFTS", target.schedule.branchId);
-      if (!a.isAdmin && !(await planningPool(tx, a, target.schedule.branchId)).has(data.userId)) throw new ApiError("Diese Person kannst du für diesen Standort nicht einplanen.", 403);
-      return assign(tx, a, data.shiftId, data.userId, data.confirm === true);
-    });
-    emitToBranch(a.orgId, shift.schedule.branchId, "booking:changed", [data.userId]);
-    return { booking };
+    const key = idempotencyKeyHeader(request);
+    const idem = key ? { organizationId: a.orgId, userId: a.userId, scope: "POST /api/bookings", key, fingerprint: data.shiftId + ":" + data.userId } : null;
+    try {
+      const result = await serial(async tx => {
+        const stored = idem && await storedResponse(tx, idem);
+        if (stored) return { replayed: true as const, stored };
+        const target = await tx.shift.findFirst({ where: { id: data.shiftId, deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null } }, include: { schedule: true } });
+        if (!target) throw new ApiError("Schicht nicht gefunden.", 404);
+        assertCan(a, "EDIT_SHIFTS", target.schedule.branchId);
+        if (!a.isAdmin && !(await planningPool(tx, a, target.schedule.branchId)).has(data.userId)) throw new ApiError("Diese Person kannst du für diesen Standort nicht einplanen.", 403);
+        const { booking, shift } = await assign(tx, a, data.shiftId, data.userId, data.confirm === true);
+        if (idem) await rememberResponse(tx, idem, 200, { booking });
+        return { replayed: false as const, booking, shift };
+      });
+      if (result.replayed) return replay(result.stored);
+      emitToBranch(a.orgId, result.shift.schedule.branchId, "booking:changed", [data.userId]);
+      return { booking: result.booking };
+    } catch (error) {
+      // Endgueltige fachliche Ablehnung (etwa "Schicht ist bereits besetzt.") fuer
+      // diesen Key merken; Rueckfragen zu Hinweisen (confirm) bleiben offen.
+      if (idem && error instanceof ApiError && error.status === 409 && !error.details?.confirm) {
+        await rememberRejection(idem, 409, { error: error.message }).catch(e => console.error("Idempotency-Key nicht gespeichert", e));
+      }
+      throw error;
+    }
   });
 }
 

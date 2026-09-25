@@ -33,6 +33,7 @@ model User {
   topicPosts        TopicPost[]
   uploadedFiles     PortalFile[]
   createdIssues     BranchIssue[]
+  idempotencyKeys   IdempotencyKey[]
 
   @@map("users")
 }
@@ -56,13 +57,13 @@ model VerificationToken {
 }
 
 model Organization {
-  id           String   @id @default(cuid())
-  name         String
-  address      String?
-  nameFormat   NameFormat @default(LASTNAME_FIRSTNAME)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  deletedAt    DateTime?
+  id         String     @id @default(cuid())
+  name       String
+  address    String?
+  nameFormat NameFormat @default(LASTNAME_FIRSTNAME)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  deletedAt  DateTime?
 
   members           OrganizationMember[]
   customers         Customer[]
@@ -80,36 +81,37 @@ model Organization {
   settings          OrgSettings?
   timeRecords       TimeRecord[]
   timeCorrections   TimeCorrection[]
+  idempotencyKeys   IdempotencyKey[]
 
   @@map("organizations")
 }
 
 model OrganizationMember {
-  id             String   @id @default(cuid())
-  organizationId String
-  userId         String
-  role           OrgRole  @default(EMPLOYEE)
-  isActive       Boolean  @default(true)
-  isActivated    Boolean  @default(false)
-  activationToken String? @unique
+  id                  String         @id @default(cuid())
+  organizationId      String
+  userId              String
+  role                OrgRole        @default(EMPLOYEE)
+  isActive            Boolean        @default(true)
+  isActivated         Boolean        @default(false)
+  activationToken     String?        @unique
   activationExpiresAt DateTime?
-  position       String?
-  employmentType String @default("Vollzeit")
-  targetHoursPerWeek Float @default(40)
-  qualifications String[] @default([])
-  availabilities Availability[]
-  joinedAt       DateTime @default(now())
+  position            String?
+  employmentType      String         @default("Vollzeit")
+  targetHoursPerWeek  Float          @default(40)
+  qualifications      String[]       @default([])
+  availabilities      Availability[]
+  joinedAt            DateTime       @default(now())
   /// Wer das Konto angelegt hat. Manager erhalten den Aktivierungslink nur
   /// fuer selbst angelegte Konten.
-  createdByMemberId String?
+  createdByMemberId   String?
 
-  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdBy      OrganizationMember?  @relation("MemberCreator", fields: [createdByMemberId], references: [id], onDelete: SetNull)
   createdMembers OrganizationMember[] @relation("MemberCreator")
   branchAccess   BranchAccess[]
-  managedStaff   StaffAssignment[] @relation("StaffManager")
-  staffManagers  StaffAssignment[] @relation("StaffEmployee")
+  managedStaff   StaffAssignment[]    @relation("StaffManager")
+  staffManagers  StaffAssignment[]    @relation("StaffEmployee")
   assignedIssues BranchIssue[]
 
   @@unique([organizationId, userId])
@@ -160,11 +162,11 @@ model Branch {
   meetingPoint   String?
   notes          String?
   positions      String[] @default([])
-  isActive       Boolean @default(true)
+  isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer     Customer?     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer?      @relation(fields: [customerId], references: [id], onDelete: Restrict)
   schedules    Schedule[]
   access       BranchAccess[]
   issues       BranchIssue[]
@@ -261,16 +263,16 @@ enum IssueStatus {
 }
 
 model Division {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   title          String
   description    String?
-  color          String   @default("#6366f1")
-  isSystem       Boolean  @default(false)
-  createdAt      DateTime @default(now())
+  color          String    @default("#6366f1")
+  isSystem       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
   deletedAt      DateTime?
 
-  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   members      DivisionMember[]
   shifts       Shift[]
 
@@ -290,21 +292,21 @@ model DivisionMember {
 /// Wochenplan eines Standorts. Der Standort einer Schicht ergibt sich
 /// ausschliesslich hieraus. Ohne branchId: Altbestand, nur fuer Admins.
 model Schedule {
-  id             String   @id @default(cuid())
+  id             String         @id @default(cuid())
   organizationId String
   branchId       String?
   weekNumber     Int
   year           Int
-  isPublic       Boolean  @default(false)
+  isPublic       Boolean        @default(false)
   settingsLayout ScheduleLayout @default(LAYOUT_1)
-  showTitle      Boolean  @default(true)
-  showPauses     Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  showTitle      Boolean        @default(true)
+  showPauses     Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
   deletedAt      DateTime?
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  branch       Branch?       @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch       Branch?      @relation(fields: [branchId], references: [id], onDelete: Restrict)
   shifts       Shift[]
   briefings    Briefing[]
   liveSession  LiveSession?
@@ -319,20 +321,20 @@ enum ScheduleLayout {
 }
 
 model Shift {
-  id           String   @id @default(cuid())
-  scheduleId   String
-  divisionId   String?
-  requiredQualifications String[] @default([])
-  dayOfWeek    Int
-  shiftFrom    String
-  shiftTo      String
-  maxEmployees Int      @default(1)
-  pauseOption  PauseOption @default(PER_HOUR)
-  pauseValue   Int      @default(0)
-  title        String?
-  description  String?
-  createdAt    DateTime @default(now())
-  deletedAt    DateTime?
+  id                     String      @id @default(cuid())
+  scheduleId             String
+  divisionId             String?
+  requiredQualifications String[]    @default([])
+  dayOfWeek              Int
+  shiftFrom              String
+  shiftTo                String
+  maxEmployees           Int         @default(1)
+  pauseOption            PauseOption @default(PER_HOUR)
+  pauseValue             Int         @default(0)
+  title                  String?
+  description            String?
+  createdAt              DateTime    @default(now())
+  deletedAt              DateTime?
 
   schedule    Schedule     @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   division    Division?    @relation(fields: [divisionId], references: [id])
@@ -349,11 +351,11 @@ enum PauseOption {
 }
 
 model Booking {
-  id        String   @id @default(cuid())
-  shiftId   String
-  userId    String
-  bookedAt  DateTime @default(now())
-  bookedBy  String?
+  id          String    @id @default(cuid())
+  shiftId     String
+  userId      String
+  bookedAt    DateTime  @default(now())
+  bookedBy    String?
   confirmedAt DateTime?
 
   shift Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
@@ -364,15 +366,15 @@ model Booking {
 }
 
 model ModRequest {
-  id        String        @id @default(cuid())
-  shiftId   String
-  userId    String
-  state     RequestState  @default(OPEN)
-  note      String?
-  kind      String @default("TAKEOVER")
+  id           String       @id @default(cuid())
+  shiftId      String
+  userId       String
+  state        RequestState @default(OPEN)
+  note         String?
+  kind         String       @default("TAKEOVER")
   targetUserId String?
-  deadline  DateTime?
-  sentAt    DateTime      @default(now())
+  deadline     DateTime?
+  sentAt       DateTime     @default(now())
 
   shift Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -400,16 +402,16 @@ model Briefing {
 }
 
 model LiveSession {
-  id              String   @id @default(cuid())
-  scheduleId      String   @unique
-  isActive        Boolean  @default(true)
-  deadline        DateTime?
-  autoStop        Boolean  @default(false)
-  allowExceeds    Boolean  @default(false)
-  bookRequests    Boolean  @default(false)
-  startedAt       DateTime @default(now())
+  id           String    @id @default(cuid())
+  scheduleId   String    @unique
+  isActive     Boolean   @default(true)
+  deadline     DateTime?
+  autoStop     Boolean   @default(false)
+  allowExceeds Boolean   @default(false)
+  bookRequests Boolean   @default(false)
+  startedAt    DateTime  @default(now())
 
-  schedule Schedule   @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  schedule Schedule  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   days     LiveDay[]
   logs     LiveLog[]
 
@@ -429,12 +431,12 @@ model LiveDay {
 }
 
 model LiveLog {
-  id            String   @id @default(cuid())
+  id            String     @id @default(cuid())
   liveSessionId String
   shiftId       String
   userId        String
   action        LiveAction
-  loggedAt      DateTime @default(now())
+  loggedAt      DateTime   @default(now())
 
   liveSession LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
   user        User        @relation(fields: [userId], references: [id])
@@ -448,28 +450,28 @@ enum LiveAction {
 }
 
 model TimeRecord {
-  id             String       @id @default(cuid())
-  userId         String
-  organizationId String
+  id              String           @id @default(cuid())
+  userId          String
+  organizationId  String
   /// Standort der Arbeit; ohne Angabe nur fuer die Person selbst, ihre
   /// Personalverantwortlichen und Admins sichtbar.
-  branchId       String?
-  startedAt      DateTime?
-  endedAt        DateTime?
-  pauseStartedAt DateTime?
-  breakSeconds   Int @default(0)
-  corrections    TimeCorrection[]
-  organization Organization @relation(fields: [organizationId], references: [id])
-  date           DateTime     @db.Date
-  timeFrom       String?
-  timeTo         String?
-  durationHours  Int?
+  branchId        String?
+  startedAt       DateTime?
+  endedAt         DateTime?
+  pauseStartedAt  DateTime?
+  breakSeconds    Int              @default(0)
+  corrections     TimeCorrection[]
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  date            DateTime         @db.Date
+  timeFrom        String?
+  timeTo          String?
+  durationHours   Int?
   durationMinutes Int?
-  type           TimeRecordType
-  categoryId     String?
-  comment        String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  type            TimeRecordType
+  categoryId      String?
+  comment         String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   category TimeCategory? @relation(fields: [categoryId], references: [id])
@@ -487,10 +489,10 @@ enum TimeRecordType {
 }
 
 model TimeCategory {
-  id             String   @id @default(cuid())
+  id             String  @id @default(cuid())
   organizationId String
   name           String
-  enabled        Boolean  @default(true)
+  enabled        Boolean @default(true)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   records      TimeRecord[]
@@ -499,14 +501,14 @@ model TimeCategory {
 }
 
 model TimeSettings {
-  id               String   @id @default(cuid())
-  organizationId   String   @unique
+  id               String    @id @default(cuid())
+  organizationId   String    @unique
   trackingOptions  String?
-  watchAutoStop    Boolean  @default(false)
-  warningsEnabled  Boolean  @default(false)
-  warningsMaxHours Int      @default(10)
+  watchAutoStop    Boolean   @default(false)
+  warningsEnabled  Boolean   @default(false)
+  warningsMaxHours Int       @default(10)
   whoCanUse        WhoCanUse @default(ALL)
-  useCategories    Boolean  @default(false)
+  useCategories    Boolean   @default(false)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -519,14 +521,14 @@ enum WhoCanUse {
 }
 
 model Absence {
-  id         String       @id @default(cuid())
+  id         String        @id @default(cuid())
   userId     String
   categoryId String
-  dateFrom   DateTime     @db.Date
-  dateTo     DateTime     @db.Date
+  dateFrom   DateTime      @db.Date
+  dateTo     DateTime      @db.Date
   note       String?
   status     AbsenceStatus @default(PENDING)
-  createdAt  DateTime     @default(now())
+  createdAt  DateTime      @default(now())
 
   user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   category AbsenceCategory @relation(fields: [categoryId], references: [id])
@@ -541,11 +543,11 @@ enum AbsenceStatus {
 }
 
 model AbsenceCategory {
-  id             String   @id @default(cuid())
+  id             String  @id @default(cuid())
   organizationId String
   name           String
-  color          String   @default("#ef4444")
-  isPaid         Boolean  @default(true)
+  color          String  @default("#ef4444")
+  isPaid         Boolean @default(true)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   absences     Absence[]
@@ -574,7 +576,7 @@ model Message {
   body           String
   parentId       String?
   shiftId        String?
-  shift          Shift? @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  shift          Shift?   @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   createdAt      DateTime @default(now())
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -606,8 +608,8 @@ model PortalFolder {
   name           String
   createdAt      DateTime @default(now())
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  parent       PortalFolder? @relation("subfolders", fields: [parentId], references: [id])
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parent       PortalFolder?  @relation("subfolders", fields: [parentId], references: [id])
   children     PortalFolder[] @relation("subfolders")
   files        PortalFile[]
 
@@ -659,11 +661,11 @@ model TopicPost {
 }
 
 model EmployeeNote {
-  id         String   @id @default(cuid())
-  subjectId  String
-  authorId   String
-  text       String
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  subjectId String
+  authorId  String
+  text      String
+  createdAt DateTime @default(now())
 
   subject User @relation("subject", fields: [subjectId], references: [id], onDelete: Cascade)
   author  User @relation("author", fields: [authorId], references: [id])
@@ -672,51 +674,75 @@ model EmployeeNote {
 }
 
 model Availability {
-  id String @id @default(cuid())
+  id             String             @id @default(cuid())
   organizationId String
-  userId String
-  date DateTime @db.Date
-  timeFrom String
-  timeTo String
-  available Boolean
-  note String?
-  member OrganizationMember @relation(fields: [organizationId, userId], references: [organizationId, userId], onDelete: Cascade)
+  userId         String
+  date           DateTime           @db.Date
+  timeFrom       String
+  timeTo         String
+  available      Boolean
+  note           String?
+  member         OrganizationMember @relation(fields: [organizationId, userId], references: [organizationId, userId], onDelete: Cascade)
 
   @@index([organizationId, userId, date])
   @@map("availabilities")
 }
 
 model TimeCorrection {
-  id String @id @default(cuid())
+  id             String        @id @default(cuid())
   organizationId String
-  recordId String
-  requesterId String
-  reason String
-  before Json
-  proposed Json
-  status AbsenceStatus @default(PENDING)
-  reviewedBy String?
-  reviewedAt DateTime?
-  createdAt DateTime @default(now())
-  record TimeRecord @relation(fields: [recordId], references: [id])
-  organization Organization @relation(fields: [organizationId], references: [id])
+  recordId       String
+  requesterId    String
+  reason         String
+  before         Json
+  proposed       Json
+  status         AbsenceStatus @default(PENDING)
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  createdAt      DateTime      @default(now())
+  record         TimeRecord    @relation(fields: [recordId], references: [id])
+  organization   Organization  @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId, status])
   @@map("time_corrections")
 }
 
 model OrgSettings {
-  id                String  @id @default(cuid())
-  organizationId    String  @unique
-  aiEnabled         Boolean @default(false)
-  aiAutoPlanner     Boolean @default(false)
+  id                 String  @id @default(cuid())
+  organizationId     String  @unique
+  aiEnabled          Boolean @default(false)
+  aiAutoPlanner      Boolean @default(false)
   aiAnomalyDetection Boolean @default(false)
-  aiChatEnabled     Boolean @default(false)
-  aiForecast        Boolean @default(false)
-  aiSmartBriefing   Boolean @default(false)
-  smsEnabled        Boolean @default(false)
+  aiChatEnabled      Boolean @default(false)
+  aiForecast         Boolean @default(false)
+  aiSmartBriefing    Boolean @default(false)
+  smsEnabled         Boolean @default(false)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("org_settings")
+}
+
+/// Ergebnis einer Anfrage mit Idempotency-Key (derzeit POST /api/bookings).
+/// Wiederholungen mit demselben Key erhalten diese Antwort, ohne die Aktion
+/// erneut auszufuehren. 24 Stunden gueltig; server.ts raeumt abgelaufene ab.
+model IdempotencyKey {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  scope          String
+  key            String   @db.Uuid
+  /// Welche Anfrage der Key meint, z. B. "Schicht:Person"; ein anderer Inhalt mit demselben Key wird abgelehnt.
+  fingerprint    String
+  status         Int
+  response       Json
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, scope, key])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
 }
