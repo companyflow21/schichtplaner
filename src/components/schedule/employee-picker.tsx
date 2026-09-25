@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Loader2, Star } from "lucide-react";
+import { AlertTriangle, Ban, CalendarCheck, Loader2 } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -17,87 +17,55 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 
-type OrgEmployee = {
-  id: string;
-  role: string;
-  user: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    nickname: string | null;
-    profileImage: string | null;
-  };
-};
-
-type ScoreBreakdown = {
-  hours: number;
-  availability: number;
-  division: number;
-  history: number;
-};
-
-type EmployeeScoreData = {
-  employeeId: string;
+/** Reihenfolge, Gruppen und Gründe kommen vom Server (src/lib/planning.ts, shiftCandidates). */
+type Candidate = {
+  userId: string;
   firstName: string;
   lastName: string;
-  score: number;
-  breakdown: ScoreBreakdown;
+  group: 1 | 2 | 3 | 4 | 5;
+  selectable: boolean;
+  /** Hinweis vorhanden: vor der Zuweisung genau eine Bestätigung. */
+  confirm: boolean;
+  reasons: string[];
+  hints: string[];
 };
+type CandidateData = { site: string | null; customer: string | null; admin: boolean; candidates: Candidate[] };
 
 interface EmployeePickerProps {
   /** IDs of users already booked in this shift */
   bookedUserIds: string[];
-  /** Called when an employee is selected */
-  onSelect: (userId: string) => void;
-  /** Optional shift ID for AI recommendation scoring */
-  shiftId?: string;
+  /** Auswahl; confirm ist gesetzt, wenn ein Hinweis bestätigt wurde. */
+  onSelect: (userId: string, confirm: boolean) => void;
+  shiftId: string;
   children: React.ReactNode;
+}
+
+function headings(data: CandidateData): Record<Candidate["group"], string> {
+  const site = data.site ?? "Dieser Standort";
+  const customer = data.customer ? "Weitere Standorte von " + data.customer : "Weitere Standorte desselben Kunden";
+  return {
+    1: site + " – frei",
+    2: site + " – belegt oder abwesend",
+    3: customer + " – frei",
+    4: customer + " – belegt oder abwesend",
+    5: data.admin ? "Weitere Mitarbeitende" : "Dir persönlich zugeordnet",
+  };
 }
 
 function getInitials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  OWNER: "Inhaber",
-  ADMIN: "Admin",
-  MANAGER: "Manager",
-  EMPLOYEE: "MA",
-};
-
-const ROLE_COLORS: Record<string, string> = {
-  OWNER: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-  ADMIN: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-  MANAGER: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  EMPLOYEE: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400",
-};
-
-/** Get the CSS classes for a score badge based on value. */
-function getScoreColor(score: number): string {
-  if (score >= 80) return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
-  if (score >= 50) return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
-  return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
-}
-
-/** Format score breakdown for tooltip display. */
-function formatBreakdown(breakdown: ScoreBreakdown): string {
-  const lines: string[] = [];
-  lines.push(`Stunden: ${breakdown.hours}/40`);
-  lines.push(`Verfuegbarkeit: ${breakdown.availability}/30`);
-  lines.push(`Bereich: ${breakdown.division}/20`);
-  lines.push(`Historie: ${breakdown.history}/10`);
-  return lines.join("\n");
-}
-
+/**
+ * Auswahl beim Besetzen: zuerst der Standort der Schicht, dann andere
+ * verwaltete Standorte desselben Kunden, dann persönlich zugeordnete
+ * Personen. Belegte und abwesende Personen stehen mit Grund in ihrer Gruppe,
+ * sind aber nicht wählbar. Hinweise wie eine fehlende Qualifikation ändern
+ * die Reihenfolge nicht und verlangen genau eine Bestätigung.
+ */
 export function EmployeePicker({
   bookedUserIds,
   onSelect,
@@ -105,137 +73,112 @@ export function EmployeePicker({
   children,
 }: EmployeePickerProps) {
   const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState<Candidate | null>(null);
 
-  // Fetch all active org employees
-  const { data } = useQuery<{ members: OrgEmployee[] }>({
-    queryKey: ["employees", "active"],
+  const { data, isLoading } = useQuery<CandidateData>({
+    queryKey: ["employees", "candidates", shiftId],
     queryFn: async () => {
-      const res = await fetch("/api/employees?status=active");
+      const res = await fetch("/api/shifts/" + shiftId + "/candidates");
       if (!res.ok) throw new Error("Fehler beim Laden der Mitarbeiter");
       return res.json();
     },
     enabled: open,
   });
 
-  // Fetch AI recommendation scores (lazy: only when picker opens and shiftId is provided)
-  const { data: scoresData, isLoading: scoresLoading } = useQuery<{
-    scores: EmployeeScoreData[];
-  }>({
-    queryKey: ["ai-recommend", shiftId],
-    queryFn: async () => {
-      const res = await fetch(`/api/ai/recommend?shiftId=${shiftId}`);
-      if (!res.ok) return { scores: [] };
-      return res.json();
-    },
-    enabled: open && !!shiftId,
-  });
-
-  const employees = data?.members ?? [];
-  const scores = scoresData?.scores ?? [];
+  const candidates = data?.candidates ?? [];
   const bookedSet = new Set(bookedUserIds);
+  const titles = data ? headings(data) : null;
 
-  // Build a map of userId -> score data for quick lookup
-  const scoreMap = new Map<string, EmployeeScoreData>();
-  for (const s of scores) {
-    scoreMap.set(s.employeeId, s);
-  }
-
-  // Sort employees by score if scores are available
-  const sortedEmployees = [...employees].sort((a, b) => {
-    const scoreA = scoreMap.get(a.user.id)?.score ?? -1;
-    const scoreB = scoreMap.get(b.user.id)?.score ?? -1;
-    // Booked users always go last
-    const bookedA = bookedSet.has(a.user.id) ? 1 : 0;
-    const bookedB = bookedSet.has(b.user.id) ? 1 : 0;
-    if (bookedA !== bookedB) return bookedA - bookedB;
-    // Sort by score descending
-    return scoreB - scoreA;
-  });
-
-  function handleSelect(userId: string) {
-    if (bookedSet.has(userId)) return;
-    onSelect(userId);
+  function handleSelect(candidate: Candidate) {
+    if (!candidate.selectable || bookedSet.has(candidate.userId)) return;
     setOpen(false);
+    if (candidate.confirm) setPending(candidate);
+    else onSelect(candidate.userId, false);
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent className="w-72 p-0" align="start" sideOffset={4}>
-        <Command>
-          <CommandInput placeholder="Mitarbeiter suchen..." />
-          <CommandList>
-            <CommandEmpty>Keine Mitarbeiter gefunden</CommandEmpty>
-            <CommandGroup>
-              {shiftId && scoresLoading && (
-                <div className="flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>{children}</PopoverTrigger>
+        <PopoverContent className="w-80 p-0" align="start" sideOffset={4}>
+          <Command>
+            <CommandInput placeholder="Mitarbeiter suchen..." />
+            <CommandList className="max-h-[360px]">
+              {isLoading ? (
+                <div className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
                   <Loader2 className="size-3 animate-spin" />
-                  Bewertungen laden...
+                  Auswahl wird geladen
                 </div>
+              ) : (
+                <CommandEmpty>Keine einplanbaren Mitarbeiter</CommandEmpty>
               )}
-              {sortedEmployees.map((emp) => {
-                const isBooked = bookedSet.has(emp.user.id);
-                const scoreData = scoreMap.get(emp.user.id);
-
+              {titles && ([1, 2, 3, 4, 5] as const).map((group) => {
+                const list = candidates.filter((c) => c.group === group);
+                if (!list.length) return null;
                 return (
-                  <CommandItem
-                    key={emp.id}
-                    value={`${emp.user.firstName} ${emp.user.lastName} ${emp.user.nickname ?? ""}`}
-                    onSelect={() => handleSelect(emp.user.id)}
-                    disabled={isBooked}
-                    className={cn(isBooked && "opacity-50")}
-                  >
-                    <Avatar size="sm">
-                      <AvatarFallback className="text-[9px]">
-                        {getInitials(emp.user.firstName, emp.user.lastName)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="flex-1 truncate text-sm">
-                      {emp.user.firstName} {emp.user.lastName}
-                    </span>
-                    {isBooked ? (
-                      <Check className="size-3.5 text-green-600" />
-                    ) : scoreData ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Badge
-                              variant="secondary"
-                              className={cn(
-                                "text-[9px] px-1.5 py-0 gap-0.5 cursor-help",
-                                getScoreColor(scoreData.score)
-                              )}
-                            >
-                              <Star className="size-2.5" />
-                              {scoreData.score}
-                            </Badge>
-                          </TooltipTrigger>
-                          <TooltipContent
-                            side="left"
-                            className="whitespace-pre text-[11px] leading-relaxed"
-                          >
-                            {formatBreakdown(scoreData.breakdown)}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : (
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          "text-[9px] px-1.5 py-0",
-                          ROLE_COLORS[emp.role]
-                        )}
+                  <CommandGroup key={group} heading={titles[group]}>
+                    {list.map((c) => (
+                      <CommandItem
+                        key={c.userId}
+                        value={`${c.firstName} ${c.lastName} ${c.userId}`}
+                        onSelect={() => handleSelect(c)}
+                        disabled={!c.selectable}
+                        className={cn("items-start", !c.selectable && "opacity-70")}
                       >
-                        {ROLE_LABELS[emp.role] ?? emp.role}
-                      </Badge>
-                    )}
-                  </CommandItem>
+                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <div className="flex items-center gap-2">
+                            <Avatar size="sm">
+                              <AvatarFallback className="text-[9px]">
+                                {getInitials(c.firstName, c.lastName)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="truncate text-sm">
+                              {c.firstName} {c.lastName}
+                            </span>
+                          </div>
+                          <span className="flex items-start gap-1 pl-8 text-[11.5px] leading-snug text-muted-foreground">
+                            {!c.selectable ? (
+                              <Ban className="mt-px size-3 shrink-0" aria-hidden="true" />
+                            ) : c.reasons.includes("Verfügbar eingetragen.") ? (
+                              <CalendarCheck className="mt-px size-3 shrink-0" aria-hidden="true" />
+                            ) : null}
+                            {c.reasons.join(" ")}
+                          </span>
+                          {c.hints.length > 0 && (
+                            <span className="flex items-start gap-1 pl-8 text-[11.5px] leading-snug text-warn">
+                              <AlertTriangle className="mt-px size-3 shrink-0" aria-hidden="true" />
+                              {c.hints.join(" ")}
+                            </span>
+                          )}
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
                 );
               })}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      <ConfirmDialog
+        open={pending !== null}
+        onOpenChange={(value) => {
+          if (!value) setPending(null);
+        }}
+        title="Trotz Hinweis einteilen?"
+        description={
+          pending
+            ? `${pending.firstName} ${pending.lastName}: ${pending.hints.join(" ")} Die Einteilung wird trotzdem gespeichert.`
+            : ""
+        }
+        confirmLabel="Trotzdem einteilen"
+        destructive={false}
+        onConfirm={() => {
+          if (pending) onSelect(pending.userId, true);
+          setPending(null);
+        }}
+      />
+    </>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Calendar, ArrowRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
 import { getISOWeek } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,8 @@ interface WeekNavProps {
   year: number;
   /** Base URL for navigation, defaults to "/schedule/flexible" */
   baseUrl?: string;
+  /** Standort, der beim Blaettern erhalten bleibt. */
+  standort?: string | null;
 }
 
 /**
@@ -32,7 +34,7 @@ function getMaxISOWeek(y: number): number {
   return getISOWeek(new Date(y, 11, 28));
 }
 
-export function WeekNav({ weekNumber, year, baseUrl = "/schedule/flexible" }: WeekNavProps) {
+export function WeekNav({ weekNumber, year, baseUrl = "/schedule/flexible", standort }: WeekNavProps) {
   const router = useRouter();
   const currentKW = useMemo(() => getCurrentKW(), []);
   const weekDates = useMemo(
@@ -70,9 +72,9 @@ export function WeekNav({ weekNumber, year, baseUrl = "/schedule/flexible" }: We
 
   const navigateToKW = useCallback(
     (kw: number, kwYear: number) => {
-      router.push(`${baseUrl}/${formatKW(kw, kwYear)}`);
+      router.push(`${baseUrl}/${formatKW(kw, kwYear)}${standort ? "?standort=" + encodeURIComponent(standort) : ""}`);
     },
-    [router, baseUrl]
+    [router, baseUrl, standort]
   );
 
   const navigatePrev = useCallback(() => {
@@ -137,8 +139,30 @@ export function WeekNav({ weekNumber, year, baseUrl = "/schedule/flexible" }: We
 
   return (
     <div className="space-y-3">
-      {/* Month buttons row */}
-      <div className="flex items-center gap-1.5 flex-wrap">
+      {/* Zuerst die Woche - gross und eindeutig */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="flex items-center overflow-hidden rounded-[var(--radius)] border bg-card">
+          <button type="button" onClick={navigatePrev} aria-label="Vorherige Woche" className="flex size-9 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+            <ChevronLeft className="size-4" />
+          </button>
+          <span className="h-9 w-px bg-border" aria-hidden="true" />
+          <button type="button" onClick={navigateNext} aria-label="Nächste Woche" className="flex size-9 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+        <h1 className="flex flex-wrap items-baseline gap-x-2">
+          <span className="akro-kennzahl text-[22px]">KW {String(weekNumber).padStart(2, "0")}</span>
+          <span className="tabular text-[13px] font-normal tracking-normal text-muted-foreground">
+            {mondayStr}.–{sundayStr}
+          </span>
+        </h1>
+        {isCurrentWeek && (
+          <span className="text-[12px] font-medium text-primary">diese Woche</span>
+        )}
+      </div>
+
+      {/* Monate und Sprung zu einer KW */}
+      <div className="flex flex-wrap items-center gap-1.5">
         {visibleMonths.map(({ month, year: mYear }) => {
           const monthKWs = getMonthKWs(month, mYear);
           const containsCurrentWeek = monthKWs.some(
@@ -155,15 +179,15 @@ export function WeekNav({ weekNumber, year, baseUrl = "/schedule/flexible" }: We
           return (
             <Button
               key={`${month}-${mYear}`}
-              variant={containsCurrentWeek ? "default" : "outline"}
+              variant="outline"
               size="sm"
+              aria-expanded={isExpanded}
+              aria-current={containsCurrentWeek ? "true" : undefined}
               onClick={() => toggleMonth(month, mYear)}
               className={cn(
                 "relative",
-                containsToday &&
-                  !containsCurrentWeek &&
-                  "ring-2 ring-primary/30",
-                isExpanded && !containsCurrentWeek && "bg-accent"
+                (containsCurrentWeek || isExpanded) &&
+                  "border-primary/40 bg-accent text-accent-foreground hover:bg-accent"
               )}
             >
               {monthNames[month - 1]}
@@ -171,76 +195,18 @@ export function WeekNav({ weekNumber, year, baseUrl = "/schedule/flexible" }: We
                 <span className="ml-1 text-xs opacity-60">{mYear}</span>
               )}
               {containsToday && (
-                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />
+                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
               )}
             </Button>
           );
         })}
-      </div>
 
-      {/* Expanded KW list for selected month */}
-      {expandedMonth && (
-        <div className="flex items-center gap-1 flex-wrap rounded-md border bg-card p-2">
-          {getMonthKWs(expandedMonth.month, expandedMonth.year).map((kw) => {
-            const isSelected =
-              kw.weekNumber === weekNumber && kw.year === year;
-            const isCurrent =
-              kw.weekNumber === currentKW.weekNumber &&
-              kw.year === currentKW.year;
-            return (
-              <Button
-                key={`${kw.weekNumber}-${kw.year}`}
-                variant={isSelected ? "default" : "ghost"}
-                size="xs"
-                onClick={() => {
-                  navigateToKW(kw.weekNumber, kw.year);
-                  setExpandedMonth(null);
-                }}
-                className={cn(
-                  isCurrent && !isSelected && "ring-1 ring-primary/40"
-                )}
-              >
-                KW {kw.weekNumber}
-              </Button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Main navigation row */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon-sm" onClick={navigatePrev}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span className="text-lg font-semibold">
-              KW {String(weekNumber).padStart(2, "0")}
-            </span>
-            <span className="text-muted-foreground">|</span>
-            <span className="text-sm text-muted-foreground">
-              {mondayStr} - {sundayStr}
-            </span>
-            {isCurrentWeek && (
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                Heute
-              </span>
-            )}
-          </div>
-
-          <Button variant="outline" size="icon-sm" onClick={navigateNext}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* Jump to KW */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-muted-foreground hidden sm:inline">
-            Springe zu:
-          </span>
+        <div className="flex items-center gap-1.5 sm:ml-auto">
+          <label htmlFor="kw-sprung" className="text-xs text-muted-foreground">
+            Springe zu
+          </label>
           <Input
+            id="kw-sprung"
             type="number"
             min={1}
             max={53}
@@ -255,11 +221,43 @@ export function WeekNav({ weekNumber, year, baseUrl = "/schedule/flexible" }: We
             size="icon-sm"
             onClick={handleJumpKW}
             disabled={!jumpKW}
+            aria-label="Zur Kalenderwoche springen"
           >
             <ArrowRight className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
+
+      {/* Wochen des gewaehlten Monats */}
+      {expandedMonth && (
+        <div className="flex items-center gap-1 flex-wrap akro-panel p-2">
+          {getMonthKWs(expandedMonth.month, expandedMonth.year).map((kw) => {
+            const isSelected =
+              kw.weekNumber === weekNumber && kw.year === year;
+            const isCurrent =
+              kw.weekNumber === currentKW.weekNumber &&
+              kw.year === currentKW.year;
+            return (
+              <Button
+                key={`${kw.weekNumber}-${kw.year}`}
+                variant="ghost"
+                size="xs"
+                aria-current={isSelected ? "true" : undefined}
+                onClick={() => {
+                  navigateToKW(kw.weekNumber, kw.year);
+                  setExpandedMonth(null);
+                }}
+                className={cn(
+                  isSelected && "bg-accent text-accent-foreground hover:bg-accent",
+                  isCurrent && !isSelected && "text-primary"
+                )}
+              >
+                KW {kw.weekNumber}
+              </Button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

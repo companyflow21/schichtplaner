@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -11,22 +11,17 @@ import {
   Layout,
   Type,
   Pause,
-  Download,
   Loader2,
   Trash2,
   Save,
+  Send,
   Sparkles,
+  Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/components/ui/popover";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -34,9 +29,6 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuLabel,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -76,16 +68,16 @@ export function ScheduleOptions({
 
       {/* Non-manager visibility badge (read-only) */}
       {!isManager && (
-        <Badge variant={schedule.isPublic ? "default" : "secondary"} className="gap-1.5">
+        <Badge variant="secondary" className="gap-1.5">
           {schedule.isPublic ? (
             <>
-              <span className="size-1.5 rounded-full bg-green-400 animate-pulse" />
-              Veroeffentlicht
+              <span className="size-1.5 rounded-full bg-ok" />
+              Veröffentlicht
             </>
           ) : (
             <>
               <EyeOff className="size-3" />
-              Unsichtbar
+              Entwurf
             </>
           )}
         </Badge>
@@ -122,14 +114,27 @@ export function ScheduleOptions({
   );
 }
 
-// ─── Visibility Toggle ─────────────────────────────────────────────
+// ─── Veröffentlichen / Zurückziehen ────────────────────────────────
 
-function VisibilityToggle({
+/**
+ * Ein Entwurf wird mit einem Klick veröffentlicht, ein veröffentlichter Plan
+ * zurückgezogen. Beides benachrichtigt das Team - deshalb eine kurze
+ * Rückfrage. Das Recht prüft der Server.
+ */
+export function VisibilityToggle({
   scheduleId,
   isPublic,
+  wochenLabel = "Dienstplan",
+  hauptaktion = true,
+  className,
 }: {
   scheduleId: string;
   isPublic: boolean;
+  /** Zum Beispiel "KW 40" - steht in der Rückfrage. */
+  wochenLabel?: string;
+  /** Veröffentlichen als blaue Hauptaktion oder als Nebenaktion. */
+  hauptaktion?: boolean;
+  className?: string;
 }) {
   const queryClient = useQueryClient();
 
@@ -140,64 +145,57 @@ function VisibilityToggle({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isPublic: newValue }),
       });
-      if (!res.ok) throw new Error("Fehler beim Aktualisieren");
-      return res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || (newValue ? "Veröffentlichen fehlgeschlagen" : "Zurückziehen fehlgeschlagen"));
+      return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["schedule"] });
+    onSuccess: (_data, newValue) => {
+      toast.success(newValue ? `${wochenLabel} veröffentlicht` : `${wochenLabel} zurückgezogen`);
+      queryClient.invalidateQueries();
     },
-    onError: () => {
-      toast.error("Fehler beim Aendern der Sichtbarkeit");
+    onError: (error: Error) => {
+      toast.error(error.message);
     },
   });
 
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
-          {isPublic ? (
-            <>
-              <span className="size-1.5 rounded-full bg-green-500" />
-              Veroeffentlicht
-            </>
-          ) : (
-            <>
-              <EyeOff className="size-3.5" />
-              Unsichtbar
-            </>
-          )}
+  if (isPublic) {
+    return (
+      <ConfirmDialog
+        title={`${wochenLabel} zurückziehen?`}
+        description="Mitarbeitende sehen den Plan danach nicht mehr und werden benachrichtigt."
+        confirmLabel="Zurückziehen"
+        destructive={false}
+        disabled={mutation.isPending}
+        onConfirm={() => mutation.mutate(false)}
+      >
+        <Button variant="outline" size="sm" className={cn("gap-1.5", className)} disabled={mutation.isPending}>
+          {mutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Undo2 className="size-3.5" />}
+          Veröffentlichung zurückziehen
         </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-72">
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Sichtbarkeit</p>
-            <p className="text-xs text-muted-foreground">
-              {isPublic
-                ? "Der Schichtplan ist fuer alle Mitarbeiter sichtbar."
-                : "Der Schichtplan ist nur fuer Manager sichtbar. Mitarbeiter koennen ihn nicht einsehen."}
-            </p>
-          </div>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="visibility-switch" className="text-sm">
-              {isPublic ? "Oeffentlich" : "Privat"}
-            </Label>
-            <Switch
-              id="visibility-switch"
-              checked={isPublic}
-              onCheckedChange={(checked) => mutation.mutate(checked)}
-              disabled={mutation.isPending}
-            />
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
+      </ConfirmDialog>
+    );
+  }
+
+  return (
+    <ConfirmDialog
+      title={`${wochenLabel} veröffentlichen?`}
+      description="Mitarbeitende sehen den Plan danach und werden benachrichtigt."
+      confirmLabel="Veröffentlichen"
+      destructive={false}
+      disabled={mutation.isPending}
+      onConfirm={() => mutation.mutate(true)}
+    >
+      <Button variant={hauptaktion ? "default" : "outline"} size="sm" className={cn("gap-1.5", className)} disabled={mutation.isPending}>
+        {mutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+        Veröffentlichen
+      </Button>
+    </ConfirmDialog>
   );
 }
 
 // ─── Division Filter ────────────────────────────────────────────────
 
-function DivisionFilter({
+export function DivisionFilter({
   scheduleId,
   divisionFilter,
   onDivisionFilterChange,
@@ -270,7 +268,7 @@ function DivisionFilter({
 
 // ─── Options Menu ───────────────────────────────────────────────────
 
-function OptionsMenu({
+export function OptionsMenu({
   scheduleId,
   settingsLayout,
   showTitle,
@@ -321,7 +319,7 @@ function OptionsMenu({
           }
         >
           <Layout className="size-3.5" />
-          Layout 1 (Schatten)
+          Schlichte Karten
         </DropdownMenuCheckboxItem>
         <DropdownMenuCheckboxItem
           checked={settingsLayout === "LAYOUT_2"}
@@ -330,7 +328,7 @@ function OptionsMenu({
           }
         >
           <Layout className="size-3.5" />
-          Layout 2 (Farbrand)
+          Farbrand nach Bereich
         </DropdownMenuCheckboxItem>
 
         <DropdownMenuSeparator />
@@ -356,24 +354,6 @@ function OptionsMenu({
           <Pause className="size-3.5" />
           Pausen anzeigen
         </DropdownMenuCheckboxItem>
-
-        <DropdownMenuSeparator />
-
-        {/* Export submenu placeholder */}
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <Download className="size-3.5" />
-            Export
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuItem disabled>
-              PDF (kommt bald)
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled>
-              Excel (kommt bald)
-            </DropdownMenuItem>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -381,7 +361,7 @@ function OptionsMenu({
 
 // ─── Briefing Button + Sheet ────────────────────────────────────────
 
-function BriefingButton({
+export function BriefingButton({
   scheduleId,
   isManager,
 }: {
@@ -408,14 +388,14 @@ function BriefingButton({
   const briefing = data?.briefing ?? null;
   const hasBriefing = !!briefing;
 
-  // Sync text when briefing loads or sheet opens
-  useEffect(() => {
-    if (open) {
+  function changeBriefingOpen(next: boolean) {
+    if (next) {
       const t = briefing?.text ?? "";
       setText(t);
       setInitialText(t);
     }
-  }, [open, briefing]);
+    setOpen(next);
+  }
 
   // Auto-resize textarea
   const handleTextChange = useCallback(
@@ -459,17 +439,17 @@ function BriefingButton({
       const res = await fetch(`/api/schedules/${scheduleId}/briefing`, {
         method: "DELETE",
       });
-      if (!res.ok) throw new Error("Fehler beim Loeschen");
+      if (!res.ok) throw new Error("Löschen fehlgeschlagen");
       return res.json();
     },
     onSuccess: () => {
-      toast.success("Briefing geloescht");
+      toast.success("Briefing gelöscht");
       queryClient.invalidateQueries({ queryKey: ["briefing", scheduleId] });
       setText("");
       setInitialText("");
     },
     onError: () => {
-      toast.error("Fehler beim Loeschen des Briefings");
+      toast.error("Briefing konnte nicht gelöscht werden");
     },
   });
 
@@ -477,17 +457,18 @@ function BriefingButton({
   const isPending = saveMutation.isPending || deleteMutation.isPending;
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={changeBriefingOpen}>
       <SheetTrigger asChild>
         <Button
           variant="outline"
           size="sm"
-          className={cn("gap-1.5", hasBriefing && "border-blue-300 text-blue-600")}
+          className={cn("gap-1.5", hasBriefing && "border-primary/40 text-primary")}
         >
           <FileText className="size-3.5" />
           Briefing
+          {hasBriefing && <span className="sr-only"> (vorhanden)</span>}
           {hasBriefing && (
-            <span className="size-1.5 rounded-full bg-blue-500" />
+            <span aria-hidden="true" className="size-1.5 rounded-full bg-primary" />
           )}
         </Button>
       </SheetTrigger>
@@ -495,8 +476,7 @@ function BriefingButton({
         <SheetHeader>
           <SheetTitle>Wochen-Briefing</SheetTitle>
           <SheetDescription>
-            Informationen und Hinweise fuer diese Woche. Sichtbar fuer alle
-            Mitarbeiter.
+            Hinweise für diese Woche. Sichtbar für alle Mitarbeitenden.
           </SheetDescription>
         </SheetHeader>
 
@@ -510,7 +490,7 @@ function BriefingButton({
               ref={textareaRef}
               value={text}
               onChange={handleTextChange}
-              placeholder="Briefing-Text eingeben..."
+              placeholder="Briefing-Text eingeben …"
               className="min-h-[200px] resize-none"
               disabled={isPending}
             />
@@ -520,7 +500,7 @@ function BriefingButton({
             </div>
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">
-              Kein Briefing fuer diese Woche.
+              Kein Briefing für diese Woche.
             </p>
           )}
         </div>
@@ -532,7 +512,7 @@ function BriefingButton({
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  if (confirm("Briefing wirklich loeschen?")) {
+                  if (confirm("Briefing wirklich löschen?")) {
                     deleteMutation.mutate();
                   }
                 }}
@@ -544,7 +524,7 @@ function BriefingButton({
                 ) : (
                   <Trash2 className="size-3.5" />
                 )}
-                Loeschen
+                Löschen
               </Button>
             )}
             <Button
@@ -569,7 +549,7 @@ function BriefingButton({
 
 // ─── AI Briefing Button ─────────────────────────────────────────────
 
-function AiBriefingButton({ scheduleId }: { scheduleId: string }) {
+export function AiBriefingButton({ scheduleId }: { scheduleId: string }) {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
@@ -610,7 +590,7 @@ function AiBriefingButton({ scheduleId }: { scheduleId: string }) {
       size="sm"
       onClick={() => mutation.mutate()}
       disabled={mutation.isPending}
-      className="gap-1.5 border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400 dark:hover:bg-indigo-950"
+      className="gap-1.5 border-primary/30 text-primary hover:bg-accent"
     >
       {mutation.isPending ? (
         <Loader2 className="size-3.5 animate-spin" />
