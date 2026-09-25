@@ -13,9 +13,10 @@ const input = z.object({ shiftId: z.string().min(1), userId: z.string().min(1) }
  * Personen (planningPool); Admins alle. confirm bestaetigt Hinweise wie eine
  * fehlende Qualifikation; harte Sperren bleiben davon unberuehrt. Die
  * Einteilung aendert die Standortzuordnung der Person nicht.
- * Gleichzeitiges Besetzen kollidiert leicht; die Transaktion (Pruefungen,
- * Buchung, Benachrichtigung) wird dann begrenzt neu ausgefuehrt und sieht
- * die inzwischen gespeicherten Buchungen; das Socket-Signal erst nach dem Commit.
+ * Gleichzeitiges Besetzen kollidiert leicht; der Datenbank-Client fuehrt die
+ * Transaktion (Pruefungen, Buchung, Benachrichtigung) dann begrenzt neu aus,
+ * sie sieht die inzwischen gespeicherten Buchungen. Das Socket-Signal folgt
+ * erst nach dem Commit.
  */
 export async function POST(request: Request) {
   return api(async () => {
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
       assertCan(a, "EDIT_SHIFTS", target.schedule.branchId);
       if (!a.isAdmin && !(await planningPool(tx, a, target.schedule.branchId)).has(data.userId)) throw new ApiError("Diese Person kannst du für diesen Standort nicht einplanen.", 403);
       return assign(tx, a, data.shiftId, data.userId, data.confirm === true);
-    }, { retry: true });
+    });
     emitToBranch(a.orgId, shift.schedule.branchId, "booking:changed", [data.userId]);
     return { booking };
   });
@@ -50,11 +51,7 @@ export async function DELETE(request: Request) {
   });
 }
 
-/**
- * Eigene, veroeffentlichte Schicht bestaetigen. Gleichzeitige Bestaetigungen
- * kollidieren leicht; die Transaktion wird dann begrenzt neu ausgefuehrt
- * (nur Serialisierungskonflikte, sie aendert nur confirmedAt).
- */
+/** Eigene, veroeffentlichte Schicht bestaetigen. */
 export async function PATCH(request: Request) {
   return api(async () => {
     const member = await requireMember();
@@ -64,7 +61,7 @@ export async function PATCH(request: Request) {
       if (!booking) throw new ApiError("Schicht nicht gefunden.", 404);
       const updated = await tx.booking.update({ where: { id: booking.id }, data: { confirmedAt: new Date() } });
       return { booking: updated, branchId: booking.shift.schedule.branchId };
-    }, { retry: true });
+    });
     emitToBranch(member.organizationId, result.branchId, "booking:changed", [member.userId]);
     return { booking: { id: result.booking.id, shiftId: result.booking.shiftId, userId: result.booking.userId, confirmedAt: result.booking.confirmedAt } };
   });
