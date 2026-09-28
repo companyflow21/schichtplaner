@@ -36,14 +36,15 @@ export function PortalSidebar() {
   const unreadCount = data?.count ?? 0;
 
   return (
-    <aside className="w-56 shrink-0">
-      <nav className="space-y-6">
+    // Mobil eine waagerecht scrollbare Ordnerleiste ueber dem Inhalt, ab md die Seitenleiste.
+    <aside className="w-full md:w-56 md:shrink-0">
+      <nav className="flex gap-1 overflow-x-auto md:block md:space-y-6">
         {/* Messages section */}
-        <div>
-          <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="contents md:block">
+          <h3 className="mb-2 hidden px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground md:block">
             Nachrichten
           </h3>
-          <ul className="space-y-0.5">
+          <ul className="flex gap-1 md:block md:space-y-0.5">
             {messageLinks.map((link) => {
               const Icon = link.icon;
               const active = pathname === link.href;
@@ -52,7 +53,7 @@ export function PortalSidebar() {
                   <Link
                     href={link.href}
                     className={cn(
-                      "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                      "flex items-center gap-2.5 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors",
                       active
                         ? "bg-accent text-primary dark:text-primary"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground dark:text-muted-foreground dark:hover:bg-card dark:hover:text-muted-foreground"
@@ -73,11 +74,11 @@ export function PortalSidebar() {
         </div>
 
         {/* Portal section */}
-        <div>
-          <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="contents md:block">
+          <h3 className="mb-2 hidden px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground md:block">
             Portal
           </h3>
-          <ul className="space-y-0.5">
+          <ul className="flex gap-1 md:block md:space-y-0.5">
             {portalLinks.map((link) => {
               const Icon = link.icon;
               const active = pathname.startsWith(link.href);
@@ -86,7 +87,7 @@ export function PortalSidebar() {
                   <Link
                     href={link.href}
                     className={cn(
-                      "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                      "flex items-center gap-2.5 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors",
                       active
                         ? "bg-accent text-primary dark:text-primary"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground dark:text-muted-foreground dark:hover:bg-card dark:hover:text-muted-foreground"

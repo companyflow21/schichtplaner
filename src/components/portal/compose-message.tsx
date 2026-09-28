@@ -54,7 +54,7 @@ interface ReferenceBranch {
 }
 
 const rollen: Record<string, string> = { OWNER: "Inhaber", ADMIN: "Administration", MANAGER: "Manager" };
-const gruppen: Record<Recipient["group"], string> = { zustaendig: "Zustaendig", administration: "Administration", weitere: "Weitere" };
+const gruppen: Record<Recipient["group"], string> = { zustaendig: "Zuständig", administration: "Administration", weitere: "Weitere" };
 const GRUPPEN_REIHENFOLGE: Recipient["group"][] = ["zustaendig", "administration", "weitere"];
 // getUTCDay(): 0=So..6=Sa - auf Mo..So gedreht.
 const WOCHENTAGE = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
@@ -178,12 +178,12 @@ export function ComposeMessage({ open, onOpenChange, defaultRecipientIds, defaul
             <Label>Empfaenger</Label>
             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
               {(zustaendig.length > 0 || noResponsible) && (
-                <Button type="button" size="sm" variant="ghost" onClick={selectResponsible}>An Zustaendige</Button>
+                <Button type="button" size="sm" variant="ghost" onClick={selectResponsible}>An Zuständige</Button>
               )}
               {employees.length > 1 && <Button type="button" size="sm" variant="ghost" onClick={() => setRecipientIds(employees.map(e => e.id))}>Alle {employees.length} auswählen</Button>}
             </div>
             {showResponsibleHint && (
-              <p className="mt-1 text-xs text-muted-foreground">Kein zustaendiger Manager hinterlegt – die Administration ist dein Ansprechpartner.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Kein zuständiger Manager hinterlegt – die Administration ist dein Ansprechpartner.</p>
             )}
             <div className="mt-1.5">
               <Popover open={recipientPickerOpen} onOpenChange={setRecipientPickerOpen}>

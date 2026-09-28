@@ -240,14 +240,15 @@ export function MessageList({ folder }: Props) {
                   onClick={(e) => e.stopPropagation()}
                 />
                 <div
-                  className="flex min-w-0 flex-1 items-center gap-3"
+                  // Mobil zweizeilig (Absender und Datum, darunter Betreff), ab md einzeilig.
+                  className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5 md:flex-nowrap"
                   onClick={() => router.push(`/portal/inbox?id=${msg.id}`)}
                 >
                   {/* Unread indicator */}
                   <div className={cn("size-2 shrink-0 rounded-full", unread ? "bg-primary" : "bg-transparent")} />
 
                   {/* Sender/recipient */}
-                  <div className="w-36 shrink-0 truncate">
+                  <div className="min-w-0 flex-1 truncate md:w-36 md:flex-none md:shrink-0">
                     <span className={cn("text-sm", unread && "font-semibold")}>
                       {folder === "sent"
                         ? [
@@ -261,8 +262,8 @@ export function MessageList({ folder }: Props) {
                   </div>
 
                   {/* Subject + preview */}
-                  <div className="min-w-0 flex-1">
-                    <div>
+                  <div className="order-last w-full min-w-0 pl-5 md:order-none md:w-auto md:flex-1 md:pl-0">
+                    <div className="truncate">
                       <span className={cn("text-sm", unread && "font-semibold")}>
                         {msg.subject}
                       </span>
