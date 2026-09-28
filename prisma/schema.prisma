@@ -33,6 +33,7 @@ model User {
   topicPosts        TopicPost[]
   uploadedFiles     PortalFile[]
   createdIssues     BranchIssue[]
+  checkins          Checkin[]
 
   @@map("users")
 }
@@ -81,6 +82,7 @@ model Organization {
   timeRecords       TimeRecord[]
   timeCorrections   TimeCorrection[]
   qualificationCatalog Qualification[]
+  checkins          Checkin[]
 
   @@map("organizations")
 }
@@ -181,6 +183,13 @@ model Branch {
   positions      String[] @default([])
   isActive       Boolean @default(true)
   createdAt      DateTime @default(now())
+  /// Mittelpunkt fuer den GPS-Check-in (WGS84). Ohne Koordinaten kein GPS-Check-in.
+  latitude       Float?
+  longitude      Float?
+  /// Zulaessige Entfernung vom Mittelpunkt in Metern (Vorgabe 50).
+  checkinRadiusM Int     @default(50)
+  /// Zeiterfassung fuer Schichten dieses Standorts nur nach Check-in.
+  gpsCheckinRequired Boolean @default(false)
 
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer     Customer?     @relation(fields: [customerId], references: [id], onDelete: Restrict)
@@ -188,6 +197,8 @@ model Branch {
   access       BranchAccess[]
   issues       BranchIssue[]
   timeRecords  TimeRecord[]
+  messages     Message[]
+  checkins     Checkin[]
 
   @@unique([id, organizationId])
   @@index([organizationId, customerId])
@@ -357,7 +368,10 @@ model Shift {
   division    Division?    @relation(fields: [divisionId], references: [id])
   messages    Message[]
   bookings    Booking[]
-  modRequests ModRequest[]
+  modRequests ModRequest[] @relation("ModRequestShift")
+  /// Antraege, die diese Schicht als Gegen-Schicht eines Tauschs nennen.
+  exchangeRequests ModRequest[] @relation("ModRequestTargetShift")
+  checkins    Checkin[]
 
   @@map("shifts")
 }
@@ -388,12 +402,22 @@ model ModRequest {
   userId    String
   state     RequestState  @default(OPEN)
   note      String?
+  /// TAKEOVER: offene Schicht anfragen. SWAP: eigene Schicht abgeben
+  /// (targetUserId meldet sich). EXCHANGE: eigene Schicht gegen die Schicht
+  /// targetShiftId von targetUserId tauschen.
   kind      String @default("TAKEOVER")
   targetUserId String?
+  targetShiftId String?
+  /// Zustimmung der Gegenseite bei EXCHANGE.
+  targetConsentAt DateTime?
   deadline  DateTime?
   sentAt    DateTime      @default(now())
+  decidedById String?
+  decidedAt   DateTime?
+  decisionNote String?
 
-  shift Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  shift       Shift  @relation("ModRequestShift", fields: [shiftId], references: [id], onDelete: Cascade)
+  targetShift Shift? @relation("ModRequestTargetShift", fields: [targetShiftId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([shiftId, userId])
@@ -493,6 +517,7 @@ model TimeRecord {
   user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   category TimeCategory? @relation(fields: [categoryId], references: [id])
   branch   Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  checkin  Checkin?
 
   @@index([organizationId, userId, date])
   @@index([organizationId, branchId, date])
@@ -594,6 +619,9 @@ model Message {
   parentId       String?
   shiftId        String?
   shift          Shift? @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  /// Optionaler Standortbezug (ohne konkrete Schicht).
+  branchId       String?
+  branch         Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
   createdAt      DateTime @default(now())
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -722,6 +750,48 @@ model TimeCorrection {
 
   @@index([organizationId, status])
   @@map("time_corrections")
+}
+
+/// Anwesenheitsnachweis zu Beginn einer Schicht: Serverzeit und ob die Person
+/// am Dienstort war. Gespeichert werden nur Entfernung, Genauigkeit und Alter
+/// der Browser-Position - keine Koordinaten, kein Bewegungsprofil. Browser-
+/// Positionen sind manipulierbar; der Eintrag ist kein faelschungssicherer Beweis.
+model Checkin {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  shiftId        String
+  branchId       String
+  /// Gestartete Zeiterfassung (bei MANUAL erst nach Freigabe).
+  timeRecordId   String?  @unique
+  /// GPS | MANUAL
+  method         String
+  /// CONFIRMED (GPS bestanden) | PENDING | APPROVED | DECLINED (manuelle Freigabe)
+  status         String
+  /// Massgeblicher Zeitpunkt: Serverzeit des Check-ins bzw. des Antrags.
+  createdAt      DateTime @default(now())
+  /// Minuten nach Schichtbeginn (negativ = vor Beginn), Ortszeit Europe/Berlin.
+  lateMinutes    Int
+  distanceM      Int?
+  accuracyM      Int?
+  positionAgeS   Int?
+  /// Warum GPS nicht gereicht hat: DENIED | UNAVAILABLE | INACCURATE | STALE | OUTSIDE | NO_COORDINATES
+  failure        String?
+  reason         String?
+  reviewedById   String?
+  reviewedAt     DateTime?
+  decisionNote   String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shift        Shift        @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  branch       Branch       @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  timeRecord   TimeRecord?  @relation(fields: [timeRecordId], references: [id], onDelete: SetNull)
+
+  @@unique([shiftId, userId])
+  @@index([organizationId, branchId, createdAt])
+  @@index([organizationId, status])
+  @@map("checkins")
 }
 
 model OrgSettings {
