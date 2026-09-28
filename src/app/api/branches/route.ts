@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const branches = await db.branch.findMany({
       where: { organizationId: a.orgId, ...(ids ? { id: { in: ids } } : {}) },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, address: true, meetingPoint: true, notes: true, positions: true, isActive: true, customerId: true, customer: { select: { id: true, name: true } } },
+      select: { id: true, name: true, address: true, meetingPoint: true, notes: true, positions: true, isActive: true, customerId: true, customer: { select: { id: true, name: true } }, latitude: true, longitude: true, checkinRadiusM: true, gpsCheckinRequired: true },
     });
     return { branches };
   });
@@ -42,6 +42,19 @@ export async function PATCH(request: Request) {
     requireAdmin(a);
     const { id, ...data } = await body(request, branchPatch);
     if (data.customerId) await checkCustomer(a.orgId, data.customerId);
+
+    // GPS-Angaben gelten nach dem Zusammenfuehren mit dem gespeicherten Stand:
+    // Koordinaten nur paarweise, Pflicht-Check-in nur mit Koordinaten.
+    if (data.latitude !== undefined || data.longitude !== undefined || data.gpsCheckinRequired !== undefined) {
+      const existing = await db.branch.findFirst({ where: { id, organizationId: a.orgId }, select: { latitude: true, longitude: true, gpsCheckinRequired: true } });
+      if (!existing) throw new ApiError("Einsatzort nicht gefunden.", 404);
+      const latitude = data.latitude !== undefined ? data.latitude : existing.latitude;
+      const longitude = data.longitude !== undefined ? data.longitude : existing.longitude;
+      const required = data.gpsCheckinRequired ?? existing.gpsCheckinRequired;
+      if ((latitude === null) !== (longitude === null)) throw new ApiError("Breitengrad und Längengrad müssen zusammen gesetzt oder beide leer sein.", 400);
+      if (required && latitude === null) throw new ApiError("Für den GPS-Check-in fehlen die Koordinaten des Standorts.", 400);
+    }
+
     const result = await db.branch.updateMany({ where: { id, organizationId: a.orgId }, data });
     if (!result.count) throw new ApiError("Einsatzort nicht gefunden.", 404);
     return { success: true };
