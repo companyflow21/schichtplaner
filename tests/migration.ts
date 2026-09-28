@@ -215,6 +215,31 @@ async function main() {
   check((await rows(cat, `SELECT 1 FROM "qualifications" WHERE "organizationId"='q2'`)).length === 2, "same name is allowed in another organisation");
   await cat.close();
 
+  // Tausch, Standortbezug und Check-in: rein additiv, Bestand bleibt unveraendert.
+  const CHECKIN = "20260929090000_exchange_messages_checkin";
+  const gps = await database(CHECKIN);
+  await gps.exec(`
+    INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('g1','Org GPS',${now});
+    INSERT INTO "users" ("id","email","firstName","lastName","updatedAt") VALUES ('ga','ga@akro-test.invalid','Gabi','Alt',${now});
+    INSERT INTO "branches" ("id","organizationId","name") VALUES ('gb','g1','Altstandort');
+    INSERT INTO "schedules" ("id","organizationId","branchId","weekNumber","year","updatedAt") VALUES ('gp','g1','gb',40,2026,${now});
+    INSERT INTO "shifts" ("id","scheduleId","dayOfWeek","shiftFrom","shiftTo") VALUES ('gs','gp',1,'22:00','06:00');
+    INSERT INTO "mod_requests" ("id","shiftId","userId","kind") VALUES ('gr','gs','ga','SWAP');
+    INSERT INTO "messages" ("id","organizationId","senderId","subject","body","shiftId") VALUES ('gm','g1','ga','Alt','Text','gs');
+  `);
+  await gps.exec(await readFile("prisma/migrations/" + CHECKIN + "/migration.sql", "utf8"));
+  const site = (await rows<{ latitude: number | null; checkinRadiusM: number; gpsCheckinRequired: boolean; name: string }>(gps, `SELECT "latitude","checkinRadiusM","gpsCheckinRequired","name" FROM "branches" WHERE "id"='gb'`))[0];
+  check(site.name === "Altstandort" && site.latitude === null && site.checkinRadiusM === 50 && site.gpsCheckinRequired === false, "existing sites keep their data, get radius 50 m and no required check-in");
+  const request = (await rows<{ kind: string; targetShiftId: string | null; state: string }>(gps, `SELECT "kind","targetShiftId","state" FROM "mod_requests" WHERE "id"='gr'`))[0];
+  check(request.kind === "SWAP" && request.targetShiftId === null && request.state === "OPEN", "existing requests stay single-shift hand-overs");
+  check((await rows<{ branchId: string | null; shiftId: string }>(gps, `SELECT "branchId","shiftId" FROM "messages" WHERE "id"='gm'`))[0].shiftId === "gs", "existing messages keep their shift reference");
+  const add = (id: string, status: string) => gps.exec(`INSERT INTO "checkins" ("id","organizationId","userId","shiftId","branchId","method","status","lateMinutes") VALUES ('${id}','g1','ga','gs','gb','MANUAL','${status}',5)`);
+  await add("c1", "DECLINED"); await add("c2", "PENDING");
+  await assert.rejects(add("c3", "CONFIRMED"), /unique|duplicate/i);
+  await add("c4", "DECLINED");
+  check((await rows(gps, `SELECT 1 FROM "checkins"`)).length === 3, "at most one active check-in per shift and person; declined ones stay as history");
+  await gps.close();
+
   console.log("SUCCESS: " + checks + " migration checks passed.");
 }
 
