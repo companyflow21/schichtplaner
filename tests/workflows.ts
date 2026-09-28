@@ -13,6 +13,9 @@ import { berlinDate, berlinTime, addDate, isoWeek, weekDate, recordMinutes } fro
 import { permissionTests, type TestContext, type TestPerson } from "./permissions";
 import { staffSiteTests } from "./staff-sites";
 import { catalogTargetTests } from "./catalog-targets";
+import { exchangeTests } from "./exchange";
+import { siteGpsTests } from "./sites-gps";
+import { checkinTests } from "./checkin";
 
 async function main() {
 const sql = new PGlite();
@@ -216,6 +219,9 @@ try {
   await permissionTests(context);
   await staffSiteTests(context);
   await catalogTargetTests(context);
+  await exchangeTests(context);
+  await siteGpsTests(context);
+  await checkinTests(context);
   console.log("FINAL SUCCESS: " + checks + " assertions / HTTP checks passed.");
   if (process.argv.includes("--serve")) {
     console.log("BROWSER_PREVIEW " + base + " — admin@akro-test.invalid / " + password);

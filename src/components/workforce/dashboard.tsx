@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { monthLinkForOpen } from "@/components/schedule/month-grid";
 import { dateLabel, ErrorMessage, json, useAction } from "./client";
 import { Requests } from "./requests";
+import { CheckinUebersicht, EigenerCheckin } from "./checkins";
 
 type Shift = {
   id: string;
@@ -169,6 +170,10 @@ function ManagerStart({ data }: { data: ManagerData }) {
         ]}
       />
 
+      {/* Eigener Check-in (nur bei eigener Schicht mit Check-in) und Check-ins des Teams. */}
+      <EigenerCheckin />
+      <CheckinUebersicht />
+
       <section id="kunden" className="scroll-mt-20 space-y-3" aria-labelledby="kunden-titel">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 id="kunden-titel" className={abschnittTitel}>Kunden und Standorte</h2>
@@ -325,6 +330,8 @@ function MitarbeiterStart({ data, action }: { data: EmployeeData; action: Return
 
   return (
     <>
+      <EigenerCheckin />
+
       <section className="akro-panel overflow-hidden" aria-labelledby="naechste-titel">
         <div className="akro-panel-kopf flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
           <h2 id="naechste-titel" className="text-[14px] font-semibold tracking-[-0.02em]">Deine nächste Schicht</h2>
@@ -360,8 +367,8 @@ function MitarbeiterStart({ data, action }: { data: EmployeeData; action: Return
               <Button variant="outline" asChild>
                 <Link href="/time"><Clock className="size-4" />Zeiterfassung</Link>
               </Button>
-              <Button variant="ghost" disabled={action.isPending} onClick={() => action.mutate({ url: "/api/mod-requests", data: { shiftId: nächste.id, kind: "SWAP" }, message: "Schicht zum Tausch angeboten" })}>
-                Zum Tausch anbieten
+              <Button variant="ghost" disabled={action.isPending} onClick={() => action.mutate({ url: "/api/mod-requests", data: { shiftId: nächste.id, kind: "SWAP" }, message: "Schicht zur Übernahme angeboten" })}>
+                Zur Übernahme anbieten
               </Button>
             </div>
           </div>

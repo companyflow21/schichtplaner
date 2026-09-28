@@ -767,6 +767,7 @@ model Checkin {
   /// GPS | MANUAL
   method         String
   /// CONFIRMED (GPS bestanden) | PENDING | APPROVED | DECLINED (manuelle Freigabe)
+  /// | SUPERSEDED (offener Antrag, erledigt durch spaeteren GPS-Check-in)
   status         String
   /// Massgeblicher Zeitpunkt: Serverzeit des Check-ins bzw. des Antrags.
   createdAt      DateTime @default(now())
@@ -788,7 +789,10 @@ model Checkin {
   branch       Branch       @relation(fields: [branchId], references: [id], onDelete: Restrict)
   timeRecord   TimeRecord?  @relation(fields: [timeRecordId], references: [id], onDelete: SetNull)
 
-  @@unique([shiftId, userId])
+  /// Hoechstens ein wirksamer Eintrag (CONFIRMED, APPROVED, PENDING) je Schicht
+  /// und Person: Teilindex "checkins_active_key" in der Migration (Prisma kennt
+  /// keine Teilindizes). Abgelehnte und erledigte Eintraege bleiben als Verlauf.
+  @@index([shiftId, userId])
   @@index([organizationId, branchId, createdAt])
   @@index([organizationId, status])
   @@map("checkins")

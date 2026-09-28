@@ -3,6 +3,7 @@ import { api, body, requireMember, serial, ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { berlinDate, berlinTime } from "@/lib/berlin";
 import { branchForTime } from "@/lib/time-service";
+import { watchStartBlock } from "@/lib/checkin";
 export async function GET() {
   return api(async () => { const m = await requireMember(); return { running: await db.timeRecord.findFirst({ where: { organizationId: m.organizationId, userId: m.userId, type: "WATCH", timeTo: null }, include: { category: true } }) }; });
 }
@@ -17,6 +18,9 @@ export async function POST(request: Request) {
       const now = new Date();
       if (data.action === "START") {
         if (running) throw new ApiError("Die Zeiterfassung läuft bereits.", 409);
+        // Standorte mit Check-in-Pflicht: die Zeiterfassung startet mit dem Check-in.
+        const blocked = await watchStartBlock(tx, m.organizationId, m.userId, now);
+        if (blocked) throw new ApiError(blocked, 409);
         return { record: await tx.timeRecord.create({ data: { organizationId: m.organizationId, userId: m.userId, type: "WATCH", date: new Date(berlinDate(now)), timeFrom: berlinTime(now), startedAt: now, categoryId: data.categoryId, comment: data.comment } }) };
       }
       if (!running) throw new ApiError("Keine laufende Zeiterfassung gefunden.", 404);
@@ -26,8 +30,9 @@ export async function POST(request: Request) {
       }
       if (data.action === "RESUME" && !running.pauseStartedAt) throw new ApiError("Es läuft keine Pause.", 409);
       const breakSeconds = running.breakSeconds + (running.pauseStartedAt ? Math.max(0, Math.round((now.getTime() - running.pauseStartedAt.getTime()) / 1000)) : 0);
-      // Beim Beenden steht der Zeitraum fest: Standort nach der Zuordnungsregel.
-      const branchId = data.action === "STOP" ? await branchForTime(tx, m.organizationId, m.userId, { date: running.date.toISOString().slice(0, 10), timeFrom: running.timeFrom, timeTo: berlinTime(now) }) : undefined;
+      // Beim Beenden steht der Zeitraum fest: Standort nach der Zuordnungsregel,
+      // sofern der Check-in ihn nicht schon festgelegt hat.
+      const branchId = data.action === "STOP" ? running.branchId ?? await branchForTime(tx, m.organizationId, m.userId, { date: running.date.toISOString().slice(0, 10), timeFrom: running.timeFrom, timeTo: berlinTime(now) }) : undefined;
       return { record: await tx.timeRecord.update({ where: { id: running.id }, data: { breakSeconds, pauseStartedAt: null, ...(data.action === "STOP" ? { endedAt: now, timeTo: berlinTime(now), branchId, categoryId: data.categoryId || running.categoryId, comment: data.comment ?? running.comment } : {}) } }) };
     });
   });

@@ -52,7 +52,13 @@ CREATE INDEX "checkins_organizationId_branchId_createdAt_idx" ON "checkins"("org
 CREATE INDEX "checkins_organizationId_status_idx" ON "checkins"("organizationId", "status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "checkins_shiftId_userId_key" ON "checkins"("shiftId", "userId");
+CREATE INDEX "checkins_shiftId_userId_idx" ON "checkins"("shiftId", "userId");
+
+-- Hoechstens ein wirksamer Check-in je Schicht und Person - auch bei
+-- gleichzeitigen Anfragen. Abgelehnte (DECLINED) und durch einen spaeteren
+-- GPS-Check-in erledigte (SUPERSEDED) Eintraege bleiben als Verlauf erhalten.
+-- Teilindex: in schema.prisma nur als Kommentar beschrieben.
+CREATE UNIQUE INDEX "checkins_active_key" ON "checkins"("shiftId", "userId") WHERE "status" IN ('CONFIRMED', 'APPROVED', 'PENDING');
 
 -- AddForeignKey
 ALTER TABLE "mod_requests" ADD CONSTRAINT "mod_requests_targetShiftId_fkey" FOREIGN KEY ("targetShiftId") REFERENCES "shifts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
