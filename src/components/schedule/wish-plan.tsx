@@ -439,7 +439,8 @@ function WishRequestsList({ requests, scheduleId }: WishRequestsListProps) {
             <div className="flex-1 min-w-0">
               <div className="text-xs font-medium truncate">
                 {req.user ? `${req.user.firstName} ${req.user.lastName}` : "Antrag"}
-                {req.kind === "SWAP" && <span className="font-normal text-muted-foreground"> · Tausch</span>}
+                {req.kind === "SWAP" && <span className="font-normal text-muted-foreground"> · Abgabe</span>}
+                {req.kind === "EXCHANGE" && <span className="font-normal text-muted-foreground"> · Tausch</span>}
               </div>
               {req.note && (
                 <div className="flex items-start gap-1 mt-0.5">
