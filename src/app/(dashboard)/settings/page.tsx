@@ -169,7 +169,8 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <div className="flex gap-6">
+      {/* Mobil untereinander (Auswahl, dann Inhalt), ab md nebeneinander. */}
+      <div className="flex flex-col gap-2 md:flex-row md:gap-6">
         {/* Sidebar - hidden on mobile, shown on md+ */}
         <div className="hidden md:block">
           <SettingsSidebar

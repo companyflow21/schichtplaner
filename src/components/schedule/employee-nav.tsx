@@ -12,6 +12,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { rangeMinutes } from "@/lib/berlin";
 import type { ShiftData } from "@/types/schedule";
 
 type OrgEmployee = {
@@ -38,12 +39,10 @@ function getInitials(firstName: string, lastName: string): string {
 
 /**
  * Calculate total shift hours for an employee from booked shifts.
- * Handles HH:MM format.
+ * Handles HH:MM format; a night shift (22:00–06:00) ends the next day.
  */
 function calcShiftHours(from: string, to: string): number {
-  const [fh, fm] = from.split(":").map(Number);
-  const [th, tm] = to.split(":").map(Number);
-  return (th * 60 + tm - (fh * 60 + fm)) / 60;
+  return rangeMinutes(from, to) / 60;
 }
 
 export function EmployeeNav({

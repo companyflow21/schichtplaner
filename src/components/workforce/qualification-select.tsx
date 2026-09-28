@@ -64,8 +64,11 @@ export function QualifikationAuswahl({
         <p className="text-sm text-muted-foreground">Noch keine Qualifikationen im Katalog. Admins legen sie unter Einstellungen → Qualifikationen an.</p>
       ) : (
         <div className="grid max-h-48 gap-1.5 overflow-y-auto rounded-[var(--radius)] border p-3 sm:grid-cols-2">
-          {options.map((option) => {
-            const id = idPrefix + "-" + key(option).replace(/[^a-z0-9äöüß]+/g, "-");
+          {options.map((option, index) => {
+            // Laufende Nummer statt Name: "Sachkunde 34a" und "Sachkunde §34a"
+            // ergaeben sonst dieselbe id, und die Beschriftung schaltete das
+            // falsche Kaestchen.
+            const id = idPrefix + "-" + index;
             return (
               <label key={option} htmlFor={id} className="flex items-center gap-2 text-sm">
                 <input
