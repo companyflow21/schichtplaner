@@ -31,6 +31,39 @@ Als Admin angemeldet:
 Ohne Freigabe sehen Manager keine Standorte und Mitarbeitende nur ihre eigenen Schichten,
 Zeiten und Abwesenheiten. Details: `docs/AKRO-ERWEITERUNG.md`, Abschnitte 5 und 6.
 
+## Bedienung: Nachrichten, Tausch und Check-in
+
+**Nachrichten** (Mehr → Postfach → „Neue Nachricht“)
+- „An Zuständige“ wählt die zuständigen Manager: persönlich zugeordnete Manager und die Planung der eigenen
+  Standorte. Ist niemand zuständig, steht dort ein Hinweis, und die Administration ist Ansprechpartner.
+- „Bezug“ verknüpft die Nachricht mit einem Standort oder einer eigenen Schicht. Antworten behalten den Bezug.
+- Empfänger prüft der Server: Man erreicht nur Personen, die man sehen darf, nie andere Organisationen.
+
+**Übernahme, Abgabe und Tausch** (Startseite → Anträge)
+- *Übernahme anfragen*: offene Schicht an einem zugeordneten Standort.
+- *Zur Übernahme anbieten* (Abgabe): eigene künftige Schicht; eine Kollegin oder ein Kollege meldet sich.
+- *Tausch anfragen*: eigene künftige Schicht gegen die Schicht einer anderen Person. Angeboten werden nur
+  Tausche, für die beide geeignet und dem Standort der anderen Schicht zugeordnet sind. Die andere Person
+  stimmt zu oder lehnt ab; danach entscheidet die Planung.
+- Entscheiden darf nur, wer „Anträge und Schichtübernahmen bearbeiten“ an **allen** betroffenen Standorten hat,
+  sonst die Administration. Eigene Anträge entscheidet man nie selbst. Eine Begründung ist optional.
+- Bis zur Genehmigung bleibt die Besetzung unverändert. Die Genehmigung prüft alles erneut; ein Tausch ändert
+  beide Schichten gemeinsam oder gar nicht. Offene eigene Anträge lassen sich zurückziehen.
+
+**GPS-Check-in** (einrichten: Einsatzorte → Einsatzort bearbeiten → „GPS-Check-in“)
+- Admin trägt Breiten- und Längengrad ein (oder „Aktuellen Standort übernehmen“ vor Ort), den Radius
+  (Vorgabe 50 m) und schaltet „GPS-Check-in erforderlich“ ein.
+- Mitarbeitende checken auf der Startseite ein („Jetzt einchecken“). Der Browser fragt nur in diesem Moment nach
+  dem Standort; das funktioniert nur über HTTPS. Danach läuft die Zeiterfassung mit Pause, Fortsetzen und
+  Auschecken. Ohne Check-in lässt sich an solchen Standorten keine Stoppuhr starten.
+- Gespeichert werden Serverzeit, Minuten vor/nach Schichtbeginn, Entfernung, Genauigkeit und Alter der Position –
+  keine Koordinaten. Browser-Positionen lassen sich fälschen: Der Check-in ist ein Hinweis auf Anwesenheit,
+  kein fälschungssicherer Nachweis.
+- Klappt es nicht (Freigabe verweigert, zu ungenau, zu alt, außerhalb, keine Koordinaten), kann eine manuelle
+  Freigabe mit Begründung beantragt werden. Entscheiden dürfen Admins und Manager mit „Zeiterfassung bearbeiten“
+  am Standort und „Stunden einsehen“ für die Person; die Zeit beginnt dann mit dem Zeitpunkt des Antrags.
+- Übersicht „Check-ins heute“ und offene Freigaben stehen auf der Startseite der Planung.
+
 ## Datenschutz-Einstellungen (in `.env`)
 | Schalter | Standard | Bedeutung |
 |---|---|---|
