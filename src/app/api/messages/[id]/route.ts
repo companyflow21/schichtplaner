@@ -2,7 +2,7 @@ import { z } from "zod";
 import { api, body, ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { requireAccess, visiblePeople } from "@/lib/access";
-import { recipientsFor } from "@/lib/messages";
+import { recipientsFor, messageReference, referenceInclude } from "@/lib/messages";
 
 type Context = { params: Promise<{ id: string }> };
 const person = { select: { id: true, firstName: true, lastName: true, profileImage: true } } as const;
@@ -20,11 +20,13 @@ export async function GET(_request: Request, context: Context) {
         recipients: { include: { user: person } },
         // Im Verlauf nur Antworten, an denen die Person selbst beteiligt ist.
         replies: { where: involved, include: { sender: person }, orderBy: { createdAt: "asc" } },
+        ...referenceInclude,
       },
     });
     if (!message) throw new ApiError("Not found", 404);
-    await db.messageRecipient.updateMany({ where: { messageId: id, userId: a.userId }, data: { isRead: true } });
-    return { message: { ...message, ...recipientsFor(message.recipients, await visiblePeople(a), a.userId) } };
+    // Gelesen ist, was im Verlauf angezeigt wird: die Nachricht und ihre Antworten.
+    await db.messageRecipient.updateMany({ where: { messageId: { in: [id, ...message.replies.map((r) => r.id)] }, userId: a.userId }, data: { isRead: true } });
+    return { message: { ...message, ...recipientsFor(message.recipients, await visiblePeople(a), a.userId), reference: messageReference(message) } };
   });
 }
 

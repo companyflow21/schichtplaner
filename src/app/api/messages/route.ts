@@ -3,7 +3,7 @@ import { z } from "zod";
 import { api, body, ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { canSee, requireAccess, visiblePeople } from "@/lib/access";
-import { recipientsFor, shiftVisibleForMessage } from "@/lib/messages";
+import { recipientsFor, resolveMessageReference, messageReference, referenceInclude } from "@/lib/messages";
 import { emitToUsers } from "@/lib/emit";
 
 const sender = { select: { id: true, firstName: true, lastName: true, profileImage: true } } as const;
@@ -17,27 +17,28 @@ export async function GET(request: NextRequest) {
       const [messages, people] = await Promise.all([
         db.message.findMany({
           where: { organizationId: a.orgId, senderId: a.userId },
-          include: { sender, recipients: { include: { user: { select: { id: true, firstName: true, lastName: true } } } } },
+          include: { sender, recipients: { include: { user: { select: { id: true, firstName: true, lastName: true } } } }, ...referenceInclude },
           orderBy: { createdAt: "desc" },
         }),
         visiblePeople(a),
       ]);
-      return { messages: messages.map((m) => ({ ...m, ...recipientsFor(m.recipients, people, a.userId) })) };
+      return { messages: messages.map((m) => ({ ...m, ...recipientsFor(m.recipients, people, a.userId), reference: messageReference(m) })) };
     }
     const deleted = folder === "trash";
     const messages = await db.message.findMany({
       where: { organizationId: a.orgId, recipients: { some: { userId: a.userId, isDeleted: deleted } } },
-      include: { sender, recipients: { where: { userId: a.userId }, select: { isRead: true, isDeleted: true } } },
+      include: { sender, recipients: { where: { userId: a.userId }, select: { isRead: true, isDeleted: true } }, ...referenceInclude },
       orderBy: { createdAt: "desc" },
     });
-    if (deleted) return { messages };
+    if (deleted) return { messages: messages.map((m) => ({ ...m, reference: messageReference(m) })) };
     const unreadCount = await db.messageRecipient.count({ where: { userId: a.userId, isRead: false, isDeleted: false, message: { organizationId: a.orgId } } });
-    return { messages, unreadCount };
+    return { messages: messages.map((m) => ({ ...m, reference: messageReference(m) })), unreadCount };
   });
 }
 
 const sendSchema = z.object({
   shiftId: z.string().optional(),
+  branchId: z.string().optional(),
   subject: z.string().trim().min(1).max(200),
   body: z.string().trim().min(1).max(10000),
   recipientIds: z.array(z.string().min(1)).min(1).max(500),
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
   return api(async () => {
     const a = await requireAccess();
     const data = await body(request, sendSchema);
-    if (data.shiftId && !await shiftVisibleForMessage(a, data.shiftId)) throw new ApiError("Schicht nicht gefunden.", 404);
+    const ref = await resolveMessageReference(a, data.shiftId, data.branchId);
     const ids = [...new Set(data.recipientIds)].filter((id) => id !== a.userId);
     const people = await visiblePeople(a);
     if (ids.some((id) => !canSee(people, id))) throw new ApiError("Du kannst diesen Personen nicht schreiben.", 403);
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
     if (!valid.length) throw new ApiError("No valid recipients found");
     const message = await db.message.create({
       data: {
-        organizationId: a.orgId, senderId: a.userId, shiftId: data.shiftId, subject: data.subject, body: data.body,
+        organizationId: a.orgId, senderId: a.userId, shiftId: ref.shiftId, branchId: ref.branchId, subject: data.subject, body: data.body,
         recipients: { create: valid.map((r) => ({ userId: r.userId })) },
       },
       include: { sender, recipients: { include: { user: { select: { id: true, firstName: true, lastName: true } } } } },

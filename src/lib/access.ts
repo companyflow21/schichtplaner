@@ -155,7 +155,8 @@ export function canSeeTime(a: Access, record: { userId: string; branchId: string
  * - Manager: zugeordnete Personen und alle, die in Plaenen ihrer
  *   Standorte mit "Dienstplan ansehen" eingeteilt sind (auch Entwuerfe)
  * - Mitarbeitende: ihre Personalverantwortlichen, die Planung ihrer eigenen
- *   Einsatzorte und - nur mit Freigabe "Dienstplan ansehen" - die in
+ *   Einsatzorte (eigene Schicht oder Standortzuordnung) und - nur mit
+ *   Freigabe "Dienstplan ansehen" - die in
  *   veroeffentlichten Plaenen dieses Standorts Eingeteilten
  */
 export async function visiblePeople(a: Access, tx: Tx = db): Promise<Set<string> | null> {
@@ -185,7 +186,9 @@ export async function visiblePeople(a: Access, tx: Tx = db): Promise<Set<string>
   for (const s of responsible) people.add(s.manager.userId);
   for (const b of colleagues) people.add(b.userId);
   for (const userId of a.staff.keys()) people.add(userId);
-  const planningBranches = ownBranches.map((s) => s.branchId!).filter(Boolean);
+  // Planung der eigenen Einsatzorte: mit veroeffentlichter eigener Schicht
+  // oder mit Standortzuordnung ("Offene Schichten sehen und anfragen").
+  const planningBranches = [...new Set([...ownBranches.map((s) => s.branchId!).filter(Boolean), ...(branchIds(a, "REQUEST_SHIFTS") ?? [])])];
   if (planningBranches.length) {
     const planners = await tx.branchAccess.findMany({
       where: { organizationId: a.orgId, branchId: { in: planningBranches }, rights: { hasSome: ["EDIT_SHIFTS", "HANDLE_REQUESTS"] }, member: { isActive: true, role: "MANAGER" } },

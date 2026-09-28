@@ -27,6 +27,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const reply = await db.message.create({
       data: {
         organizationId: a.orgId, senderId: a.userId, parentId: id,
+        // Antworten erben den Schicht-/Standortbezug der Ursprungsnachricht.
+        shiftId: parent.shiftId, branchId: parent.branchId,
         subject: parent.subject.startsWith("Re: ") ? parent.subject : `Re: ${parent.subject}`, body: text,
         recipients: { create: active.map((r) => ({ userId: r.userId })) },
       },

@@ -49,6 +49,8 @@ interface MessageFull {
   replies: ReplyMsg[];
   /** Weitere Empfaenger, deren Namen die betrachtende Person nicht sehen darf. */
   hiddenRecipients?: number;
+  /** Schicht- oder Standortbezug, lesbar formatiert. */
+  reference?: string | null;
 }
 
 export function MessageDetail() {
@@ -138,7 +140,8 @@ export function MessageDetail() {
 
       <div className="akro-panel p-6">
         {/* Subject */}
-        <h2 className="text-xl font-bold mb-4">{msg.subject}</h2>
+        <h2 className="text-xl font-bold mb-1">{msg.subject}</h2>
+        {msg.reference && <p className="mb-4 text-sm text-muted-foreground">{msg.reference}</p>}
 
         {/* Sender info */}
         <div className="flex items-start gap-3 mb-4">

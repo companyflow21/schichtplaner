@@ -43,6 +43,7 @@ interface MessageItem {
   };
   recipients: Recipient[];
   hiddenRecipients?: number;
+  reference?: string | null;
 }
 
 interface Props {
@@ -261,12 +262,15 @@ export function MessageList({ folder }: Props) {
 
                   {/* Subject + preview */}
                   <div className="min-w-0 flex-1">
-                    <span className={cn("text-sm", unread && "font-semibold")}>
-                      {msg.subject}
-                    </span>
-                    <span className="ml-2 text-sm text-muted-foreground">
-                      {msg.body.length > 80 ? msg.body.slice(0, 80) + "..." : msg.body}
-                    </span>
+                    <div>
+                      <span className={cn("text-sm", unread && "font-semibold")}>
+                        {msg.subject}
+                      </span>
+                      <span className="ml-2 text-sm text-muted-foreground">
+                        {msg.body.length > 80 ? msg.body.slice(0, 80) + "..." : msg.body}
+                      </span>
+                    </div>
+                    {msg.reference && <div className="truncate text-xs text-muted-foreground">{msg.reference}</div>}
                   </div>
 
                   {/* Date */}

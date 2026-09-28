@@ -16,6 +16,7 @@ import { catalogTargetTests } from "./catalog-targets";
 import { exchangeTests } from "./exchange";
 import { siteGpsTests } from "./sites-gps";
 import { checkinTests } from "./checkin";
+import { messagingTests } from "./messaging";
 
 async function main() {
 const sql = new PGlite();
@@ -222,6 +223,7 @@ try {
   await exchangeTests(context);
   await siteGpsTests(context);
   await checkinTests(context);
+  await messagingTests(context);
   console.log("FINAL SUCCESS: " + checks + " assertions / HTTP checks passed.");
   if (process.argv.includes("--serve")) {
     console.log("BROWSER_PREVIEW " + base + " — admin@akro-test.invalid / " + password);

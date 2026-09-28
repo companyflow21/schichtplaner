@@ -30,33 +30,54 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-/** Moegliche Empfaenger - der Server liefert nur Personen, die man sehen darf. */
+/** Moegliche Empfaenger - der Server liefert nur Personen, die man sehen darf, bereits gruppiert. */
 interface Recipient {
   id: string;
   firstName: string;
   lastName: string;
   profileImage: string | null;
   role: string;
+  group: "zustaendig" | "administration" | "weitere";
+}
+
+interface ReferenceShift {
+  id: string;
+  date: string;
+  shiftFrom: string;
+  shiftTo: string;
+  title: string | null;
+  branchName: string | null;
+}
+interface ReferenceBranch {
+  id: string;
+  name: string;
 }
 
 const rollen: Record<string, string> = { OWNER: "Inhaber", ADMIN: "Administration", MANAGER: "Manager" };
+const gruppen: Record<Recipient["group"], string> = { zustaendig: "Zustaendig", administration: "Administration", weitere: "Weitere" };
+const GRUPPEN_REIHENFOLGE: Recipient["group"][] = ["zustaendig", "administration", "weitere"];
+// getUTCDay(): 0=So..6=Sa - auf Mo..So gedreht.
+const WOCHENTAGE = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
 interface Props {
   shiftId?: string;
+  branchId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultRecipientIds?: string[];
   defaultSubject?: string;
 }
 
-export function ComposeMessage({ open, onOpenChange, defaultRecipientIds, defaultSubject, shiftId }: Props) {
+export function ComposeMessage({ open, onOpenChange, defaultRecipientIds, defaultSubject, shiftId, branchId }: Props) {
   const queryClient = useQueryClient();
   const [recipientIds, setRecipientIds] = useState<string[]>(defaultRecipientIds ?? []);
   const [subject, setSubject] = useState(defaultSubject ?? "");
   const [body, setBody] = useState("");
   const [recipientPickerOpen, setRecipientPickerOpen] = useState(false);
+  const [reference, setReference] = useState<string>(shiftId ? `shift:${shiftId}` : branchId ? `branch:${branchId}` : "none");
+  const [showResponsibleHint, setShowResponsibleHint] = useState(false);
 
-  const { data: recipientData } = useQuery<{ recipients: Recipient[] }>({
+  const { data: recipientData } = useQuery<{ recipients: Recipient[]; noResponsible: boolean }>({
     queryKey: ["message-recipients"],
     queryFn: async () => {
       const res = await fetch("/api/messages/recipients");
@@ -66,14 +87,39 @@ export function ComposeMessage({ open, onOpenChange, defaultRecipientIds, defaul
     enabled: open,
   });
 
+  const { data: referenceData } = useQuery<{ branches: ReferenceBranch[]; shifts: ReferenceShift[] }>({
+    queryKey: ["message-references"],
+    queryFn: async () => {
+      const res = await fetch("/api/messages/references");
+      if (!res.ok) throw new Error("Bezuege konnten nicht geladen werden.");
+      return res.json();
+    },
+    enabled: open,
+  });
+
   const employees = recipientData?.recipients ?? [];
+  const noResponsible = recipientData?.noResponsible ?? false;
+  const zustaendig = employees.filter((e) => e.group === "zustaendig");
+  const administration = employees.filter((e) => e.group === "administration");
+  const groupedEmployees = GRUPPEN_REIHENFOLGE.map((group) => ({ group, items: employees.filter((e) => e.group === group) })).filter((g) => g.items.length > 0);
+
+  const referenceBranches = referenceData?.branches ?? [];
+  const referenceShifts = referenceData?.shifts ?? [];
 
   const sendMutation = useMutation({
     mutationFn: async () => {
+      const isShift = reference.startsWith("shift:");
+      const isBranch = reference.startsWith("branch:");
       const res = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject, body, recipientIds, shiftId }),
+        body: JSON.stringify({
+          subject,
+          body,
+          recipientIds,
+          shiftId: isShift ? reference.slice("shift:".length) : undefined,
+          branchId: isBranch ? reference.slice("branch:".length) : undefined,
+        }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Fehler beim Senden");
       return res.json();
@@ -93,6 +139,18 @@ export function ComposeMessage({ open, onOpenChange, defaultRecipientIds, defaul
     setRecipientIds([]);
     setSubject("");
     setBody("");
+    setReference(shiftId ? `shift:${shiftId}` : branchId ? `branch:${branchId}` : "none");
+    setShowResponsibleHint(false);
+  }
+
+  function selectResponsible() {
+    if (zustaendig.length > 0) {
+      setRecipientIds(zustaendig.map((e) => e.id));
+      setShowResponsibleHint(false);
+    } else if (noResponsible) {
+      setRecipientIds(administration.map((e) => e.id));
+      setShowResponsibleHint(true);
+    }
   }
 
   function toggleRecipient(userId: string) {
@@ -118,7 +176,15 @@ export function ComposeMessage({ open, onOpenChange, defaultRecipientIds, defaul
           {/* Recipients */}
           <div>
             <Label>Empfaenger</Label>
-            {employees.length > 1 && <Button type="button" size="sm" variant="ghost" onClick={() => setRecipientIds(employees.map(e => e.id))}>Alle {employees.length} auswählen</Button>}
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+              {(zustaendig.length > 0 || noResponsible) && (
+                <Button type="button" size="sm" variant="ghost" onClick={selectResponsible}>An Zustaendige</Button>
+              )}
+              {employees.length > 1 && <Button type="button" size="sm" variant="ghost" onClick={() => setRecipientIds(employees.map(e => e.id))}>Alle {employees.length} auswählen</Button>}
+            </div>
+            {showResponsibleHint && (
+              <p className="mt-1 text-xs text-muted-foreground">Kein zustaendiger Manager hinterlegt – die Administration ist dein Ansprechpartner.</p>
+            )}
             <div className="mt-1.5">
               <Popover open={recipientPickerOpen} onOpenChange={setRecipientPickerOpen}>
                 <PopoverTrigger asChild>
@@ -149,28 +215,30 @@ export function ComposeMessage({ open, onOpenChange, defaultRecipientIds, defaul
                     <CommandInput placeholder="Mitarbeiter suchen..." />
                     <CommandList>
                       <CommandEmpty>Keine passende Person.</CommandEmpty>
-                      <CommandGroup>
-                        {employees.map((emp) => (
-                          <CommandItem
-                            key={emp.id}
-                            value={`${emp.firstName} ${emp.lastName} ${emp.id}`}
-                            onSelect={() => toggleRecipient(emp.id)}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 size-4",
-                                recipientIds.includes(emp.id) ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            <div>
-                              <div className="text-sm font-medium">
-                                {emp.firstName} {emp.lastName}
+                      {groupedEmployees.map(({ group, items }) => (
+                        <CommandGroup key={group} heading={gruppen[group]}>
+                          {items.map((emp) => (
+                            <CommandItem
+                              key={emp.id}
+                              value={`${emp.firstName} ${emp.lastName} ${emp.id}`}
+                              onSelect={() => toggleRecipient(emp.id)}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 size-4",
+                                  recipientIds.includes(emp.id) ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              <div>
+                                <div className="text-sm font-medium">
+                                  {emp.firstName} {emp.lastName}
+                                </div>
+                                {rollen[emp.role] && <div className="text-xs text-muted-foreground">{rollen[emp.role]}</div>}
                               </div>
-                              {rollen[emp.role] && <div className="text-xs text-muted-foreground">{rollen[emp.role]}</div>}
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      ))}
                     </CommandList>
                   </Command>
                 </PopoverContent>
@@ -199,6 +267,37 @@ export function ComposeMessage({ open, onOpenChange, defaultRecipientIds, defaul
               placeholder="Nachricht schreiben..."
             />
           </div>
+
+          {/* Bezug */}
+          {(referenceBranches.length > 0 || referenceShifts.length > 0) && (
+            <div>
+              <Label htmlFor="compose-bezug">Bezug</Label>
+              <select
+                id="compose-bezug"
+                className="mt-1.5 flex h-10 w-full rounded-md border bg-transparent px-3 py-2 text-sm"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+              >
+                <option value="none">Kein Bezug</option>
+                {referenceBranches.length > 0 && (
+                  <optgroup label="Standort">
+                    {referenceBranches.map((b) => (
+                      <option key={b.id} value={`branch:${b.id}`}>{b.name}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {referenceShifts.length > 0 && (
+                  <optgroup label="Schicht">
+                    {referenceShifts.map((s) => (
+                      <option key={s.id} value={`shift:${s.id}`}>
+                        {WOCHENTAGE[new Date(s.date + "T12:00:00Z").getUTCDay()]} {s.date.slice(8, 10)}.{s.date.slice(5, 7)}. {s.shiftFrom}–{s.shiftTo}{s.branchName ? ` · ${s.branchName}` : ""}{s.title ? ` (${s.title})` : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end gap-2">
