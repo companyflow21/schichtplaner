@@ -2,8 +2,8 @@
 
 Stand 28.09.2026, Branch `feat/kommunikation-tausch-gps` (Basis `7d80426`, läuft produktiv).
 Status: `bestanden` · `fehlgeschlagen` · `nicht geprüft` · `offen` (fachliche Entscheidung).
-Alle Nachweise hier sind **lokal** (PGlite-Workflowtests, isolierte Docker-Testinstallation). Diese Erweiterung
-ist **nicht** auf Netcup eingespielt.
+Nachweise sind lokal (PGlite-Workflowtests, isolierte Docker-Testinstallation), soweit nicht anders vermerkt.
+Am 28.09.2026 um 22:17 Uhr auf Netcup eingespielt: laufender Commit `9eabd44`.
 
 ## Erweiterung Kommunikation, Tausch, GPS-Check-in
 
@@ -33,7 +33,8 @@ ist **nicht** auf Netcup eingespielt.
 | P0 | Abhängigkeiten aktualisiert: Next.js 16.3.6, Prisma 7.10.0, Docker-Image Node 24 (Node 20 ohne Wartung seit 04/2026), `npm audit fix` | `npm audit`: keine kritische Lücke mehr; alle Prüfungen grün; Docker-Start mit Migration | bestanden | `npm audit` 45 → 5 (kritisch 4 → 0; verbleibend 4 hoch nur im Prisma-CLI, Behebung wäre Rückstufung auf Prisma 6); Workflow 1136/1136; Testinstallation unter Node 24 gesund, Anmeldung für Admin/Manager/Mitarbeiter |
 | P2 | `npm start` / `start:server` starteten ohne Socket.IO bzw. eine nie erzeugte Datei | Beide starten den eigenen Server wie Docker | bestanden (Code) | `scripts/start.mjs`; Docker unverändert über `server.ts` |
 | P1 | Smartphone-GPS mit echtem Gerät | Check-in am realen Dienstort über HTTPS | nicht geprüft | Nur simulierte Positionen. Gerätetest steht aus |
-| P1 | Betrieb Netcup | Sicherung, Probelauf auf Kopie, Einspielen | nicht geprüft | Nicht beauftragt |
+| P1 | Betrieb Netcup | Sicherung, Probelauf auf Kopie, Einspielen, Nachprüfung | bestanden | Stand vorher `7d80426`, 301 Dateien identisch; Sicherung `db-before-9eabd44-20260928T201400Z.dump` (lesbar), Code-Archiv, Rollback-Images `rollback-7d80426`; Migration auf wiederhergestellter Kopie ohne Änderung am Bestand; danach 7/7 Migrationen, App unter Node 24 gesund, 0 Neustarts, `/api/health` und `/login` 200. Kein Standort hat GPS-Pflicht |
+| P1 | Anmeldung in der Produktion | Anmeldung mit echtem Konto nach dem Update | nicht geprüft | Kein vorgesehenes Testkonto; Anmeldung durch den Nutzer nötig |
 
 ## Prüfungen am 28.09.2026 (lokal)
 
@@ -67,7 +68,7 @@ Nicht übernommen: Paket 03 (Postfach seitenweise, passt nicht zum aktuellen Sta
 
 1. Gerätetest mit einem echten Smartphone am Dienstort (HTTPS) und Ergebnis hier eintragen.
 2. Entscheidungen oben klären.
-3. Auf Auftrag: Netcup-Einspielung nach bekanntem Ablauf (Sicherung, Probelauf der Migration auf Kopie, Deploy).
+3. Nach dem Deploy: Anmeldung in der Produktion prüfen; GPS-Check-in erst nach den Entscheidungen oben je Standort einschalten.
 
 ## Aufwand
 
