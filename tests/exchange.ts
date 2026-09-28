@@ -96,6 +96,21 @@ export async function exchangeTests(t: TestContext) {
   await mB.request("/api/mod-requests/" + ex2.id, "PATCH", { state: "DECLINED", note: "Überschneidung mit neuer Einteilung." });
   check((await sA.request("/api/mod-requests")).requests.find((r: any) => r.id === ex2.id).state === "DECLINED", "declined exchange visible to requester");
 
+  // Auch wenn die erste neue Einteilung gelingt und erst die zweite scheitert,
+  // muessen beide alten Buchungen und der offene Antrag erhalten bleiben.
+  const x3 = await shift(nord.id, addDate(today, 21), "08:00", "16:00");
+  const y3 = await shift(sued.id, addDate(today, 22), "08:00", "16:00");
+  const secondClash = await shift(sued.id, addDate(today, 21), "10:00", "18:00");
+  await book(x3.id, users.staffA.id); await book(y3.id, users.staffB.id); await publishAll();
+  const exSecond = (await sA.request("/api/mod-requests", "POST", { shiftId: x3.id, kind: "EXCHANGE", targetShiftId: y3.id, targetUserId: users.staffB.id })).request;
+  await sB.request("/api/mod-requests/" + exSecond.id, "PATCH", { consent: true });
+  await book(secondClash.id, users.staffB.id);
+  const noticesBefore = await inbox(sA, "Neue Schicht");
+  await mB.request("/api/mod-requests/" + exSecond.id, "PATCH", { state: "ACCEPTED", confirm: true }, 409);
+  check((await holders(x3.id)).join() === users.staffA.id && (await holders(y3.id)).join() === users.staffB.id, "failure in the second exchange assignment rolls back the first assignment too");
+  check((await sA.request("/api/mod-requests")).requests.find((r: any) => r.id === exSecond.id).state === "OPEN" && await inbox(sA, "Neue Schicht") === noticesBefore, "failed exchange rolls back request changes and notifications even with confirm=true");
+  await mB.request("/api/mod-requests/" + exSecond.id, "PATCH", { state: "DECLINED" });
+
   // --- Ablehnung durch die andere Person und Ruecknahme -----------------------
   const ex3 = (await sB.request("/api/mod-requests", "POST", { shiftId: x.id, kind: "EXCHANGE", targetShiftId: y.id, targetUserId: users.staffA.id })).request;
   await sA.request("/api/mod-requests/" + ex3.id, "PATCH", { consent: false, note: "Geht leider nicht." });

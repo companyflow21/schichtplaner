@@ -13,6 +13,28 @@ export async function GET(request: NextRequest) {
   const folderId = request.nextUrl.searchParams.get("folderId") || null;
   const orgId = member.organizationId;
 
+  // Validate the requested folder and its entire ancestry before returning
+  // anything. A foreign parent must not leak its name into the breadcrumb.
+  const breadcrumb: { id: string; name: string }[] = [];
+  const visited = new Set<string>();
+  let currentFolderId = folderId;
+  while (currentFolderId) {
+    if (visited.has(currentFolderId)) {
+      return NextResponse.json({ error: "Folder not found" }, { status: 404 });
+    }
+    visited.add(currentFolderId);
+
+    const folder = await db.portalFolder.findFirst({
+      where: { id: currentFolderId, organizationId: orgId },
+      select: { id: true, name: true, parentId: true },
+    });
+    if (!folder) {
+      return NextResponse.json({ error: "Folder not found" }, { status: 404 });
+    }
+    breadcrumb.unshift({ id: folder.id, name: folder.name });
+    currentFolderId = folder.parentId;
+  }
+
   // Get folders at this level
   const folders = await db.portalFolder.findMany({
     where: { organizationId: orgId, parentId: folderId },
@@ -29,19 +51,6 @@ export async function GET(request: NextRequest) {
     },
     orderBy: { name: "asc" },
   });
-
-  // Build breadcrumb
-  const breadcrumb: { id: string; name: string }[] = [];
-  let currentFolderId = folderId;
-  while (currentFolderId) {
-    const folder = await db.portalFolder.findUnique({
-      where: { id: currentFolderId },
-      select: { id: true, name: true, parentId: true },
-    });
-    if (!folder) break;
-    breadcrumb.unshift({ id: folder.id, name: folder.name });
-    currentFolderId = folder.parentId;
-  }
 
   return NextResponse.json({ folders, files, breadcrumb });
 }

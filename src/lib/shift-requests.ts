@@ -1,19 +1,15 @@
 import type { Prisma } from "@prisma/client";
-import { berlinDate, berlinTime, minuteOfDay, shiftRange } from "./berlin";
+import { shiftRange } from "./berlin";
+import { wallToUtcMinutes } from "./checkin";
 import { branchHolders, can, type Access } from "./access";
 import { isAdminRole, normalizeBranchRights } from "./access-shared";
 import { checkAssignment, type ShiftWithRelations } from "./planning";
 
 type Tx = Prisma.TransactionClient;
 
-/** Jetzt in Berliner Ortsminuten - dieselbe Skala wie shiftRange(). */
-export function berlinNowMinutes(now = new Date()): number {
-  return Date.parse(berlinDate(now) + "T00:00:00Z") / 60000 + minuteOfDay(berlinTime(now));
-}
-
-/** Schicht hat noch nicht begonnen (Ortszeit Europe/Berlin). */
-export function isFuture(shift: ShiftWithRelations): boolean {
-  return shiftRange(shift).start > berlinNowMinutes();
+/** Schicht hat noch nicht begonnen (echter Zeitpunkt aus Europe/Berlin). */
+export function isFuture(shift: Parameters<typeof shiftRange>[0], now = new Date()): boolean {
+  return wallToUtcMinutes(shiftRange(shift).start) > now.getTime() / 60000;
 }
 
 /**

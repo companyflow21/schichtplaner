@@ -134,6 +134,16 @@ docker compose exec -T postgres rm /tmp/backup.sql
 
 Die Datei im Ordner `backups` enthält personenbezogene Daten: sicher aufbewahren, nicht weitergeben.
 
+Alternative mit Lesbarkeitsprüfung und Prüfsumme, Ablage außerhalb des Projektordners (Zielordner frei wählen):
+
+```
+.\scripts\backup-database.ps1 -ProjectDirectory . -BackupDirectory "D:\Sicherungen\schichtplaner"
+```
+
+Das Skript erzeugt einen PostgreSQL-Dump im Custom-Format, prüft ihn mit `pg_restore --list` und legt eine
+`.sha256`-Datei daneben. Belastbar ist eine Sicherung erst nach einer Wiederherstellung in eine separate, leere
+Testdatenbank – nie in die Betriebsdatenbank. Für die Netcup-Installation gilt das dortige Verfahren per SSH.
+
 ## Aktualisieren
 1. Backup wie oben ziehen.
 2. `docker compose up -d --build` – baut die App neu und spielt ausstehende Datenbank-Migrationen automatisch ein.

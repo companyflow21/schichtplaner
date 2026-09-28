@@ -87,4 +87,15 @@ check(checkinWindow(fall, at("2026-10-25T04:59:00Z")).open && !checkinWindow(fal
 const repeated = shift("2026-10-25", "02:30", "06:00");
 check(checkinWindow(repeated, at("2026-10-25T00:30:00Z")).lateMinutes === 0 && checkinWindow(repeated, at("2026-10-25T01:30:00Z")).lateMinutes === 60, "fall DST: a start inside the repeated hour counts from its first occurrence");
 
+// Eine einmal erreichte Grenze darf durch die Rueckstellung nicht rueckgaengig werden.
+const repeatedEnd = shift("2026-10-25", "00:00", "02:30");
+check(checkinWindow(repeatedEnd, at("2026-10-25T00:29:59Z")).open, "fall DST: first 02:29:59 is before the end");
+check(checkinWindow(repeatedEnd, at("2026-10-25T00:30:00Z")).state === "AFTER", "fall DST: first 02:30 closes the window");
+check(checkinWindow(repeatedEnd, at("2026-10-25T01:00:00Z")).state === "AFTER", "fall DST: second 02:00 cannot reopen an ended shift");
+check(checkinWindow(repeated, at("2026-10-25T01:00:00Z")).open, "fall DST: second 02:00 cannot put an already started window back before opening");
+const springStart = shift("2026-03-29", "03:00", "06:00");
+const springEarly = checkinWindow(springStart, at("2026-03-29T00:30:00Z"));
+check(springEarly.open && springEarly.lateMinutes === -30 && springEarly.opensAt === "01:30", "spring DST: 03:00 shift opens 30 real minutes earlier at 01:30");
+check(!checkinWindow(springStart, at("2026-03-29T00:29:59Z")).open, "spring DST: pre-start boundary retains seconds");
+
 console.log("CHECKIN UNIT: " + checks + " checks passed.");

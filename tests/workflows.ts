@@ -17,15 +17,19 @@ import { exchangeTests } from "./exchange";
 import { siteGpsTests } from "./sites-gps";
 import { checkinTests } from "./checkin";
 import { messagingTests } from "./messaging";
+import { fileTests } from "./files";
+import { exchangeDstTests } from "./exchange-dst";
 
 async function main() {
 const sql = new PGlite();
 const migrations = (await readdir("prisma/migrations")).filter(x => /^\d/.test(x)).sort();
 for (const migration of migrations) await sql.exec(await readFile("prisma/migrations/" + migration + "/migration.sql", "utf8"));
 console.log("PASS: all migrations on PostgreSQL");
-const socket = new PGLiteSocketServer({ db: sql, host: "127.0.0.1", port: 55439 });
+// TEST_DB_PORT erlaubt einen anderen Port, falls 55439 belegt ist.
+const dbPort = Number(process.env.TEST_DB_PORT || 55439);
+const socket = new PGLiteSocketServer({ db: sql, host: "127.0.0.1", port: dbPort });
 await socket.start();
-const url = "postgresql://postgres:postgres@127.0.0.1:55439/postgres";
+const url = "postgresql://postgres:postgres@127.0.0.1:" + dbPort + "/postgres";
 const client = new PrismaClient({ adapter: new PrismaPg({ connectionString: url, max: 1 }) });
 const password = "AkroTest2026!Only";
 const passwordHash = await bcrypt.hash(password, 10);
@@ -224,6 +228,8 @@ try {
   await siteGpsTests(context);
   await checkinTests(context);
   await messagingTests(context);
+  await exchangeDstTests(context);
+  await fileTests(context);
   console.log("FINAL SUCCESS: " + checks + " assertions / HTTP checks passed.");
   if (process.argv.includes("--serve")) {
     console.log("BROWSER_PREVIEW " + base + " — admin@akro-test.invalid / " + password);

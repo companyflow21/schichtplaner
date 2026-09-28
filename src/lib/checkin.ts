@@ -75,7 +75,7 @@ export function localMinutes(now: Date): number {
  * Maerz) gibt es 02:00-02:59 nicht; eine solche Uhrzeit wird wie Winterzeit
  * gerechnet (entspricht 03:xx Sommerzeit).
  */
-function wallToUtcMinutes(wall: number): number {
+export function wallToUtcMinutes(wall: number): number {
   for (const offset of [120, 60]) {
     const utc = wall - offset;
     if (localMinutes(new Date(utc * 60000)) === wall) return utc;
@@ -87,21 +87,20 @@ export type CheckinWindow = { open: boolean; state: "BEFORE" | "OPEN" | "AFTER";
 
 /**
  * Check-in-Fenster einer Schicht und Verspaetung zum Zeitpunkt now.
- * Das Fenster folgt der Berliner Wanduhr (Schichtzeiten sind Wanduhrzeiten;
- * eine Nachtschicht 22:00-06:00 endet um 06:00 Ortszeit, auch in der Nacht
- * der Zeitumstellung). In der wiederholten Stunde der Rueckstellung sind
- * Wanduhrminuten mehrdeutig: 02:30 (Sommerzeit) und 02:30 (Winterzeit)
- * zaehlen fuer das Fenster gleich. Die Verspaetung zaehlt dagegen echte
- * Minuten ab dem Schichtbeginn, damit eine Zeitumstellung sie nicht um eine
- * Stunde verfaelscht.
+ * Schichtgrenzen werden einmal aus Berliner Wanduhrzeiten in echte
+ * Zeitpunkte umgerechnet (Mehrdeutigkeiten wie in wallToUtcMinutes).
+ * So oeffnet ein bereits geschlossenes Fenster in der wiederholten Stunde
+ * nicht erneut. Vorlauf und Verspaetung zaehlen echte Minuten; der Vorlauf
+ * funktioniert dadurch auch unmittelbar nach der Vorstellung der Uhr.
  */
 export function checkinWindow(shift: ShiftShape, now: Date): CheckinWindow {
   const range = shiftRange(shift);
-  const current = localMinutes(now);
-  const lateMinutes = Math.floor(now.getTime() / 60000) - wallToUtcMinutes(range.start);
-  const state = current < range.start - WINDOW_BEFORE_MIN ? "BEFORE" : current < range.end ? "OPEN" : "AFTER";
-  const opens = (((minuteOfDay(shift.shiftFrom) - WINDOW_BEFORE_MIN) % 1440) + 1440) % 1440;
-  return { open: state === "OPEN", state, lateMinutes, opensAt: String(Math.floor(opens / 60)).padStart(2, "0") + ":" + String(opens % 60).padStart(2, "0"), date: range.date };
+  const current = now.getTime() / 60000;
+  const start = wallToUtcMinutes(range.start), end = wallToUtcMinutes(range.end);
+  const opens = start - WINDOW_BEFORE_MIN;
+  const lateMinutes = Math.floor(current - start);
+  const state = current < opens ? "BEFORE" : current < end ? "OPEN" : "AFTER";
+  return { open: state === "OPEN", state, lateMinutes, opensAt: berlinTime(new Date(opens * 60000)), date: range.date };
 }
 
 // --- Datenbank ---------------------------------------------------------------
@@ -131,7 +130,9 @@ export async function bookedShifts(tx: Tx, orgId: string, userId: string, now: D
 export async function watchStartBlock(tx: Tx, orgId: string, userId: string, now: Date): Promise<string | null> {
   const due = (await bookedShifts(tx, orgId, userId, now)).filter((s) => s.branch.gpsCheckinRequired && s.window.open);
   if (!due.length) return null;
-  const checkins = await tx.checkin.findMany({ where: { userId, shiftId: { in: due.map((s) => s.shift.id) } }, select: { shiftId: true, status: true } });
+  // Abgelehnte/ersetzte Verlaufszeilen duerfen den wirksamen Eintrag nicht
+  // verdecken. Der Teilindex erlaubt hoechstens einen wirksamen je Schicht.
+  const checkins = await tx.checkin.findMany({ where: { organizationId: orgId, userId, shiftId: { in: due.map((s) => s.shift.id) }, status: { in: [...CHECKED_IN, "PENDING"] } }, select: { shiftId: true, status: true } });
   for (const s of due) {
     const status = checkins.find((c) => c.shiftId === s.shift.id)?.status;
     if (status && CHECKED_IN.includes(status)) continue;

@@ -59,6 +59,12 @@ export async function checkinTests(t: TestContext) {
   await gps(foreign, at(0.0002), 404);
   await sA.request("/api/checkin", "POST", { shiftId: shift.id }, 400);
 
+  // Abgelehnte und durch GPS ersetzte Antraege bleiben im Verlauf stehen.
+  // Sie duerfen den danach wirksamen Check-in beim Stoppuhr-Neustart nicht verdecken.
+  const rejected = (await sA.request("/api/checkin", "POST", { shiftId: shift.id, manual: { failure: "DENIED", reason: "Standortfreigabe zuerst nicht möglich" } })).checkin;
+  await admin.request("/api/checkin/" + rejected.id, "PATCH", { status: "DECLINED", note: "Bitte Ortung erneut versuchen." });
+  const superseded = (await sA.request("/api/checkin", "POST", { shiftId: shift.id, manual: { failure: "UNAVAILABLE", reason: "Ortung vorübergehend nicht verfügbar" } })).checkin;
+
   // --- Erfolgreicher Check-in -----------------------------------------------------
   const ok = await gps(sA, at(0.0002, 12));
   const month = (d: string) => d.slice(0, 7);
@@ -72,6 +78,8 @@ export async function checkinTests(t: TestContext) {
   await sA.request("/api/time/watch", "POST", { action: "START" }, 409);
   const ownView = (await sA.request("/api/checkin")).shifts.find((s: any) => s.id === shift.id);
   check(ownView.checkin.status === "CONFIRMED" && ownView.checkin.time === berlinTime(new Date(ok.checkin.createdAt)), "reload shows the check-in with server time");
+  const history = (await admin.request("/api/checkin?view=team")).checkins;
+  check(history.find((c: any) => c.id === rejected.id)?.status === "DECLINED" && history.find((c: any) => c.id === superseded.id)?.status === "SUPERSEDED", "declined and superseded manual requests remain in the audit history");
 
   // --- Manuelle Freigabe ------------------------------------------------------------
   await sB.request("/api/checkin", "POST", { shiftId: shift.id, manual: { failure: "DENIED", reason: "kurz" } }, 400);
@@ -111,7 +119,7 @@ export async function checkinTests(t: TestContext) {
   const stoppedB = (await sB.request("/api/time/watch", "POST", { action: "STOP" })).record;
   check(stoppedB.branchId === branch.id, "approved record keeps its site on check-out");
   const restart = (await sA.request("/api/time/watch", "POST", { action: "START" })).record;
-  check(restart && (await sA.request("/api/time/watch", "POST", { action: "STOP" })).record.id === restart.id, "after a valid check-in the stopwatch can be restarted");
+  check(restart && (await sA.request("/api/time/watch", "POST", { action: "STOP" })).record.id === restart.id, "confirmed check-in permits restart even with declined and superseded history");
 
   // Aufraeumen: Freigaben wie vorher, damit spaetere Teile unberuehrt bleiben.
   await admin.request(accessPath, "PUT", { kind: "staff", memberId: users.staffA.memberId, rights: previousStaff });

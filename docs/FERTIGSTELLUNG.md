@@ -25,6 +25,11 @@ ist **nicht** auf Netcup eingespielt.
 | P1 | Manuelle Ersatzfreigabe | Begründung Pflicht, nur Berechtigte, nie selbst, doppelte Entscheidung 409, Verlauf bleibt | bestanden | `tests/checkin.ts`; Teilindex `checkins_active_key` in `tests/migration.ts` |
 | P1 | Nachtschicht, Zeitumstellung, Neuladen, Pause, Auschecken | Fenster und Verspätung in Europe/Berlin; Zustand übersteht Neuladen | bestanden | `tests/checkin-unit.ts` (38); Browser: Pause → Neuladen → Fortsetzen → Auschecken, Standort bleibt |
 | P1 | Migration `20260929090000_exchange_messages_checkin` | Rein additiv, Bestand unverändert | bestanden | `npm run test:migration` (60) |
+| P0 | Dateiablage: Ordnerpfad ohne Organisationsprüfung – `api/files/route.ts` | Fremde oder fehlende Ordner-ID ergibt 404, fremde Ordnernamen erscheinen nie | bestanden | `tests/files.ts` |
+| P1 | Stoppuhr-Sperre las beliebige Verlaufszeile – `lib/checkin.ts` | Abgelehnter oder ersetzter Antrag verdeckt keinen gültigen Check-in | bestanden | `tests/checkin.ts` |
+| P1 | Zeitumstellung Check-in-Fenster und Tausch – `lib/checkin.ts`, `lib/shift-requests.ts` | Geschlossenes Fenster öffnet in der wiederholten Stunde nicht erneut; begonnene Schicht gilt nicht wieder als künftig | bestanden | `tests/checkin-unit.ts` (44), `tests/exchange-dst.ts` |
+| P1 | Tausch scheitert erst bei der zweiten Einteilung | Beide alten Buchungen, Antrag und Benachrichtigungen bleiben unverändert | bestanden | `tests/exchange.ts` |
+| P2 | Login-Sperre begrenzt – `lib/login-throttle.ts` | 5 Versuche / 15 Minuten unverändert, Speicher begrenzt | bestanden | `npm run test:login-throttle` |
 | P1 | Smartphone-GPS mit echtem Gerät | Check-in am realen Dienstort über HTTPS | nicht geprüft | Nur simulierte Positionen. Gerätetest steht aus |
 | P1 | Betrieb Netcup | Sicherung, Probelauf auf Kopie, Einspielen | nicht geprüft | Nicht beauftragt |
 
@@ -34,13 +39,14 @@ ist **nicht** auf Netcup eingespielt.
 |---|---|
 | `npx tsc --noEmit --incremental false` | 0 Fehler |
 | `npm run lint` | 0 Fehler, 25 Warnungen – alle in unveränderten Altdateien |
-| `npm run test:workflows` | 1086/1086 |
+| `npm run test:workflows` | 1136/1136 |
 | `npm run test:migration` | 60/60 |
-| `npx tsx tests/checkin-unit.ts` | 38/38 |
+| `npm run test:checkin` | 44/44 |
+| `npm run test:login-throttle` | bestanden |
 | `npm run build` | erfolgreich; zusätzlich Docker-Build der Testinstallation |
 
-Die Workflowtests liefen vor den letzten reinen Layoutkorrekturen im Postfach (`2b4055b`); diese sind mit
-Typprüfung, ESLint und im Browser geprüft.
+Übernommen aus der Vorbereitung vom 28.09.2026 (Pakete 01, 02, Sicherungsskript aus 05) nach Prüfung jeder Änderung.
+Nicht übernommen: Paket 03 (Postfach seitenweise, passt nicht zum aktuellen Stand). Paket 04 (Versionen) folgt getrennt.
 
 ## Offene fachliche Entscheidungen (vor produktiver Aktivierung des Check-ins)
 
@@ -51,6 +57,8 @@ Typprüfung, ESLint und im Browser geprüft.
 - **Zu klären:** Wer darf Check-in-Daten sehen (derzeit: Admins; Manager mit „Zeiterfassung einsehen“ am Standort
   und „Stunden einsehen“ für die Person)? Wie lange werden sie aufbewahrt (derzeit unbegrenzt, kein Löschlauf)?
   Koordinaten werden derzeit nicht gespeichert – soll es dabei bleiben?
+- **Zu klären:** Die GPS-Pflicht sperrt nur einen neuen Stoppuhr-Start im offenen Fenster. Eine vor dem Fenster gestartete Stoppuhr und manuelle Zeitbuchungen bleiben möglich. Soll GPS jede Zeiterfassung für solche Schichten absichern, braucht es eine Ausnahme- und Freigaberegel.
+- **Zu klären:** Eine manuelle Freigabe startet die Zeit rückwirkend ab dem Antrag, auch wenn die Einteilung inzwischen entfernt wurde oder die Schicht vorbei ist.
 - Vorhandene offene Punkte aus `docs/AKRO-ERWEITERUNG.md` Abschnitt 5 bleiben unverändert offen.
 
 ## Nächste Schritte

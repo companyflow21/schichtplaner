@@ -23,6 +23,8 @@
   ],
   "scripts": {
     "test:workflows": "tsx tests/workflows.ts",
+    "test:checkin": "tsx tests/checkin-unit.ts",
+    "test:login-throttle": "tsx tests/login-throttle.ts",
     "test:migration": "tsx tests/migration.ts",
     "test:migration:copy": "tsx tests/migration-copy.ts",
     "test:load:pilot": "tsx tests/load-pilot.ts",
