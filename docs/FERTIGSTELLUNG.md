@@ -3,7 +3,7 @@
 Stand 28.09.2026, Branch `feat/kommunikation-tausch-gps` (Basis `7d80426`, läuft produktiv).
 Status: `bestanden` · `fehlgeschlagen` · `nicht geprüft` · `offen` (fachliche Entscheidung).
 Nachweise sind lokal (PGlite-Workflowtests, isolierte Docker-Testinstallation), soweit nicht anders vermerkt.
-Am 28.09.2026 um 22:17 Uhr auf Netcup eingespielt: laufender Commit `9eabd44`.
+Auf Netcup eingespielt: `9eabd44` am 28.09.2026, `b5efa55` am 29.09.2026 (Löschen, Qualifikationen bearbeiten, Push).
 
 ## Erweiterung Kommunikation, Tausch, GPS-Check-in
 
@@ -38,6 +38,7 @@ Am 28.09.2026 um 22:17 Uhr auf Netcup eingespielt: laufender Commit `9eabd44`.
 | P1 | Push auf echtem Android- und iPhone-Gerät | Hinweis kommt bei geschlossener App | nicht geprüft | Erst nach Einspielen mit HTTPS möglich |
 | P1 | Smartphone-GPS mit echtem Gerät | Check-in am realen Dienstort über HTTPS | nicht geprüft | Nur simulierte Positionen. Gerätetest steht aus |
 | P1 | Betrieb Netcup | Sicherung, Probelauf auf Kopie, Einspielen, Nachprüfung | bestanden | Stand vorher `7d80426`, 301 Dateien identisch; Sicherung `db-before-9eabd44-20260928T201400Z.dump` (lesbar), Code-Archiv, Rollback-Images `rollback-7d80426`; Migration auf wiederhergestellter Kopie ohne Änderung am Bestand; danach 7/7 Migrationen, App unter Node 24 gesund, 0 Neustarts, `/api/health` und `/login` 200. Kein Standort hat GPS-Pflicht |
+| P1 | Betrieb Netcup `b5efa55` | Sicherung, Probelauf, Einspielen, Nachprüfung | bestanden | Stand vorher `9eabd44`, 320 Dateien identisch; Sicherung `db-before-b5efa55-20260929T135831Z.dump`, Code, `.env`-Kopie, Rollback-Images `rollback-9eabd44`; Push-Migration auf Kopie ohne Änderung am Bestand, keine alten Mitteilungen offen; Push-Schlüssel in `.env` erzeugt (nicht ausgegeben); 8/8 Migrationen, „Push aktiv“, `/api/health`, `/login`, `sw.js`, Manifest 200 |
 | P1 | Anmeldung in der Produktion | Anmeldung mit echtem Konto nach dem Update | nicht geprüft | Kein vorgesehenes Testkonto; Anmeldung durch den Nutzer nötig |
 
 ## Prüfungen am 28.09.2026 (lokal)
