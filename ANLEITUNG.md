@@ -50,6 +50,21 @@ Zeiten und Abwesenheiten. Details: `docs/AKRO-ERWEITERUNG.md`, Abschnitte 5 und 
 - Bis zur Genehmigung bleibt die Besetzung unverändert. Die Genehmigung prüft alles erneut; ein Tausch ändert
   beide Schichten gemeinsam oder gar nicht. Offene eigene Anträge lassen sich zurückziehen.
 
+**Qualifikationen** (Einstellungen → Qualifikationen, nur Admins)
+- Anlegen, Umbenennen und Löschen. Umbenennen zieht die neue Schreibweise bei allen Mitarbeitenden und Schichten nach.
+- Löschen geht nur, solange die Qualifikation bei keiner aktiven Person und keiner künftigen Schicht eingetragen ist.
+
+**Benachrichtigungen aufs Handy (Push)**
+- Jede Person tippt auf der Startseite einmal „Benachrichtigungen aktivieren“ und erlaubt sie im Browser.
+- Android (Chrome): direkt im Browser. iPhone: zuerst in Safari „Teilen“ → „Zum Home-Bildschirm“, die App von
+  dort öffnen und dann aktivieren (ab iOS 16.4).
+- Ein Hinweis kommt bei jeder neuen Mitteilung im Postfach: neue Einteilung, geänderte oder gelöschte eigene
+  Schicht, veröffentlichter Plan, Entscheidungen zu Anträgen, Nachrichten. Er enthält keine Details („Es gibt eine
+  neue Mitteilung zu deinem Dienstplan“); ein Tipp öffnet das Postfach. Versand über die Push-Dienste von Google,
+  Apple, Mozilla bzw. Microsoft, spätestens etwa 10 Sekunden nach der Änderung.
+- Server: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` in `.env`; Absender `VAPID_SUBJECT` oder die https-Adresse aus
+  `APP_URL`. Ohne Schlüssel ist Push aus und der Knopf erscheint nicht.
+
 **GPS-Check-in** (einrichten: Einsatzorte → Einsatzort bearbeiten → „GPS-Check-in“)
 - Admin trägt Breiten- und Längengrad ein (oder „Aktuellen Standort übernehmen“ vor Ort), den Radius
   (Vorgabe 50 m) und schaltet „GPS-Check-in erforderlich“ ein.

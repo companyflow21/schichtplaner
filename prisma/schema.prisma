@@ -34,6 +34,7 @@ model User {
   uploadedFiles     PortalFile[]
   createdIssues     BranchIssue[]
   checkins          Checkin[]
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
 }
@@ -83,6 +84,7 @@ model Organization {
   timeCorrections   TimeCorrection[]
   qualificationCatalog Qualification[]
   checkins          Checkin[]
+  pushSubscriptions PushSubscription[]
 
   @@map("organizations")
 }
@@ -638,6 +640,9 @@ model MessageRecipient {
   userId    String
   isRead    Boolean @default(false)
   isDeleted Boolean @default(false)
+  /// Push-Versand erledigt (gesendet oder bewusst uebersprungen). Offene
+  /// Zeilen arbeitet der Server-Hintergrundlauf ab (src/lib/push.ts).
+  pushedAt  DateTime?
 
   message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -812,4 +817,23 @@ model OrgSettings {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("org_settings")
+}
+
+/// Browser-Push-Abo eines Geraets (Web-Push-Standard). Der Server sendet
+/// nur inhaltsleere Hinweise ("neue Mitteilung"); Details stehen in der App.
+model PushSubscription {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  endpoint       String   @unique
+  p256dh         String
+  auth           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }

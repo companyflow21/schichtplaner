@@ -20,6 +20,9 @@ import { messagingTests } from "./messaging";
 import { fileTests } from "./files";
 import { exchangeDstTests } from "./exchange-dst";
 import { orgDeleteTests } from "./org-delete";
+import { pushApiTests } from "./push-api";
+import { qualificationEditTests } from "./qualification-edit";
+import webpush from "web-push";
 
 async function main() {
 const sql = new PGlite();
@@ -54,12 +57,14 @@ const category = await client.absenceCategory.create({ data: { organizationId: o
 const foreignCategory = await client.timeCategory.create({ data: { organizationId: other.id, name: "Privat" } });
 await client.$disconnect();
 
+// Nur fuer diesen Testlauf erzeugte Push-Schluessel; der Versand ist abgeschaltet.
+const vapid = webpush.generateVAPIDKeys();
 const port = Number(process.env.TEST_PORT || 3305);
 const base = "http://127.0.0.1:" + port;
 // Der eigene Server (server.ts) statt "next dev": nur so laufen Socket.IO und
 // die Echtzeit-Rechtepruefung mit.
 const child = spawn(process.execPath, ["node_modules/tsx/dist/cli.mjs", "server.ts"], {
-  cwd: process.cwd(), windowsHide: true, env: { ...process.env, NODE_ENV: "development", NEXT_DEV_WEBPACK: "1", PORT: String(port), DATABASE_URL: url, DATABASE_POOL_MAX: "1", AUTH_SECRET: "integration-test-secret-only-0123456789abcdef", AUTH_TRUST_HOST: "true", AUTH_URL: base, APP_URL: base, AI_ENABLED: "false", ALLOW_REGISTRATION: "false", NEXT_TELEMETRY_DISABLED: "1", TZ: "Europe/Berlin" },
+  cwd: process.cwd(), windowsHide: true, env: { ...process.env, NODE_ENV: "development", NEXT_DEV_WEBPACK: "1", PORT: String(port), DATABASE_URL: url, DATABASE_POOL_MAX: "1", AUTH_SECRET: "integration-test-secret-only-0123456789abcdef", AUTH_TRUST_HOST: "true", AUTH_URL: base, APP_URL: base, AI_ENABLED: "false", ALLOW_REGISTRATION: "false", PUSH_LOOP_DISABLED: "1", VAPID_PUBLIC_KEY: vapid.publicKey, VAPID_PRIVATE_KEY: vapid.privateKey, VAPID_SUBJECT: "mailto:push-test@akro-test.invalid", NEXT_TELEMETRY_DISABLED: "1", TZ: "Europe/Berlin" },
   stdio: ["ignore", "pipe", "pipe"]
 });
 let serverLog = "";
@@ -225,6 +230,7 @@ try {
   await permissionTests(context);
   await staffSiteTests(context);
   await catalogTargetTests(context);
+  await qualificationEditTests(context);
   await exchangeTests(context);
   await siteGpsTests(context);
   await checkinTests(context);
@@ -232,6 +238,7 @@ try {
   await exchangeDstTests(context);
   await fileTests(context);
   await orgDeleteTests(context);
+  await pushApiTests(context);
   console.log("FINAL SUCCESS: " + checks + " assertions / HTTP checks passed.");
   if (process.argv.includes("--serve")) {
     console.log("BROWSER_PREVIEW " + base + " — admin@akro-test.invalid / " + password);

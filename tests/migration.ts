@@ -240,6 +240,20 @@ async function main() {
   check((await rows(gps, `SELECT 1 FROM "checkins"`)).length === 3, "at most one active check-in per shift and person; declined ones stay as history");
   await gps.close();
 
+  // Push: bestehende Empfaengerzeilen gelten als erledigt (kein Nachschicken alter Mitteilungen).
+  const PUSH = "20260929120000_push_subscriptions";
+  const push = await database(PUSH);
+  await push.exec(`
+    INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('p1','Org Push',${now});
+    INSERT INTO "users" ("id","email","firstName","lastName","updatedAt") VALUES ('pa','pa@akro-test.invalid','Paul','Alt',${now});
+    INSERT INTO "messages" ("id","organizationId","senderId","subject","body") VALUES ('pm','p1','pa','Alt','Text');
+    INSERT INTO "message_recipients" ("messageId","userId","isRead") VALUES ('pm','pa',false);
+  `);
+  await push.exec(await readFile("prisma/migrations/" + PUSH + "/migration.sql", "utf8"));
+  const recipient = (await rows<{ pushedAt: Date | null; isRead: boolean }>(push, `SELECT "pushedAt","isRead" FROM "message_recipients" WHERE "messageId"='pm'`))[0];
+  check(recipient.pushedAt !== null && recipient.isRead === false, "existing unread messages are marked as pushed, read state unchanged");
+  await push.close();
+
   console.log("SUCCESS: " + checks + " migration checks passed.");
 }
 

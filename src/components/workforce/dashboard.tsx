@@ -11,6 +11,7 @@ import { monthLinkForOpen } from "@/components/schedule/month-grid";
 import { dateLabel, ErrorMessage, json, useAction } from "./client";
 import { Requests } from "./requests";
 import { CheckinUebersicht, EigenerCheckin } from "./checkins";
+import { PushSetup } from "./push-setup";
 
 type Shift = {
   id: string;
@@ -171,6 +172,7 @@ function ManagerStart({ data }: { data: ManagerData }) {
       />
 
       {/* Eigener Check-in (nur bei eigener Schicht mit Check-in) und Check-ins des Teams. */}
+      <PushSetup />
       <EigenerCheckin />
       <CheckinUebersicht />
 
@@ -330,6 +332,7 @@ function MitarbeiterStart({ data, action }: { data: EmployeeData; action: Return
 
   return (
     <>
+      <PushSetup />
       <EigenerCheckin />
 
       <section className="akro-panel overflow-hidden" aria-labelledby="naechste-titel">

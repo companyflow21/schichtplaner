@@ -5,6 +5,7 @@ import { Server as SocketIOServer, type Socket } from "socket.io";
 import { decode } from "next-auth/jwt";
 import { db } from "./src/lib/db";
 import { allowedRooms, canJoinSchedule, type RealtimeSession } from "./src/lib/realtime";
+import { startPushLoop } from "./src/lib/push";
 
 const dev = process.env.NODE_ENV !== "production";
 // Bindeadresse im Container, nicht die oeffentliche Adresse.
@@ -196,5 +197,7 @@ app.prepare().then(() => {
 
   httpServer.listen(port, bindAdresse, () => {
     console.log(`> Ready on http://${bindAdresse}:${port}`);
+    // Browser-Push fuer neue Mitteilungen (nur mit VAPID-Schluesseln).
+    startPushLoop();
   });
 });
