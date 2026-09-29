@@ -14,3 +14,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return { success: true };
   });
 }
+
+/** Kunde endgueltig loeschen - nur ohne Einsatzorte (auch inaktive); sonst deaktivieren. */
+export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  return api(async () => {
+    const a = await requireAccess();
+    requireAdmin(a);
+    const { id } = await context.params;
+    const customer = await db.customer.findFirst({ where: { id, organizationId: a.orgId }, select: { _count: { select: { branches: true } } } });
+    if (!customer) throw new ApiError("Kunde nicht gefunden.", 404);
+    if (customer._count.branches) throw new ApiError("Der Kunde hat noch Einsatzorte. Bitte zuerst die Einsatzorte löschen oder den Kunden deaktivieren.", 409);
+    await db.customer.delete({ where: { id } });
+    return { success: true };
+  });
+}
