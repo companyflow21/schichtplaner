@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="28 26 668 836" width="668" height="836">
+  <title>AKRO-Sicherheit Schild</title>
+  <defs>
+    <!-- Schildkontur -->
+    <path id="shield" d="M378.6 43 L671.2 165.8 Q686 172 686 188 L686 480 C686 690 557 702 381.8 836.8 Q362 852 342.2 836.8 C167 702 38 690 38 480 L38 188 Q38 172 52.8 165.8 L345.4 43 Q362 36 378.6 43 Z"/>
+    <clipPath id="clip"><use href="#shield"/></clipPath>
+
+    <!-- Rahmen: dunkles Marineblau -->
+    <linearGradient id="gBorder" x1="0" y1="36" x2="0" y2="852" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#353c7a"/>
+      <stop offset="0.5" stop-color="#2a3070"/>
+      <stop offset="1" stop-color="#222862"/>
+    </linearGradient>
+
+    <!-- Linke Wand: oben hell, unten links tiefblau -->
+    <linearGradient id="gLeft" x1="300" y1="110" x2="120" y2="580" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7cbbef"/>
+      <stop offset="0.35" stop-color="#63a0e4"/>
+      <stop offset="0.7" stop-color="#4677cd"/>
+      <stop offset="1" stop-color="#2b479f"/>
+    </linearGradient>
+    <!-- Glanz entlang der senkrechten Kante (linke Wand) -->
+    <linearGradient id="gLeftEdge" x1="362" y1="0" x2="250" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8ec8f5" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#8ec8f5" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Rechte Wand: oben an der Kante dunkel, unten rechts hell -->
+    <linearGradient id="gRight" x1="380" y1="120" x2="620" y2="570" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3357bb"/>
+      <stop offset="0.4" stop-color="#4e82dc"/>
+      <stop offset="0.75" stop-color="#67a3ec"/>
+      <stop offset="1" stop-color="#80c6fb"/>
+    </linearGradient>
+
+    <!-- Boden: links hell, rechts dunkel -->
+    <linearGradient id="gFloor" x1="110" y1="560" x2="620" y2="620" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#78b6ea"/>
+      <stop offset="0.3" stop-color="#5f9ae0"/>
+      <stop offset="0.6" stop-color="#4a79d0"/>
+      <stop offset="1" stop-color="#3150b3"/>
+    </linearGradient>
+    <!-- Lichtkeil im Boden (unten Mitte) -->
+    <radialGradient id="gFloorGlow" cx="385" cy="735" r="190" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9ccdf6" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#9ccdf6" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Schlüsselloch -->
+    <linearGradient id="gKey" x1="0" y1="350" x2="0" y2="530" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#262e72"/>
+      <stop offset="1" stop-color="#1f2664"/>
+    </linearGradient>
+  </defs>
+
+  <g clip-path="url(#clip)">
+    <!-- Linke Wand -->
+    <polygon points="362,0 362,432 0,641 0,0" fill="url(#gLeft)"/>
+    <polygon points="362,0 362,432 0,641 0,0" fill="url(#gLeftEdge)"/>
+    <!-- Rechte Wand -->
+    <polygon points="362,0 362,432 724,641 724,0" fill="url(#gRight)"/>
+    <!-- Boden -->
+    <polygon points="362,432 0,641 0,900 724,900 724,641" fill="url(#gFloor)"/>
+    <polygon points="362,432 0,641 0,900 724,900 724,641" fill="url(#gFloorGlow)"/>
+
+    <!-- heller Innenrand -->
+    <use href="#shield" fill="none" stroke="#8fcaf7" stroke-opacity="0.8" stroke-width="126"/>
+    <!-- Rahmen (innere Hälfte des Strichs, 60 breit) -->
+    <use href="#shield" fill="none" stroke="url(#gBorder)" stroke-width="120"/>
+  </g>
+  <!-- saubere Außenkante (deckt Antialiasing-Saum ab) -->
+  <use href="#shield" fill="none" stroke="url(#gBorder)" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- Schlüsselloch -->
+  <g fill="url(#gKey)">
+    <circle cx="362" cy="396" r="46"/>
+    <path d="M339 420 L385 420 L411 524 Q412 529 407 529 L317 529 Q312 529 313 524 Z"/>
+  </g>
+</svg>

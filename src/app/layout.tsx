@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     template: "%s | AKRO Schichtplaner",
   },
   description: "Dienst- und Schichtplanung der AKRO GmbH",
-  icons: { icon: "/akro/img/favicon.svg", apple: "/akro/img/apple-touch-icon.png" },
+  icons: { icon: "/akro/img/akro-schild.svg", apple: "/akro/img/apple-touch-icon.png" },
   // Installierbar (Home-Bildschirm) - auf dem iPhone Voraussetzung fuer Push.
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "AKRO Dienstplan", statusBarStyle: "default" },
