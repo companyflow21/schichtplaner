@@ -8,11 +8,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { json } from "@/components/workforce/client";
+import { json, useAction } from "@/components/workforce/client";
 
-/** Qualifikationskatalog: Admins legen Eintraege an; Loeschen ist nicht vorgesehen. */
+/** Qualifikationskatalog: Admins legen Eintraege an, benennen sie um oder loeschen unbenutzte. */
 export function QualificationSettings() {
   const [name, setName] = useState("");
+  const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
+  const action = useAction();
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["qualifications"], queryFn: () => json<{ qualifications: { id: string; name: string }[] }>("/api/qualifications") });
   const create = useMutation({
@@ -50,7 +52,42 @@ export function QualificationSettings() {
           <p className="text-sm text-muted-foreground">{query.isLoading ? "Wird geladen …" : "Noch keine Qualifikationen angelegt."}</p>
         ) : (
           <ul className="divide-y rounded-[var(--radius)] border">
-            {list.map((q) => <li key={q.id} className="px-3 py-2 text-sm">{q.name}</li>)}
+            {list.map((q) => (
+              <li key={q.id} className="flex flex-col gap-2 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                {editing?.id === q.id ? (
+                  <form
+                    className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!editing.name.trim()) return;
+                      action.mutate({ url: "/api/qualifications/" + q.id, method: "PATCH", data: { name: editing.name.trim() }, message: "Qualifikation umbenannt" }, { onSuccess: () => setEditing(null) });
+                    }}
+                  >
+                    <Input aria-label={"Neuer Name für " + q.name} value={editing.name} onChange={(e) => setEditing({ id: q.id, name: e.target.value })} maxLength={100} autoFocus />
+                    <div className="flex gap-2">
+                      <Button type="submit" size="sm" disabled={action.isPending || !editing.name.trim()}>Speichern</Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => setEditing(null)}>Abbrechen</Button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <span className="break-words">{q.name}</span>
+                    <div className="flex gap-2">
+                      <Button type="button" size="sm" variant="outline" disabled={action.isPending} onClick={() => setEditing({ id: q.id, name: q.name })}>Umbenennen</Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={action.isPending}
+                        onClick={() => { if (confirm("Qualifikation „" + q.name + "“ wirklich löschen?")) action.mutate({ url: "/api/qualifications/" + q.id, method: "DELETE", message: "Qualifikation gelöscht" }); }}
+                      >
+                        Löschen
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </li>
+            ))}
           </ul>
         )}
       </Card>
