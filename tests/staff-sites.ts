@@ -146,7 +146,7 @@ export async function staffSiteTests(t: TestContext) {
   const pforteOhne = await mP.request("/api/bookings", "POST", { shiftId: pforte.id, userId: p.Fritz.user.id }, 409);
   check(pforteOhne.confirm === true && pforteOhne.warnings.some((w: string) => w.includes("Tätigkeit")), "activity mismatch asks for confirmation instead of blocking");
   await mP.request("/api/bookings", "POST", { shiftId: pforte.id, userId: p.Fritz.user.id, confirm: true });
-  await admin.request("/api/employees/" + p.Gerd.id, "DELETE");
+  await admin.request("/api/employees/" + p.Gerd.id, "PATCH", { isActive: false });
 
   // --- Reihenfolge der Auswahl (Paula: Anlage 1, 2 und 6 planen) ---------
   const ALLOWED = ["userId", "firstName", "lastName", "group", "selectable", "confirm", "reasons", "hints"];

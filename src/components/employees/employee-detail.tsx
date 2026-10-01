@@ -12,6 +12,7 @@ import {
   Check,
   X,
   Trash2,
+  UserX,
   Loader2,
   StickyNote,
   Send,
@@ -48,6 +49,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Personnel } from "@/components/workforce/personnel";
 import { AccessEditor } from "./access-editor";
+import { DeleteEmployeeDialog } from "./delete-employee-dialog";
 
 type EmployeeDetail = {
   id: string;
@@ -71,6 +73,8 @@ type EmployeeDetail = {
     notes: boolean;
     admin: boolean;
     manageAccess: boolean;
+    /** Endgültig löschen: Admins sowie Manager mit dem Recht „Mitarbeiter löschen“. */
+    delete: boolean;
   };
 };
 
@@ -200,7 +204,8 @@ function InlineEdit({
 export function EmployeeDetail({ memberId }: { memberId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const [eraseOpen, setEraseOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
 
   // Fetch employee detail
@@ -277,22 +282,25 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
     },
   });
 
-  // Delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
+  // Deaktivieren und Reaktivieren: Konto und Daten bleiben erhalten (endgültiges Löschen: DeleteEmployeeDialog).
+  const activeMutation = useMutation({
+    mutationFn: async (isActive: boolean) => {
       const res = await fetch(`/api/employees/${memberId}`, {
-        method: "DELETE",
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive }),
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Fehler beim Deaktivieren");
+        throw new Error(err.error || "Fehler beim Speichern");
       }
       return res.json();
     },
-    onSuccess: () => {
-      toast.success("Mitarbeiter deaktiviert");
+    onSuccess: (_result, isActive) => {
+      toast.success(isActive ? "Mitarbeiter reaktiviert" : "Mitarbeiter deaktiviert");
+      queryClient.invalidateQueries({ queryKey: ["employee", memberId] });
       queryClient.invalidateQueries({ queryKey: ["employees"] });
-      router.push("/employees");
+      if (!isActive) router.push("/employees");
     },
     onError: (err: Error) => {
       toast.error(err.message);
@@ -345,7 +353,8 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
 
   const canEdit = employee.permissions.editContact;
   const canChangeRole = employee.permissions.admin;
-  const canDelete = employee.permissions.admin;
+  const canDeactivate = employee.permissions.admin;
+  const canErase = employee.permissions.delete;
 
   return (
     <div className="space-y-6">
@@ -390,30 +399,27 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
         </div>
 
         {/* Actions dropdown */}
-        {(canChangeRole || canDelete) && (
+        {(canChangeRole || canDeactivate || canErase) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">Aktionen</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {canDelete && employee.isActive && (
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => setDeleteOpen(true)}
-                >
-                  <Trash2 className="size-4" />
+              {canDeactivate && employee.isActive && (
+                <DropdownMenuItem onClick={() => setDeactivateOpen(true)}>
+                  <UserX className="size-4" />
                   Deaktivieren
                 </DropdownMenuItem>
               )}
-              {canDelete && !employee.isActive && (
-                <DropdownMenuItem
-                  onClick={() => {
-                    // Reactivate by updating isActive through a custom approach
-                    // For now we use the PATCH endpoint concept
-                    toast.info("Reaktivierung noch nicht implementiert");
-                  }}
-                >
+              {canDeactivate && !employee.isActive && (
+                <DropdownMenuItem onClick={() => activeMutation.mutate(true)}>
                   Reaktivieren
+                </DropdownMenuItem>
+              )}
+              {canErase && (
+                <DropdownMenuItem variant="destructive" onClick={() => setEraseOpen(true)}>
+                  <Trash2 className="size-4" />
+                  Mitarbeiter löschen
                 </DropdownMenuItem>
               )}
               {canChangeRole && (
@@ -653,8 +659,9 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
 
       <Personnel id={employee.id} />
       {employee.permissions.manageAccess && <AccessEditor memberId={employee.id} />}
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <DeleteEmployeeDialog memberId={memberId} open={eraseOpen} onOpenChange={setEraseOpen} />
+      {/* Deactivate Confirmation Dialog */}
+      <Dialog open={deactivateOpen} onOpenChange={setDeactivateOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Mitarbeiter deaktivieren?</DialogTitle>
@@ -665,18 +672,18 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+            <Button variant="outline" onClick={() => setDeactivateOpen(false)}>
               Abbrechen
             </Button>
             <Button
               variant="destructive"
               onClick={() => {
-                deleteMutation.mutate();
-                setDeleteOpen(false);
+                activeMutation.mutate(false);
+                setDeactivateOpen(false);
               }}
-              disabled={deleteMutation.isPending}
+              disabled={activeMutation.isPending}
             >
-              {deleteMutation.isPending && (
+              {activeMutation.isPending && (
                 <Loader2 className="size-4 animate-spin" />
               )}
               Deaktivieren

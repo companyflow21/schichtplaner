@@ -327,7 +327,7 @@ export async function permissionTests(t: TestContext) {
 
   // Deaktivierung trennt offene Verbindungen und sperrt die naechste Anfrage.
   const viewerSocket = await connect(viewer);
-  await admin.request("/api/employees/" + users.viewer.memberId, "DELETE");
+  await admin.request("/api/employees/" + users.viewer.memberId, "PATCH", { isActive: false });
   await waitFor(() => viewerSocket.disconnected, "deactivation closes open real-time connections");
   await viewer.request("/api/me", "GET", undefined, 401);
   viewerSocket.close();

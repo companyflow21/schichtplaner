@@ -12,7 +12,7 @@ export type BranchRightKey =
   | "EDIT_TIME"
   | "MANAGE_ISSUES"
   | "REQUEST_SHIFTS";
-export type StaffRightKey = "ASSIGN_SHIFTS" | "VIEW_PROFILE" | "EDIT_PROFILE" | "MANAGE_ABSENCES" | "VIEW_HOURS";
+export type StaffRightKey = "ASSIGN_SHIFTS" | "VIEW_PROFILE" | "EDIT_PROFILE" | "MANAGE_ABSENCES" | "VIEW_HOURS" | "DELETE_EMPLOYEE";
 
 export const BRANCH_RIGHTS: { key: BranchRightKey; label: string; hint: string }[] = [
   { key: "VIEW_SCHEDULE", label: "Dienstplan ansehen", hint: "Vollständiger Standortplan mit den Namen der Eingeteilten. Manager sehen auch Entwürfe." },
@@ -31,6 +31,7 @@ export const STAFF_RIGHTS: { key: StaffRightKey; label: string; hint: string }[]
   { key: "EDIT_PROFILE", label: "Stammdaten bearbeiten", hint: "Tätigkeit, Beschäftigungsart, Sollstunden, Qualifikationen und Notizen." },
   { key: "MANAGE_ABSENCES", label: "Abwesenheiten einsehen und entscheiden", hint: "Anträge sehen, genehmigen und ablehnen." },
   { key: "VIEW_HOURS", label: "Stunden einsehen", hint: "Zeitbuchungen und Monatswerte – nur an Standorten mit „Zeiterfassung einsehen“." },
+  { key: "DELETE_EMPLOYEE", label: "Mitarbeiter löschen", hint: "Konto und Personaldaten endgültig löschen; Arbeitszeiten und vergangene Einsätze bleiben ohne Konto (nur mit Namen) erhalten." },
 ];
 
 /** Wer ein Recht hat, hat auch die hier genannten. */
@@ -43,6 +44,8 @@ const BRANCH_IMPLIES: Partial<Record<BranchRightKey, BranchRightKey[]>> = {
 };
 const STAFF_IMPLIES: Partial<Record<StaffRightKey, StaffRightKey[]>> = {
   EDIT_PROFILE: ["VIEW_PROFILE"],
+  // Wer loeschen darf, muss die Person (Profilseite) auch sehen koennen; umgekehrt folgt das Loeschen aus nichts.
+  DELETE_EMPLOYEE: ["VIEW_PROFILE"],
 };
 
 export function isAdminRole(role?: string | null): boolean {
@@ -95,7 +98,8 @@ export const BRANCH_PRESETS: Record<"MANAGER" | "EMPLOYEE", { label: string; rig
 };
 export const STAFF_PRESETS: { label: string; rights: StaffRightKey[] }[] = [
   { label: "Einplanen", rights: ["ASSIGN_SHIFTS", "VIEW_PROFILE"] },
-  { label: "Personalverantwortung", rights: STAFF_RIGHTS.map((r) => r.key) },
+  // Loeschen wird nie mit einer Voreinstellung vergeben, nur ausdruecklich.
+  { label: "Personalverantwortung", rights: STAFF_RIGHTS.filter((r) => r.key !== "DELETE_EMPLOYEE").map((r) => r.key) },
 ];
 
 /** Rechte der angemeldeten Person, wie /api/me sie an die Oberflaeche gibt. */

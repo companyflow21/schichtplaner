@@ -34,8 +34,12 @@ export async function GET(request: Request) {
       const scope = sites && people ? { branchId: { in: sites }, userId: { in: people } } : {};
       const rows = await db.checkin.findMany({
         where: {
-          organizationId: a.orgId, userId: { not: a.userId }, ...scope,
-          OR: [{ status: "PENDING" }, { createdAt: { gte: new Date(addDate(date, -1) + "T12:00:00Z"), lt: new Date(addDate(date, 1) + "T12:00:00Z") } }],
+          organizationId: a.orgId, ...scope,
+          // Nicht die eigenen; Zeilen geloeschter Personen (userId leer) bleiben fuer Admins sichtbar - "not" allein liesse NULL aus.
+          AND: [
+            { OR: [{ userId: null }, { userId: { not: a.userId } }] },
+            { OR: [{ status: "PENDING" }, { createdAt: { gte: new Date(addDate(date, -1) + "T12:00:00Z"), lt: new Date(addDate(date, 1) + "T12:00:00Z") } }] },
+          ],
         },
         include: { user: { select: { id: true, firstName: true, lastName: true } }, formerEmployee: { select: { id: true, firstName: true, lastName: true } }, branch: { select: { id: true, name: true } }, shift: { include: { schedule: true } } },
         orderBy: { createdAt: "asc" },

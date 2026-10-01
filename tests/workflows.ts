@@ -23,6 +23,8 @@ import { orgDeleteTests } from "./org-delete";
 import { pushApiTests } from "./push-api";
 import { qualificationEditTests } from "./qualification-edit";
 import { assignmentTests } from "./assignment";
+import { shiftDeleteTests } from "./shift-delete";
+import { employeeDeleteTests } from "./employee-delete";
 import webpush from "web-push";
 
 async function main() {
@@ -54,6 +56,22 @@ for (const [name, role, organizationId, firstName, lastName] of people) {
   const m = await client.organizationMember.create({ data: { userId: user.id, organizationId, role, isActivated: true, position: "Sicherheit", qualifications: ["Erste Hilfe"] } });
   users[name] = { id: user.id, email: user.email, memberId: m.id, firstName, lastName };
 }
+// Eigene Organisationen fuer die Loeschtests (tests/employee-delete.ts): "Teilkonto A" mit Inhaber, Admin und einer
+// Person, die dasselbe Benutzerkonto auch in "Teilkonto B" hat. Beruehrt nichts der Hauptorganisation.
+const shareA = await client.organization.create({ data: { name: "Teilkonto A" } });
+const shareB = await client.organization.create({ data: { name: "Teilkonto B" } });
+const shareMember = async (name: string, userId: string, role: "OWNER" | "ADMIN" | "EMPLOYEE", organizationId: string, firstName: string, lastName: string, email: string, joinedAt: Date) => {
+  const m = await client.organizationMember.create({ data: { userId, organizationId, role, isActivated: true, joinedAt, position: "Sicherheit", qualifications: ["Erste Hilfe"] } });
+  users[name] = { id: userId, email, memberId: m.id, firstName, lastName };
+};
+for (const [name, role, organizationId, firstName, lastName] of [["shareOwnerA", "OWNER", shareA.id, "Olga", "Inhaberin"], ["shareAdminA", "ADMIN", shareA.id, "Anja", "Adminsechs"], ["shareAdminB", "ADMIN", shareB.id, "Bernd", "Adminsieben"]] as const) {
+  const email = name.toLowerCase() + "@akro-test.invalid";
+  const user = await client.user.create({ data: { firstName, lastName, email, passwordHash } });
+  await shareMember(name, user.id, role, organizationId, firstName, lastName, email, new Date());
+}
+const sharer = await client.user.create({ data: { firstName: "Sarah", lastName: "Geteilt", email: "sharer@akro-test.invalid", passwordHash } });
+await shareMember("sharedA", sharer.id, "EMPLOYEE", shareA.id, "Sarah", "Geteilt", sharer.email, new Date(Date.now() - 2 * 86400000));
+await shareMember("sharedB", sharer.id, "EMPLOYEE", shareB.id, "Sarah", "Geteilt", sharer.email, new Date(Date.now() - 86400000));
 const category = await client.absenceCategory.create({ data: { organizationId: org.id, name: "Urlaub" } });
 const foreignCategory = await client.timeCategory.create({ data: { organizationId: other.id, name: "Privat" } });
 await client.$disconnect();
@@ -65,7 +83,7 @@ const base = "http://127.0.0.1:" + port;
 // Der eigene Server (server.ts) statt "next dev": nur so laufen Socket.IO und
 // die Echtzeit-Rechtepruefung mit.
 const child = spawn(process.execPath, ["node_modules/tsx/dist/cli.mjs", "server.ts"], {
-  cwd: process.cwd(), windowsHide: true, env: { ...process.env, NODE_ENV: "development", NEXT_DEV_WEBPACK: "1", PORT: String(port), DATABASE_URL: url, DATABASE_POOL_MAX: "1", AUTH_SECRET: "integration-test-secret-only-0123456789abcdef", AUTH_TRUST_HOST: "true", AUTH_URL: base, APP_URL: base, AI_ENABLED: "false", ALLOW_REGISTRATION: "false", PUSH_LOOP_DISABLED: "1", VAPID_PUBLIC_KEY: vapid.publicKey, VAPID_PRIVATE_KEY: vapid.privateKey, VAPID_SUBJECT: "mailto:push-test@akro-test.invalid", NEXT_TELEMETRY_DISABLED: "1", TZ: "Europe/Berlin" },
+  cwd: process.cwd(), windowsHide: true, env: { ...process.env, NODE_ENV: "development", NEXT_DEV_WEBPACK: "1", PORT: String(port), DATABASE_URL: url, DATABASE_POOL_MAX: "1", AUTH_SECRET: "integration-test-secret-only-0123456789abcdef", AUTH_TRUST_HOST: "true", AUTH_URL: base, APP_URL: base, AI_ENABLED: "false", ALLOW_REGISTRATION: "false", PUSH_LOOP_DISABLED: "1", ALLOW_TEST_FAULTS: "1", VAPID_PUBLIC_KEY: vapid.publicKey, VAPID_PRIVATE_KEY: vapid.privateKey, VAPID_SUBJECT: "mailto:push-test@akro-test.invalid", NEXT_TELEMETRY_DISABLED: "1", TZ: "Europe/Berlin" },
   stdio: ["ignore", "pipe", "pipe"]
 });
 let serverLog = "";
@@ -247,6 +265,8 @@ try {
   if (run("org-delete")) await orgDeleteTests(context);
   if (run("push-api")) await pushApiTests(context);
   if (run("assignment")) await assignmentTests(context);
+  if (run("shift-delete")) await shiftDeleteTests(context);
+  if (run("employee-delete")) await employeeDeleteTests(context);
   console.log("FINAL SUCCESS: " + checks + " assertions / HTTP checks passed.");
   if (process.argv.includes("--serve")) {
     console.log("BROWSER_PREVIEW " + base + " — admin@akro-test.invalid / " + password);
