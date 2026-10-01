@@ -32,8 +32,11 @@ type Shift = {
     customer: { name: string } | null;
   } | null;
   bookings: {
-    userId: string;
+    /** null: geloeschte Person (Historie). */
+    userId: string | null;
     confirmedAt: string | null;
+    /** PLANNER: von der Planung fest eingeteilt, EMPLOYEE: selbst bestätigt, null: Altbestand. */
+    confirmation?: "PLANNER" | "EMPLOYEE" | null;
     user: { firstName: string; lastName: string };
   }[];
 };
@@ -163,7 +166,7 @@ function ManagerStart({ data }: { data: ManagerData }) {
       <OffeneAufgaben
         eintraege={[
           { zahl: counts.openSlots, label: "offene Plätze", zusatz: `nächste ${overview.horizon.days} Tage`, href: "#kunden", dringend: true },
-          { zahl: counts.unconfirmed, label: "Bestätigungen offen", href: "/schedule/month" },
+          { zahl: counts.unconfirmed, label: "Bestätigungen offen", zusatz: "ältere Zuweisungen", href: "/schedule/month" },
           { zahl: anträge, label: "Anträge offen", href: "#antraege" },
           { zahl: counts.pendingAbsences, label: "Abwesenheiten zur Freigabe", href: "/employees/absences" },
           { zahl: counts.openIssues, label: "Standortmeldungen offen", href: "#kunden" },
@@ -221,7 +224,8 @@ function ManagerStart({ data }: { data: ManagerData }) {
           leer="Heute keine Schichten an deinen Standorten."
           eintraege={data.todayShifts}
           render={(s) => {
-            const unbestätigt = s.bookings.filter((b) => !b.confirmedAt).length;
+            // Nur Altbestand ohne Bestätigung; Einteilungen der Planung sind verbindlich.
+            const unbestätigt = s.bookings.filter((b) => b.userId && !b.confirmedAt).length;
             return (
               <SchichtZeile
                 key={s.id}
@@ -324,11 +328,19 @@ function StandortZeile({ branch }: { branch: BranchCard }) {
   );
 }
 
-/** Mitarbeitersicht: die naechste Schicht zuerst - ihre Bestaetigung ist die Hauptaktion. */
+/**
+ * Mitarbeitersicht: die naechste Schicht zuerst. Einteilungen der Planung
+ * sind fest; nur Altbestand ohne Herkunft wartet noch auf eine Bestaetigung.
+ */
 function MitarbeiterStart({ data, action }: { data: EmployeeData; action: ReturnType<typeof useAction> }) {
   const nächste = data.own[0];
   const eigeneBuchung = nächste?.bookings.find((b) => b.userId === data.userId);
   const bestätigt = !!eigeneBuchung?.confirmedAt;
+  const status = eigeneBuchung?.confirmation === "PLANNER"
+    ? <StatusBadge ton="ok" klein>fest eingeteilt</StatusBadge>
+    : bestätigt
+      ? <StatusBadge ton="ok" klein>bestätigt</StatusBadge>
+      : <StatusBadge ton="hinweis" klein>nicht bestätigt</StatusBadge>;
 
   return (
     <>
@@ -338,7 +350,7 @@ function MitarbeiterStart({ data, action }: { data: EmployeeData; action: Return
       <section className="akro-panel overflow-hidden" aria-labelledby="naechste-titel">
         <div className="akro-panel-kopf flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
           <h2 id="naechste-titel" className="text-[14px] font-semibold tracking-[-0.02em]">Deine nächste Schicht</h2>
-          {nächste && (bestätigt ? <StatusBadge ton="ok" klein>bestätigt</StatusBadge> : <StatusBadge ton="hinweis" klein>nicht bestätigt</StatusBadge>)}
+          {nächste && status}
         </div>
         {nächste ? (
           <div className="space-y-3 p-4">

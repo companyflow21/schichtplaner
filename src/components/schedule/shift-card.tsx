@@ -1,13 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Plus, X } from "lucide-react";
+import { ArrowLeftRight, Copy, Loader2, Plus, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
 import { EmployeePicker } from "./employee-picker";
+import { CopyShiftDialog } from "./copy-shift-dialog";
 import { WishRequestButton, WishCountBadge } from "./wish-plan";
 import type { ShiftData, ScheduleLayout } from "@/types/schedule";
 import type { WishRequest } from "./wish-plan";
@@ -35,6 +37,17 @@ interface ShiftCardProps {
 
 function getInitials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+}
+
+/** Fehler mit bestaetigbaren Hinweisen (409 { confirm: true, warnings }). */
+class RequestError extends Error {
+  constructor(message: string, public confirm = false, public warnings: string[] = []) { super(message); }
+}
+async function send(method: string, data: unknown, fallback: string) {
+  const res = await fetch("/api/bookings", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+  const result = await res.json().catch(() => ({}));
+  if (!res.ok) throw new RequestError(result.error || fallback, result.confirm === true, Array.isArray(result.warnings) ? result.warnings : []);
+  return result;
 }
 
 export function ShiftCard({
@@ -113,6 +126,23 @@ export function ShiftCard({
     },
   });
 
+  // Mitarbeiter wechseln: eine Zuweisung atomar ersetzen (PUT /api/bookings).
+  type Replace = { userId: string; replacementUserId: string; confirm?: boolean };
+  const [hinweis, setHinweis] = useState<(Replace & { warnings: string[] }) | null>(null);
+  const [kopieren, setKopieren] = useState(false);
+  const replaceMutation = useMutation({
+    mutationFn: (vars: Replace) => send("PUT", { shiftId: shift.id, ...vars, ...(vars.confirm ? { confirm: true } : {}) }, "Wechsel nicht möglich"),
+    onSuccess: () => {
+      toast.success("Mitarbeiter gewechselt");
+      queryClient.invalidateQueries({ queryKey: ["schedule"] });
+    },
+    onError: (error: Error, vars) => {
+      // Hinweis erst beim Speichern erkannt: genau einmal nachfragen.
+      if (error instanceof RequestError && error.confirm && !vars.confirm) setHinweis({ ...vars, warnings: error.warnings });
+      else toast.error(error.message);
+    },
+  });
+
   // Add place mutation
   const addPlaceMutation = useMutation({
     mutationFn: async () => {
@@ -138,7 +168,7 @@ export function ShiftCard({
     bookMutation.mutate({ userId, confirm });
   }
 
-  const isPending = bookMutation.isPending || unbookMutation.isPending || addPlaceMutation.isPending;
+  const isPending = bookMutation.isPending || unbookMutation.isPending || replaceMutation.isPending || addPlaceMutation.isPending;
   const bookedUserIds = shift.bookings.flatMap((b) => (b.userId ? [b.userId] : []));
 
   // Can the current user book themselves into an empty slot?
@@ -150,7 +180,8 @@ export function ShiftCard({
     !isFull;
 
   const isLayout1 = layout === "LAYOUT_1";
-  const offeneBestätigungen = shift.bookings.filter((b) => !b.confirmedAt).length;
+  // Nur fuer die Planung und nur Altbestand: Einteilungen der Planung sind verbindlich.
+  const offeneBestätigungen = canEdit ? shift.bookings.filter((b) => b.userId && !b.confirmedAt).length : 0;
 
   return (
     <div
@@ -278,6 +309,28 @@ export function ShiftCard({
                 )}
               </span>
               {canUnbook && (
+                <EmployeePicker
+                  mode="replace"
+                  heading={`${booking.user.firstName} ${booking.user.lastName} ersetzen durch …`}
+                  bookedUserIds={bookedUserIds}
+                  shiftId={shift.id}
+                  onSelect={(replacementUserId, confirm) => booking.userId && replaceMutation.mutate({ userId: booking.userId, replacementUserId, confirm })}
+                >
+                  <button
+                    type="button"
+                    className="opacity-0 group-hover/slot:opacity-100 focus-visible:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                    title="Mitarbeiter wechseln"
+                    aria-label={`${booking.user.firstName} ${booking.user.lastName} durch andere Person ersetzen`}
+                  >
+                    {replaceMutation.isPending ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      <ArrowLeftRight className="size-3" />
+                    )}
+                  </button>
+                </EmployeePicker>
+              )}
+              {canUnbook && (
                 <ConfirmDialog
                   title="Zuweisung aufheben"
                   description={`${booking.user.firstName} ${booking.user.lastName} wird aus dieser Schicht entfernt. Der Platz ist danach wieder offen.`}
@@ -349,18 +402,49 @@ export function ShiftCard({
           </div>
         ))}
 
-        {/* + Platz button for managers */}
+        {/* + Platz und Kopieren fuer die Planung */}
         {canEdit && (
-          <button
-            type="button"
-            className="flex w-full items-center gap-1.5 pt-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-            onClick={() => addPlaceMutation.mutate()}
-          >
-            <Plus className="size-3" />
-            Platz
-          </button>
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <button
+              type="button"
+              className="flex items-center gap-1.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+              onClick={() => addPlaceMutation.mutate()}
+            >
+              <Plus className="size-3" />
+              Platz
+            </button>
+            {shift.branchId && (
+              <button
+                type="button"
+                className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                onClick={() => setKopieren(true)}
+                title="Schicht auf weitere Tage kopieren"
+                aria-label="Schicht auf weitere Tage kopieren"
+              >
+                <Copy className="size-3" />
+                Kopieren
+              </button>
+            )}
+          </div>
         )}
       </div>
+
+      {canEdit && kopieren && <CopyShiftDialog shift={shift} open={kopieren} onOpenChange={setKopieren} />}
+
+      <ConfirmDialog
+        open={hinweis !== null}
+        onOpenChange={(value) => {
+          if (!value) setHinweis(null);
+        }}
+        title="Trotz Hinweis wechseln?"
+        description={hinweis ? `${hinweis.warnings.join(" ")} Der Wechsel wird trotzdem gespeichert.` : ""}
+        confirmLabel="Trotzdem wechseln"
+        destructive={false}
+        onConfirm={() => {
+          if (hinweis) replaceMutation.mutate({ userId: hinweis.userId, replacementUserId: hinweis.replacementUserId, confirm: true });
+          setHinweis(null);
+        }}
+      />
     </div>
   );
 }

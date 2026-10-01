@@ -41,6 +41,10 @@ interface EmployeePickerProps {
   onSelect: (userId: string, confirm: boolean) => void;
   shiftId: string;
   children: React.ReactNode;
+  /** replace: Auswahl ersetzt eine bestehende Zuweisung ("Mitarbeiter wechseln"). */
+  mode?: "assign" | "replace";
+  /** Kopfzeile der Auswahl, etwa wer ersetzt wird. */
+  heading?: string;
 }
 
 function headings(data: CandidateData): Record<Candidate["group"], string> {
@@ -71,7 +75,10 @@ export function EmployeePicker({
   onSelect,
   shiftId,
   children,
+  mode = "assign",
+  heading,
 }: EmployeePickerProps) {
+  const replace = mode === "replace";
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<Candidate | null>(null);
 
@@ -102,7 +109,10 @@ export function EmployeePicker({
         <PopoverTrigger asChild>{children}</PopoverTrigger>
         <PopoverContent className="w-80 p-0" align="start" sideOffset={4}>
           <Command>
-            <CommandInput placeholder="Mitarbeiter suchen..." />
+            {heading && (
+              <div className="border-b px-3 py-2 text-[12.5px] font-medium">{heading}</div>
+            )}
+            <CommandInput placeholder={replace ? "Ersatz suchen..." : "Mitarbeiter suchen..."} />
             <CommandList className="max-h-[360px]">
               {isLoading ? (
                 <div className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
@@ -166,13 +176,13 @@ export function EmployeePicker({
         onOpenChange={(value) => {
           if (!value) setPending(null);
         }}
-        title="Trotz Hinweis einteilen?"
+        title={replace ? "Trotz Hinweis wechseln?" : "Trotz Hinweis einteilen?"}
         description={
           pending
-            ? `${pending.firstName} ${pending.lastName}: ${pending.hints.join(" ")} Die Einteilung wird trotzdem gespeichert.`
+            ? `${pending.firstName} ${pending.lastName}: ${pending.hints.join(" ")} ${replace ? "Der Wechsel" : "Die Einteilung"} wird trotzdem gespeichert.`
             : ""
         }
-        confirmLabel="Trotzdem einteilen"
+        confirmLabel={replace ? "Trotzdem wechseln" : "Trotzdem einteilen"}
         destructive={false}
         onConfirm={() => {
           if (pending) onSelect(pending.userId, true);

@@ -120,3 +120,18 @@ export type DivisionOption = {
   title: string;
   color: string;
 };
+
+/** Konflikt oder Hinweis einer Einteilung beim Anlegen oder Kopieren: Person, Tag, Ursache. */
+export type AssignmentIssue = { userId: string; name: string; date: string; reasons: string[] };
+
+/** Vorschau beim Anlegen oder Kopieren (preview: true) - es wurde nichts gespeichert. */
+export type ShiftPreview = {
+  preview: true;
+  occurrences: { date: string; shiftFrom: string; shiftTo: string; endsNextDay: boolean; duplicate: boolean }[];
+  conflicts: AssignmentIssue[];
+  warnings: AssignmentIssue[];
+};
+
+/** Einplanbare Personen eines Standorts fuer neue Schichten (GET /api/shifts/pool). */
+export type PoolPerson = { userId: string; firstName: string; lastName: string; group: "site" | "customer" | "rest"; sites: string[] };
+export type PoolData = { site: string; customer: string | null; admin: boolean; people: PoolPerson[] };
