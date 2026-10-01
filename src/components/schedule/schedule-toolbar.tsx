@@ -11,6 +11,7 @@ import { formatDateShort, formatKW, getCurrentKW, getWeekDates } from "@/lib/uti
 import type { ScheduleAccess, ScheduleData, ScheduleResponse } from "@/types/schedule";
 import { AISuggestButton } from "./ai-suggest-button";
 import { LiveMode } from "./live-mode";
+import { PdfExportDialog } from "./pdf-export-dialog";
 import { BriefingButton, DivisionFilter, OptionsMenu, VisibilityToggle } from "./schedule-options";
 import { ViewSwitcher } from "./view-switcher";
 import { WishFilterToggle } from "./wish-plan";
@@ -30,6 +31,8 @@ interface ScheduleToolbarProps {
   openWishCount: number;
   /** Nur gesetzt, wenn neue Schichten an diesem Standort erlaubt sind. */
   onAddShift?: () => void;
+  /** In der Ansicht ausgewaehlte Person - Vorgabe fuer den PDF-Export. */
+  selectedEmployeeId?: string | null;
 }
 
 /** Letzte ISO-Woche eines Jahres; der 28.12. liegt immer darin. */
@@ -68,6 +71,7 @@ export function ScheduleToolbar({
   onWishFilterChange,
   openWishCount,
   onAddShift,
+  selectedEmployeeId = null,
 }: ScheduleToolbarProps) {
   const router = useRouter();
   const current = getCurrentKW();
@@ -90,7 +94,7 @@ export function ScheduleToolbar({
 
   const shifts = schedule?.shifts ?? [];
   const offenePlätze = shifts.reduce((summe, shift) => summe + (shift.missing ?? Math.max(0, shift.maxEmployees - (shift.occupiedCount ?? shift.bookings.length))), 0);
-  const fehlendeBestätigungen = shifts.reduce((summe, shift) => summe + shift.bookings.filter((b) => !b.confirmedAt).length, 0);
+  const fehlendeBestätigungen = shifts.reduce((summe, shift) => summe + shift.bookings.filter((b) => !b.confirmedAt && !b.former).length, 0);
   const darfVeröffentlichen = !!access?.publish && !!schedule?.id;
   // Ein Entwurf mit Schichten wartet aufs Veroeffentlichen - das ist dann die Hauptaktion.
   const veröffentlichenZuerst = darfVeröffentlichen && !schedule?.isPublic && shifts.length > 0;
@@ -112,7 +116,10 @@ export function ScheduleToolbar({
             {standort === "ohne" ? "Ohne Standort" : branch?.name}
           </p>
         </div>
-        <ViewSwitcher kw={formatKW(weekNumber, year)} standort={standort} />
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <PdfExportDialog week={{ year, weekNumber }} branch={branch} userId={selectedEmployeeId} />
+          <ViewSwitcher kw={formatKW(weekNumber, year)} standort={standort} />
+        </div>
       </div>
 
       {/* Zeile 2: die Woche */}

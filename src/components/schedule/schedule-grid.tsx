@@ -167,6 +167,7 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
         onWishFilterChange={setWishFilterEnabled}
         openWishCount={openWishCount}
         onAddShift={canAdd ? () => handleAddShift(ersterTagDerWoche) : undefined}
+        selectedEmployeeId={selectedEmployeeId}
       />
 
       {canEdit && branch && !branch.plannable && (

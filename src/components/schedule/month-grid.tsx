@@ -13,6 +13,7 @@ import { dayNames, formatKW, monthNames } from "@/lib/utils/calendar";
 import { cn } from "@/lib/utils";
 import type { ShiftData } from "@/types/schedule";
 import { BranchIssues } from "./branch-issues";
+import { PdfExportDialog } from "./pdf-export-dialog";
 import { ViewSwitcher } from "./view-switcher";
 
 type MonthDay = { date: string; weekday: number; isToday: boolean; shifts: ShiftData[]; continuations: ShiftData[]; missing: number };
@@ -101,7 +102,10 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
             </h1>
             {plan.branch.address && <p className="text-[13px] text-muted-foreground">{plan.branch.address}</p>}
           </div>
-          {ansicht}
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <PdfExportDialog month={{ year, month }} branch={plan.branch} />
+            {ansicht}
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center overflow-hidden rounded-[var(--radius)] border bg-card">
