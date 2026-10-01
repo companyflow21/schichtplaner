@@ -1,8 +1,11 @@
 import { api, body, serial, ApiError } from "@/lib/api";
-import { assertCan, requireAccess } from "@/lib/access";
+import { requireAccess } from "@/lib/access";
 import { shiftPatch, updateShift } from "@/lib/shift-service";
-import { notify, personIds, shiftInclude, shiftView } from "@/lib/planning";
-import { emitToBranch } from "@/lib/emit";
+import { notify, personIds, shiftView } from "@/lib/planning";
+import { loadShiftForDelete, openRequestsOf, shiftDeletion } from "@/lib/shift-delete";
+import { closeOpenRequests, requestParties } from "@/lib/shift-requests";
+import { shiftRange } from "@/lib/berlin";
+import { emitToBranch, emitToUsers } from "@/lib/emit";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -19,21 +22,33 @@ export async function PATCH(request: Request, context: Context) {
   });
 }
 
+/**
+ * Schicht loeschen: nur wenn sie noch nicht begonnen hat und weder Check-in
+ * noch Arbeitszeiten haengen (lib/shift-delete.ts), auch fuer Admins.
+ * Alle offenen Antraege, die die Schicht nennen (eigene oder Gegen-Schicht
+ * eines Tauschs), werden geschlossen; Zuweisungen entfallen. Je Person eine Nachricht.
+ */
 export async function DELETE(_request: Request, context: Context) {
   return api(async () => {
     const a = await requireAccess();
     const { id } = await context.params;
-    const shift = await serial(async tx => {
-      const shift = await tx.shift.findFirst({ where: { id, deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null } }, include: shiftInclude });
-      if (!shift) throw new ApiError("Schicht nicht gefunden.", 404);
-      assertCan(a, "EDIT_SHIFTS", shift.schedule.branchId);
-      if (shift.schedule.isPublic) await notify(tx, a.orgId, a.userId, personIds(shift.bookings), "Schicht abgesagt", "Die Schicht " + (shift.title || "") + " von " + shift.shiftFrom + " bis " + shift.shiftTo + " wurde abgesagt.", id);
-      await tx.modRequest.updateMany({ where: { shiftId: id, state: "OPEN" }, data: { state: "DECLINED" } });
+    const result = await serial(async tx => {
+      const shift = await loadShiftForDelete(tx, a, id);
+      const check = await shiftDeletion(tx, a.orgId, shift);
+      if (!check.deletable) throw new ApiError(check.reason!, 409);
+      const closed = await closeOpenRequests(tx, a, openRequestsOf(id), "Schicht wurde abgesagt.");
+      const booked = personIds(shift.bookings);
+      const when = shiftRange(shift).date.split("-").reverse().join(".") + ", " + shift.shiftFrom + "–" + shift.shiftTo;
+      const informed = shift.schedule.isPublic ? await notify(tx, a.orgId, a.userId, booked, "Schicht abgesagt", "Die Schicht " + (shift.title || "") + " von " + shift.shiftFrom + " bis " + shift.shiftTo + " wurde abgesagt.", id) : [];
+      // Beteiligte der geschlossenen Antraege, die nicht schon als Eingeteilte Bescheid wissen.
+      const parties = requestParties(closed, [...informed, a.userId]);
+      const voided = await notify(tx, a.orgId, a.userId, parties, "Antrag hinfällig", "Dein Antrag wurde geschlossen, weil die Schicht am " + when + " abgesagt wurde.", id);
       await tx.booking.deleteMany({ where: { shiftId: id } });
       await tx.shift.update({ where: { id }, data: { deletedAt: new Date() } });
-      return shift;
-    });
-    emitToBranch(a.orgId, shift.schedule.branchId, "schedule:updated", personIds(shift.bookings));
-    return { success: true };
+      return { shift, booked, notified: [...informed, ...voided], requestsClosed: closed.length };
+    }, { retry: true });
+    emitToBranch(a.orgId, result.shift.schedule.branchId, "schedule:updated", result.booked);
+    emitToUsers(result.notified, "message:new");
+    return { success: true, assignmentsRemoved: result.booked.length, requestsClosed: result.requestsClosed };
   });
 }
