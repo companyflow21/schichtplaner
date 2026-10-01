@@ -32,7 +32,7 @@
 - **4 schedule views** — Flexible, Classic, Employee-centric, Monthly overview
 - **Live sessions** — real-time shift booking via Socket.IO with deadline controls
 - **Wish plans (Mod-Requests)** — employees can submit shift preferences
-- **PDF export** — download schedules as PDF
+- **PDF export** ("Als PDF exportieren") — A4 landscape schedule for any period up to 62 days (week, month or custom), filterable by customer, location and employee; rows per day with night shifts, open places highlighted, header on every page. Contains only what the user may see in the plan (no contact data) and is generated locally in the browser, nothing is uploaded
 - **Briefings** — weekly briefings per schedule
 
 ### Employee Management
@@ -60,7 +60,7 @@
 
 - **Monthly reports** — working hours per employee at a glance
 - **Target/actual comparison** — automatic comparison with target hours
-- **PDF export** — download reports as PDF
+- **CSV export** — hours per employee and month as CSV (opens directly in Excel)
 
 ### Internal Portal
 

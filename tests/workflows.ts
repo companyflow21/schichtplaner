@@ -22,6 +22,7 @@ import { exchangeDstTests } from "./exchange-dst";
 import { orgDeleteTests } from "./org-delete";
 import { pushApiTests } from "./push-api";
 import { qualificationEditTests } from "./qualification-edit";
+import { scheduleExportTests } from "./schedule-export";
 import { assignmentTests } from "./assignment";
 import { shiftDeleteTests } from "./shift-delete";
 import { employeeDeleteTests } from "./employee-delete";
@@ -264,6 +265,7 @@ try {
   if (run("files")) await fileTests(context);
   if (run("org-delete")) await orgDeleteTests(context);
   if (run("push-api")) await pushApiTests(context);
+  if (run("schedule-export")) await scheduleExportTests(context);
   if (run("assignment")) await assignmentTests(context);
   if (run("shift-delete")) await shiftDeleteTests(context);
   if (run("employee-delete")) await employeeDeleteTests(context);

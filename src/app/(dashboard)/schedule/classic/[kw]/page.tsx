@@ -6,6 +6,7 @@ import {
   getWeekDates,
 } from "@/lib/utils/calendar";
 import { WeekNav } from "@/components/schedule/week-nav";
+import { PdfExportDialog } from "@/components/schedule/pdf-export-dialog";
 import { ViewSwitcher } from "@/components/schedule/view-switcher";
 import { ClassicGridWrapper } from "@/components/schedule/classic-grid-wrapper";
 
@@ -32,7 +33,10 @@ export default async function ClassicKWPage({ params, searchParams }: ClassicKWP
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <ViewSwitcher kw={kw} standort={standort ?? null} />
+        <div className="flex flex-wrap items-center gap-2">
+          <PdfExportDialog week={{ year, weekNumber }} branchId={standort ?? null} />
+          <ViewSwitcher kw={kw} standort={standort ?? null} />
+        </div>
       </div>
       <WeekNav weekNumber={weekNumber} year={year} baseUrl="/schedule/classic" standort={standort ?? null} />
       <ClassicGridWrapper
