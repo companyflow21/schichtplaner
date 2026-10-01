@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { api, body, ApiError } from "@/lib/api";
+import { api, body, serial, ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
-import { canStaff, requireAccess, requireAdmin } from "@/lib/access";
+import { canStaff, requireAccess } from "@/lib/access";
 import { staffMember } from "@/lib/staff";
-import { refreshRealtime } from "@/lib/emit";
+import { deleteEmployee } from "@/lib/employee-delete";
+import { emitToBranch, emitToUsers, refreshRealtime } from "@/lib/emit";
 import { catalogQualifications } from "@/lib/qualifications";
 
 type Context = { params: Promise<{ id: string }> };
@@ -36,6 +37,8 @@ export async function GET(_request: Request, context: Context) {
         notes: canStaff(a, "EDIT_PROFILE", employee.userId),
         admin: a.isAdmin && !self && employee.role !== "OWNER",
         manageAccess: a.isAdmin && (employee.role === "MANAGER" || employee.role === "EMPLOYEE"),
+        // Endgueltig loeschen: Admins (nicht sich selbst, nicht den Inhaber); Manager nur Mitarbeitende mit dem Recht "Mitarbeiter loeschen".
+        delete: a.isAdmin ? !self && employee.role !== "OWNER" : employee.role === "EMPLOYEE" && canStaff(a, "DELETE_EMPLOYEE", employee.userId),
       },
     };
   });
@@ -93,18 +96,21 @@ export async function PATCH(request: Request, context: Context) {
   });
 }
 
-// DELETE /api/employees/[id] - deaktivieren (nur Admins)
-export async function DELETE(_request: Request, context: Context) {
+/**
+ * DELETE /api/employees/[id] - Person endgueltig loeschen (lib/employee-delete.ts):
+ * Admins und Manager mit dem Recht "Mitarbeiter loeschen". Deaktivieren geht
+ * weiterhin ueber PATCH { isActive: false }.
+ */
+export async function DELETE(request: Request, context: Context) {
   return api(async () => {
     const a = await requireAccess();
-    requireAdmin(a);
     const { id } = await context.params;
-    const target = await db.organizationMember.findFirst({ where: { id, organizationId: a.orgId } });
-    if (!target) throw new ApiError("Nicht gefunden.", 404);
-    if (target.userId === a.userId) throw new ApiError("Cannot deactivate yourself");
-    if (target.role === "OWNER") throw new ApiError("Cannot deactivate the owner");
-    await db.organizationMember.update({ where: { id }, data: { isActive: false } });
-    await refreshRealtime([target.userId]);
-    return { success: true };
+    // Nur fuer die Regressionspruefung der Atomaritaet; ohne ALLOW_TEST_FAULTS=1 wirkungslos.
+    const fault = process.env.ALLOW_TEST_FAULTS === "1" && request.headers.get("x-test-fault") === "employee-delete-after-writes";
+    const result = await serial((tx) => deleteEmployee(tx, a, id, { fault }), { retry: true });
+    await refreshRealtime([result.userId]);
+    for (const branchId of result.branchIds) emitToBranch(a.orgId, branchId, "schedule:updated");
+    emitToUsers(result.notified, "message:new");
+    return { deleted: true, futureAssignmentsRemoved: result.futureAssignmentsRemoved, historyKept: result.historyKept };
   });
 }
