@@ -78,7 +78,8 @@ export async function GET() {
       todayShifts,
       counts: {
         openSlots: plans ? views.reduce((sum, s) => sum + s.missing, 0) : null,
-        unconfirmed: plans ? views.reduce((sum, s) => sum + (s.isPublic ? s.bookings.filter((b) => !b.confirmedAt).length : 0), 0) : null,
+        // Nur Altbestand ohne Bestaetigung; Einteilungen der Planung (PLANNER) sind verbindlich.
+        unconfirmed: plans ? views.reduce((sum, s) => sum + (s.isPublic ? s.bookings.filter((b) => b.userId && !b.confirmedAt).length : 0), 0) : null,
         pendingRequests, pendingAbsences, pendingCorrections,
         openIssues: issues ? [...cards.customers.flatMap((c) => c.branches), ...cards.unassigned].reduce((sum, b) => sum + (b.issuesOpen ?? 0), 0) : null,
       },

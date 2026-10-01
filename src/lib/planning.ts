@@ -3,6 +3,7 @@ import { ApiError } from "./errors";
 import { addDate, overlaps, rangeMinutes, shiftRange } from "./berlin";
 import { branchIds, can, type Access } from "./access";
 import { normalizeBranchRights } from "./access-shared";
+import { CHECKED_IN, wallToUtcMinutes } from "./checkin";
 
 type Tx = Prisma.TransactionClient;
 
@@ -203,22 +204,71 @@ export async function shiftCandidates(tx: Tx, a: Access, shift: ShiftWithRelatio
   };
 }
 
+const WEEKDAYS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+/** Datum fuer Nachrichten: "Mo, 05.10.2026". */
+export function dayLabel(date: string): string {
+  return WEEKDAYS[new Date(date + "T12:00:00Z").getUTCDay()] + ", " + date.slice(8, 10) + "." + date.slice(5, 7) + "." + date.slice(0, 4);
+}
+/** Schicht fuer Nachrichten: Datum, Zeit, Standort. */
+export function shiftLabel(shift: { dayOfWeek: number; shiftFrom: string; shiftTo: string; schedule: { year: number; weekNumber: number; branch?: { name: string } | null } }): string {
+  return [dayLabel(shiftRange(shift).date), shift.shiftFrom + "–" + shift.shiftTo, shift.schedule.branch?.name].filter(Boolean).join(", ");
+}
+
 /**
- * Einteilen. Harte Sperren gelten immer. Qualifikationshinweise verlangen
- * genau eine Bestaetigung (confirm); ohne sie antwortet der Server mit 409
- * und { confirm: true, warnings }, damit die Oberflaeche einmal nachfragt.
+ * Zuweisung durch Planung oder Administration ist sofort verbindlich
+ * (PLANNER); die Person muss nichts bestaetigen.
  */
-export async function assign(tx: Tx, a: Access, shiftId: string, userId: string, confirm = false) {
-  const shift = await tx.shift.findFirst({ where: { id: shiftId, deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null } }, include: shiftInclude });
-  if (!shift) throw new ApiError("Schicht nicht gefunden.", 404);
+export function plannerBooking(a: Pick<Access, "userId">) {
+  return { confirmation: "PLANNER" as const, confirmedAt: new Date(), bookedBy: a.userId };
+}
+
+/** Schicht der Organisation (nicht geloescht) mit Plan, Standort und Buchungen. */
+export function findShift(tx: Tx, orgId: string, id: string) {
+  return tx.shift.findFirst({ where: { id, deletedAt: null, schedule: { organizationId: orgId, deletedAt: null } }, include: shiftInclude });
+}
+
+/**
+ * Einteilen ohne Nachricht - fuer Aufrufer, die Nachrichten je Person
+ * buendeln (Wechsel). Harte Sperren gelten immer. Hinweise wie eine
+ * fehlende Qualifikation verlangen genau eine Bestaetigung (confirm); ohne
+ * sie antwortet der Server mit 409 und { confirm: true, warnings }, damit
+ * die Oberflaeche einmal nachfragt.
+ */
+export async function placeBooking(tx: Tx, a: Access, shift: ShiftWithRelations, userId: string, confirm = false) {
   if (shift.bookings.some(b => b.userId === userId)) throw new ApiError("Bereits zugewiesen.", 409);
   if (shift.bookings.length >= shift.maxEmployees) throw new ApiError("Schicht ist bereits besetzt.", 409);
   const { blocks, warnings } = await assessAssignment(tx, shift, userId);
   if (blocks.length) throw new ApiError([...blocks, ...warnings].join(" "), 409);
   if (warnings.length && !confirm) throw new ApiError(warnings.join(" "), 409, { confirm: true, warnings });
-  const booking = await tx.booking.create({ data: { shiftId, userId, bookedBy: a.userId }, include: { user: { select: publicUser } } });
-  if (shift.schedule.isPublic) await notify(tx, a.orgId, a.userId, [userId], "Neue Schicht", shiftRange(shift).date + ": " + shift.shiftFrom + "–" + shift.shiftTo + ". Bitte bestätigen.", shiftId);
+  return tx.booking.create({ data: { shiftId: shift.id, userId, ...plannerBooking(a) }, include: { user: { select: publicUser } } });
+}
+
+/** Einteilen mit Nachricht an die Person (nur veroeffentlichte Plaene). */
+export async function assign(tx: Tx, a: Access, shiftId: string, userId: string, confirm = false) {
+  const shift = await findShift(tx, a.orgId, shiftId);
+  if (!shift) throw new ApiError("Schicht nicht gefunden.", 404);
+  const booking = await placeBooking(tx, a, shift, userId, confirm);
+  if (shift.schedule.isPublic) await notify(tx, a.orgId, a.userId, [userId], "Neue Schicht", shiftLabel(shift) + ": Du bist fest eingeteilt.", shiftId);
   return { booking, shift };
+}
+
+/** Schicht ist vorbei (echtes Ende in Europe/Berlin). */
+export function shiftEnded(shift: Parameters<typeof shiftRange>[0], now = new Date()): boolean {
+  return wallToUtcMinutes(shiftRange(shift).end) <= now.getTime() / 60000;
+}
+
+/**
+ * Bestehende Zuweisung loesen (Wechsel, Aufheben) - nicht nach Schichtende
+ * und nicht nach einem Check-in der Person: Dann ist ihr Einsatz erfasst
+ * und die Zuweisung bleibt Nachweis.
+ */
+export async function assertReleasable(tx: Tx, shift: ShiftWithRelations, userId: string) {
+  if (shiftEnded(shift)) throw new ApiError("Die Schicht ist bereits beendet. Zuweisungen vergangener Schichten bleiben als Nachweis unverändert.", 409);
+  const checkin = await tx.checkin.findFirst({ where: { shiftId: shift.id, userId, status: { in: [...CHECKED_IN, "PENDING"] } }, select: { id: true } });
+  if (checkin) {
+    const who = shift.bookings.find(b => b.userId === userId)?.user;
+    throw new ApiError((who ? who.firstName + " " + who.lastName : "Die Person") + " hat für diese Schicht bereits eingecheckt. Die Zuweisung bleibt als Nachweis erhalten.", 409);
+  }
 }
 
 /**

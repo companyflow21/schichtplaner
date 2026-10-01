@@ -301,7 +301,8 @@ async function main(): Promise<void> {
     });
     if (vorhanden) {
       // Bestaetigung zuruecksetzen, damit der Schreibtest wieder etwas zu tun hat.
-      await db.booking.update({ where: { id: vorhanden.id }, data: { confirmedAt: null } });
+      // Altbestand ohne Herkunft: nur dort wirkt die Bestaetigung der Person.
+      await db.booking.update({ where: { id: vorhanden.id }, data: { confirmedAt: null, confirmation: null } });
       continue;
     }
     await db.booking.create({ data: { shiftId, userId } });

@@ -197,7 +197,8 @@ export async function staffSiteTests(t: TestContext) {
   check(ids((await access(udo.id)).grants) === [s2.id, s6.id].sort().join(), "a temporary assignment elsewhere does not change the location assignment");
   await mP.request("/api/bookings", "POST", { shiftId: shift.id, userId: q.Lea.user.id });
   const manipuliert = (await mP.request("/api/bookings", "POST", { shiftId: shift.id, userId: p.Anna.user.id, bookedBy: users.admin.id, confirmedAt: "2026-01-01T00:00:00Z", id: "eigene-id" })).booking;
-  check(manipuliert.bookedBy === paula.userId && manipuliert.confirmedAt === null && manipuliert.id !== "eigene-id", "extra booking fields are ignored");
+  // Bestaetigung setzt der Server (Einteilung durch die Planung: PLANNER, jetzt).
+  check(manipuliert.bookedBy === paula.userId && manipuliert.confirmation === "PLANNER" && !String(manipuliert.confirmedAt).startsWith("2026-01-01") && manipuliert.id !== "eigene-id", "extra booking fields are ignored");
   await mP.request("/api/bookings", "POST", { shiftId: shift.id, userId: q.Jan.user.id, confirm: true }, 403);
   await mP.request("/api/bookings", "POST", { shiftId: shift.id, userId: q.Kai.user.id, confirm: true }, 403);
   await mP.request("/api/bookings", "POST", { shiftId: shift.id, userId: users.foreign.id, confirm: true }, 403);

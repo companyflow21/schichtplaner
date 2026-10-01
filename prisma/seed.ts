@@ -372,6 +372,9 @@ async function main() {
         shiftId: shifts[shiftIdx].id,
         userId: employees[userIdx].id,
         bookedBy: admin.id,
+        // Von der Planung eingeteilt: sofort verbindlich.
+        confirmation: "PLANNER",
+        confirmedAt: new Date(),
       },
     });
   }

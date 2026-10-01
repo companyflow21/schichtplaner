@@ -152,7 +152,8 @@ async function main() {
   // Vorbereitung: Bestaetigungen zuruecksetzen, fruehere Probeschichten entfernen.
   const veroeffentlicht = { deletedAt: null, schedule: { organizationId: org.id, isPublic: true, deletedAt: null } };
   await db.shift.updateMany({ where: { title: { in: [TITEL, TITEL_DOPPELT] }, deletedAt: null, schedule: { organizationId: org.id } }, data: { deletedAt: new Date() } });
-  if (TEILE.includes("bestaetigen")) await db.booking.updateMany({ where: { shift: veroeffentlicht }, data: { confirmedAt: null } });
+  // Als Altbestand ohne Herkunft: nur dort wirkt die Bestaetigung der Person.
+  if (TEILE.includes("bestaetigen")) await db.booking.updateMany({ where: { shift: veroeffentlicht }, data: { confirmedAt: null, confirmation: null } });
 
   const sitzungen = new Map(szenario.konten.map((k) => [k.email, new Sitzung(k.email)]));
   const admin = szenario.konten.find((k) => k.role === "ADMIN");

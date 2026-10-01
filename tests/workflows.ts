@@ -132,11 +132,14 @@ try {
   await admin.request("/api/bookings", "POST", { shiftId: shift.id, userId: users.employee.id });
   await admin.request("/api/schedules/" + schedule.id, "PATCH", { isPublic: true });
   check((await employee.request(weekPath)).schedule.shifts.length > 0, "published own shift visible");
-  await employee.request("/api/bookings", "PATCH", { shiftId: shift.id });
-  check((await admin.request(schedulePath)).schedule.shifts[0].bookings[0].confirmedAt, "employee confirms own shift");
+  // Einteilung durch die Planung ist sofort verbindlich; die Bestaetigung der Person aendert daran nichts.
+  const planned = (await admin.request(schedulePath)).schedule.shifts[0].bookings[0];
+  check(planned.confirmation === "PLANNER" && planned.confirmedAt, "planner assignment is binding without employee confirmation");
+  const selfConfirm = (await employee.request("/api/bookings", "PATCH", { shiftId: shift.id })).booking;
+  check(selfConfirm.confirmation === "PLANNER" && selfConfirm.confirmedAt === planned.confirmedAt, "employee confirmation never overwrites a planner assignment");
   await admin.request("/api/shifts/" + shift.id, "PATCH", { description: "Neuer Treffpunkt" });
   const changed = (await admin.request(schedulePath)).schedule.shifts[0];
-  check(!changed.bookings[0].confirmedAt, "change invalidates confirmation");
+  check(changed.bookings[0].confirmation === "PLANNER" && changed.bookings[0].confirmedAt === planned.confirmedAt, "change keeps the binding assignment");
   check(changed.pauseValue === 30 && changed.requiredQualifications.includes("Erste Hilfe"), "partial change keeps pause and qualifications");
   const conflict = (await admin.request("/api/shifts", "POST", { ...create, shiftFrom: "23:00", shiftTo: "04:00" })).shifts[0];
   await admin.request("/api/bookings", "POST", { shiftId: conflict.id, userId: users.employee.id }, 409);
