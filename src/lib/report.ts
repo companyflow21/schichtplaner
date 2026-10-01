@@ -13,8 +13,11 @@ import { branchIds, can, staffIds, type Access } from "./access";
  * "unset" (nicht festgelegt) oder "set"; aus fehlenden Werten wird kein Soll
  * und keine Abweichung berechnet.
  * Mit branchId wird auf einen Standort eingeschraenkt.
+ * Mit includeFormer sehen Admins zusaetzlich je geloeschter Person (Momentaufnahme,
+ * nur Name) eine Zeile mit den historischen Plan- und Iststunden (former: true,
+ * ohne Sollstunden); Manager sehen weiterhin nur ihre zugeordneten Personen.
  */
-export async function monthlyReport(a: Access, month: number, year: number, options: { branchId?: string | null; selfOnly?: boolean } = {}) {
+export async function monthlyReport(a: Access, month: number, year: number, options: { branchId?: string | null; selfOnly?: boolean; includeFormer?: boolean } = {}) {
   const first = year + "-" + String(month).padStart(2, "0") + "-01";
   const last = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
   const branch = options.branchId ?? null;
@@ -48,19 +51,47 @@ export async function monthlyReport(a: Access, month: number, year: number, opti
     const week = isoWeek(d);
     weeks.set(week.weekNumber, { weekNumber: week.weekNumber, label: "KW " + week.weekNumber });
   }
-  const employees = people.map((p) => {
-    const own = records.filter((t) => t.userId === p.userId);
-    const shifts = bookings.filter((b) => b.userId === p.userId && (() => { const d = weekDate(b.shift.schedule.year, b.shift.schedule.weekNumber, b.shift.dayOfWeek); return d >= first && d <= last; })());
+  // Plan- und Iststunden einer Person aus ihren Zeitbuchungen und Zuweisungen des Monats.
+  const hours = (own: typeof records, assigned: typeof bookings) => {
+    const shifts = assigned.filter((b) => { const d = weekDate(b.shift.schedule.year, b.shift.schedule.weekNumber, b.shift.dayOfWeek); return d >= first && d <= last; });
     const totalMinutes = own.reduce((sum, r) => sum + recordMinutes(r), 0);
     const plannedMinutes = shifts.reduce((sum, b) => { const s = b.shift, gross = rangeMinutes(s.shiftFrom, s.shiftTo); return sum + Math.max(0, gross - (s.pauseOption === "PER_HOUR" ? Math.floor(gross / 60) * s.pauseValue : s.pauseValue)); }, 0);
+    return {
+      totalMinutes, plannedMinutes, deviationMinutes: totalMinutes - plannedMinutes, shiftCount: shifts.length,
+      kwBreakdown: [...weeks.values()].map((w) => ({ weekNumber: w.weekNumber, totalMinutes: own.filter((r) => isoWeek(r.date.toISOString().slice(0, 10)).weekNumber === w.weekNumber).reduce((sum, r) => sum + recordMinutes(r), 0), shiftCount: shifts.filter((b) => b.shift.schedule.weekNumber === w.weekNumber).length })),
+    };
+  };
+  const employees = people.map((p) => {
     const showTarget = !branch && (a.isAdmin || p.userId === a.userId);
     const targetStatus: "hidden" | "unset" | "set" = !showTarget ? "hidden" : p.targetHoursPerMonth === null ? "unset" : "set";
     const targetMinutes = targetStatus === "set" ? Math.round(p.targetHoursPerMonth! * 60) : null;
     return {
-      userId: p.userId, ...p.user, totalMinutes, plannedMinutes, targetMinutes, targetStatus, deviationMinutes: totalMinutes - plannedMinutes, shiftCount: shifts.length,
-      kwBreakdown: [...weeks.values()].map((w) => ({ weekNumber: w.weekNumber, totalMinutes: own.filter((r) => isoWeek(r.date.toISOString().slice(0, 10)).weekNumber === w.weekNumber).reduce((sum, r) => sum + recordMinutes(r), 0), shiftCount: shifts.filter((b) => b.shift.schedule.weekNumber === w.weekNumber).length })),
+      /** Stabiler Schluessel je Zeile (Personen mit Konto: userId; geloeschte: "former:" + Id). */
+      key: p.userId, userId: p.userId as string | null, former: false, firstName: p.user.firstName, lastName: p.user.lastName, profileImage: p.user.profileImage as string | null, targetMinutes, targetStatus,
+      ...hours(records.filter((t) => t.userId === p.userId), bookings.filter((b) => b.userId === p.userId)),
     };
   });
+  // Geloeschte Personen (Momentaufnahme): nur fuer Admins, ohne Sollstunden.
+  if (a.isAdmin && options.includeFormer && !options.selfOnly) {
+    const [formerRecords, formerBookings] = await Promise.all([
+      db.timeRecord.findMany({ where: { organizationId: a.orgId, formerEmployeeId: { not: null }, date: { gte: new Date(first), lte: new Date(last) }, ...(branch ? { branchId: branch } : {}) }, include: { formerEmployee: true } }),
+      db.booking.findMany({
+        where: { formerEmployeeId: { not: null }, shift: { deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null, isPublic: true, year: { gte: year - 1, lte: year + 1 }, ...(branch ? { branchId: branch } : {}) } } },
+        include: { shift: { include: { schedule: true } }, formerEmployee: true },
+      }),
+    ]);
+    const former = new Map<string, { firstName: string; lastName: string }>();
+    for (const row of [...formerRecords, ...formerBookings]) if (row.formerEmployee) former.set(row.formerEmployee.id, row.formerEmployee);
+    for (const [id, name] of former) {
+      const own = formerRecords.filter((t) => t.formerEmployeeId === id), figures = hours(own, formerBookings.filter((b) => b.formerEmployeeId === id));
+      // Nur Personen mit Buchungen oder Schichten in diesem Monat.
+      if (!own.length && !figures.shiftCount) continue;
+      employees.push({
+        key: "former:" + id, userId: null, former: true, firstName: name.firstName, lastName: name.lastName, profileImage: null, targetMinutes: null as number | null, targetStatus: "hidden" as "hidden" | "unset" | "set",
+        ...figures,
+      });
+    }
+  }
   employees.sort((x, y) => x.lastName.localeCompare(y.lastName, "de"));
   return { month, year, branchId: branch, kwHeaders: [...weeks.values()], employees, totals: { totalMinutes: employees.reduce((s, e) => s + e.totalMinutes, 0), totalShifts: employees.reduce((s, e) => s + e.shiftCount, 0) } };
 }

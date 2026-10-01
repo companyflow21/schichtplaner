@@ -42,7 +42,11 @@ type KWData = {
 };
 
 type EmployeeReport = {
-  userId: string;
+  /** Eindeutiger Zeilenschluessel (userId oder "former:" + Id). */
+  key: string;
+  /** null bei gelöschten Personen (nur Name aus der Momentaufnahme). */
+  userId: string | null;
+  former: boolean;
   firstName: string;
   lastName: string;
   profileImage: string | null;
@@ -412,9 +416,10 @@ export function HoursTable({ month, year }: HoursTableProps) {
               </TableHeader>
               <TableBody>
                 {filteredEmployees.map((emp) => (
-                  <TableRow key={emp.userId}>
+                  <TableRow key={emp.key}>
                     <TableCell className="font-medium">
                       {emp.lastName}, {emp.firstName}
+                      {emp.former && <Badge variant="outline" className="ml-2 align-middle text-xs font-normal text-muted-foreground">gelöscht</Badge>}
                     </TableCell>
                     {kwHeaders.map((kw) => {
                       const minutes = getKWMinutes(emp, kw.weekNumber);
