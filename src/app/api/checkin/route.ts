@@ -37,7 +37,7 @@ export async function GET(request: Request) {
           organizationId: a.orgId, userId: { not: a.userId }, ...scope,
           OR: [{ status: "PENDING" }, { createdAt: { gte: new Date(addDate(date, -1) + "T12:00:00Z"), lt: new Date(addDate(date, 1) + "T12:00:00Z") } }],
         },
-        include: { user: { select: { id: true, firstName: true, lastName: true } }, branch: { select: { id: true, name: true } }, shift: { include: { schedule: true } } },
+        include: { user: { select: { id: true, firstName: true, lastName: true } }, formerEmployee: { select: { id: true, firstName: true, lastName: true } }, branch: { select: { id: true, name: true } }, shift: { include: { schedule: true } } },
         orderBy: { createdAt: "asc" },
         take: 300,
       });
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
           id: c.id, status: c.status, method: c.method, createdAt: c.createdAt, time: berlinTime(c.createdAt), lateMinutes: c.lateMinutes,
           distanceM: c.distanceM, accuracyM: c.accuracyM, positionAgeS: c.positionAgeS, failure: c.failure, failureLabel: c.failure ? failureLabel[c.failure] : null,
           reason: c.reason, decisionNote: c.decisionNote, reviewedAt: c.reviewedAt,
-          user: c.user, branch: c.branch,
+          user: c.user ?? (c.formerEmployee ? { ...c.formerEmployee, former: true } : null), branch: c.branch,
           shift: { id: c.shift.id, date: shiftRange(c.shift).date, shiftFrom: c.shift.shiftFrom, shiftTo: c.shift.shiftTo, title: c.shift.title },
           canDecide: c.status === "PENDING" && canSeeTime(a, c, "edit"),
         }));

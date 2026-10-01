@@ -35,12 +35,13 @@ interface MessageItem {
   subject: string;
   body: string;
   createdAt: string;
+  /** null: Konto der absendenden Person geloescht. */
   sender: {
     id: string;
     firstName: string;
     lastName: string;
     profileImage: string | null;
-  };
+  } | null;
   recipients: Recipient[];
   hiddenRecipients?: number;
   reference?: string | null;
@@ -257,7 +258,7 @@ export function MessageList({ folder }: Props) {
                             ),
                             ...(msg.hiddenRecipients ? [`+${msg.hiddenRecipients} weitere`] : []),
                           ].join(", ")
-                        : `${msg.sender.firstName} ${msg.sender.lastName}`}
+                        : msg.sender ? `${msg.sender.firstName} ${msg.sender.lastName}` : "Gelöschte Person"}
                     </span>
                   </div>
 

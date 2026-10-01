@@ -8,7 +8,7 @@ const LEGACY = "ohne";
 
 /** Ohne "Dienstplan ansehen" nur eigene und noch offene Schichten - nicht den ganzen Plan. */
 function visibleFor(a: Access) {
-  return (s: { schedule: { branchId: string | null }; bookings: { userId: string }[]; maxEmployees: number }) =>
+  return (s: { schedule: { branchId: string | null }; bookings: { userId: string | null }[]; maxEmployees: number }) =>
     can(a, "VIEW_SCHEDULE", s.schedule.branchId) || s.bookings.some(b => b.userId === a.userId) || s.bookings.length < s.maxEmployees;
 }
 

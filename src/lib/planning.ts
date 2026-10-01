@@ -8,11 +8,28 @@ type Tx = Prisma.TransactionClient;
 
 export const publicUser = { id: true, firstName: true, lastName: true, profileImage: true } as const;
 export const branchView = { id: true, name: true, address: true, meetingPoint: true, notes: true, positions: true, isActive: true, customer: { select: { id: true, name: true } } } as const;
+/** Momentaufnahme einer geloeschten Person (nur Name) - fuer die Historie. */
+export const formerView = { id: true, firstName: true, lastName: true } as const;
 export const shiftInclude = {
   schedule: { include: { branch: { select: branchView } } },
   division: true,
-  bookings: { include: { user: { select: publicUser } } },
+  bookings: { include: { user: { select: publicUser }, formerEmployee: { select: formerView } } },
 } as const;
+
+/**
+ * Personen-IDs bestehender Konten. Zuweisungen, Zeiten und Check-ins
+ * geloeschter Personen (userId leer, formerEmployeeId gesetzt) bleiben als
+ * Historie erhalten, nehmen aber an Planung und Benachrichtigung nicht teil.
+ */
+export function personIds(rows: { userId: string | null }[]): string[] {
+  return rows.flatMap(r => r.userId ? [r.userId] : []);
+}
+
+/** Anzeigename einer Zeile mit Konto oder Momentaufnahme. */
+export function personName(row: { user?: { firstName: string; lastName: string } | null; formerEmployee?: { firstName: string; lastName: string } | null }): { firstName: string; lastName: string; former: boolean } {
+  if (row.user) return { firstName: row.user.firstName, lastName: row.user.lastName, former: false };
+  return { firstName: row.formerEmployee?.firstName ?? "Gelöschte", lastName: row.formerEmployee?.lastName ?? "Person", former: true };
+}
 export type PlannedShift = Shift & { schedule: Schedule };
 export type ShiftWithRelations = Prisma.ShiftGetPayload<{ include: typeof shiftInclude }>;
 
@@ -209,7 +226,7 @@ export async function assign(tx: Tx, a: Access, shiftId: string, userId: string,
  * genehmigte Abwesenheit ueberschneidet sich mit dem Schichttag.
  */
 export async function ineffectiveBookings(tx: Tx, orgId: string, shifts: ShiftWithRelations[]): Promise<Set<string>> {
-  const userIds = [...new Set(shifts.flatMap(s => s.bookings.map(b => b.userId)))];
+  const userIds = [...new Set(shifts.flatMap(s => personIds(s.bookings)))];
   if (!userIds.length) return new Set();
   const dates = shifts.flatMap(s => [shiftRange(s).date, lastShiftDate(s)]).sort();
   const [inactive, absences] = await Promise.all([
@@ -222,6 +239,7 @@ export async function ineffectiveBookings(tx: Tx, orgId: string, shifts: ShiftWi
     const first = shiftRange(shift).date, last = lastShiftDate(shift);
     for (const b of shift.bookings) {
       const absent = absences.some(x => x.userId === b.userId && x.dateFrom.toISOString().slice(0, 10) <= last && x.dateTo.toISOString().slice(0, 10) >= first);
+      if (!b.userId) continue;
       if (gone.has(b.userId) || absent) result.add(b.id);
     }
   }
@@ -250,9 +268,15 @@ export function shiftView(shift: ShiftWithRelations, a: Access, ineffective: Set
     branchId,
     branch: branch ? { id: branch.id, name: branch.name, address: branch.address, meetingPoint: branch.meetingPoint, notes: branch.notes, customer: branch.customer } : null,
     division: shift.division ? { id: shift.division.id, title: shift.division.title, color: shift.division.color } : null,
-    bookings: shift.bookings.filter(b => fullPlan || b.userId === a.userId).map(b => ({
-      id: b.id, shiftId: b.shiftId, userId: b.userId, bookedAt: b.bookedAt, user: b.user,
+    bookings: shift.bookings.filter(b => fullPlan || (b.userId !== null && b.userId === a.userId)).map(b => ({
+      id: b.id, shiftId: b.shiftId, userId: b.userId, bookedAt: b.bookedAt,
+      // Geloeschte Person: nur der Name aus der Momentaufnahme, kein Konto.
+      user: b.user ?? { id: null, ...personName(b), profileImage: null },
+      former: !b.userId,
+      // Stabiler Schluessel je Person, auch fuer geloeschte (Momentaufnahme).
+      personKey: b.userId ?? "former:" + b.formerEmployeeId,
       confirmedAt: planner || b.userId === a.userId ? b.confirmedAt : null,
+      confirmation: planner || b.userId === a.userId ? b.confirmation : null,
       ...(planner ? { unavailable: ineffective.has(b.id) } : {}),
     })),
     occupiedCount: shift.bookings.length,

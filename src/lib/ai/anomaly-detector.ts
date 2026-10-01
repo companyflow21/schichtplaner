@@ -148,7 +148,8 @@ export async function detectAnomalies(
 
   // 3. Check for LONG SHIFTS
   for (const record of timeRecords) {
-    if (!record.timeFrom || !record.timeTo) continue;
+    // Historie geloeschter Personen fliesst nicht in Hinweise ein.
+    if (!record.userId || !record.timeFrom || !record.timeTo) continue;
     const hours = computeHoursFromRange(record.timeFrom, record.timeTo);
     if (hours > LONG_SHIFT_THRESHOLD_HOURS) {
       const dateStr = format(record.date, "yyyy-MM-dd");

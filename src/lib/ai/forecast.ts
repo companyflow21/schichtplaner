@@ -183,7 +183,7 @@ export async function generateForecast(
         const hours = estimateHours(shift.shiftFrom, shift.shiftTo);
         for (const booking of shift.bookings) {
           actualHours += hours;
-          employeeSet.add(booking.userId);
+          if (booking.userId) employeeSet.add(booking.userId);
         }
       }
     }

@@ -282,7 +282,7 @@ async function executeGetSchedule(
     for (const shift of schedule.shifts) {
       const day = DAY_NAMES[shift.dayOfWeek] ?? `Tag ${shift.dayOfWeek}`;
       const bookedNames = shift.bookings
-        .map((b) => `${b.user.firstName} ${b.user.lastName}`)
+        .map((b) => b.user ? `${b.user.firstName} ${b.user.lastName}` : "Gelöschte Person")
         .join(", ");
       const division = shift.division ? ` [${shift.division.title}]` : "";
       const spots = `${shift.bookings.length}/${shift.maxEmployees}`;

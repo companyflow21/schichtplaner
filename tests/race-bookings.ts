@@ -160,7 +160,7 @@ async function main() {
   if (!admin || !manager) throw new Error("Admin oder Manager fehlt im Szenario.");
   const ziele = !TEILE.includes("bestaetigen") ? [] : (
     await db.booking.findMany({ where: { shift: veroeffentlicht }, select: { id: true, shiftId: true, user: { select: { email: true } } } })
-  ).filter((b) => sitzungen.has(b.user.email));
+  ).filter((b): b is typeof b & { user: { email: string } } => !!b.user && sitzungen.has(b.user.email));
 
   const benoetigt = [...new Set([...ziele.map((b) => b.user.email), admin.email, szenario.manager.email])].map((e) => sitzungen.get(e)!);
   let angemeldet = 0;

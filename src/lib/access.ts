@@ -138,8 +138,10 @@ export function timeScope(a: Access, mode: "view" | "edit"): Prisma.TimeRecordWh
   return { organizationId: a.orgId, OR: mode === "view" ? [{ userId: a.userId }, others] : [others] };
 }
 
-export function canSeeTime(a: Access, record: { userId: string; branchId: string | null }, mode: "view" | "edit"): boolean {
+export function canSeeTime(a: Access, record: { userId: string | null; branchId: string | null }, mode: "view" | "edit"): boolean {
   if (a.isAdmin) return true;
+  // Historie geloeschter Personen (ohne Konto): nur die Administration.
+  if (!record.userId) return false;
   if (mode === "view" && record.userId === a.userId) return true;
   if (record.userId === a.userId) return false;
   return !!record.branchId && can(a, mode === "view" ? "VIEW_TIME" : "EDIT_TIME", record.branchId) && canStaff(a, "VIEW_HOURS", record.userId);
@@ -184,7 +186,7 @@ export async function visiblePeople(a: Access, tx: Tx = db): Promise<Set<string>
   ]);
   for (const m of leaders) people.add(m.userId);
   for (const s of responsible) people.add(s.manager.userId);
-  for (const b of colleagues) people.add(b.userId);
+  for (const b of colleagues) if (b.userId) people.add(b.userId);
   for (const userId of a.staff.keys()) people.add(userId);
   // Planung der eigenen Einsatzorte: mit veroeffentlichter eigener Schicht
   // oder mit Standortzuordnung ("Offene Schichten sehen und anfragen").

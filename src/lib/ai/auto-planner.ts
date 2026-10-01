@@ -65,7 +65,7 @@ async function gatherContext(
         where: { deletedAt: null },
         include: {
           division: { select: { id: true, title: true } },
-          bookings: { select: { userId: true } },
+          bookings: { select: { userId: true, formerEmployeeId: true } },
         },
       },
     },
@@ -169,6 +169,7 @@ async function gatherContext(
   // Build per-user hour maps
   const weekHoursMap = new Map<string, number>();
   for (const b of weekBookings) {
+    if (!b.userId) continue;
     const hours = estimateHours(b.shift.shiftFrom, b.shift.shiftTo);
     weekHoursMap.set(b.userId, (weekHoursMap.get(b.userId) ?? 0) + hours);
   }
@@ -177,6 +178,7 @@ async function gatherContext(
   const targetMonth = weekStart.getMonth();
   const monthHoursMap = new Map<string, number>();
   for (const b of monthBookings) {
+    if (!b.userId) continue;
     // Rough check: is this booking's schedule in the target month?
     const bWeekStart = getWeekStartDate(
       b.shift.schedule.weekNumber,
@@ -228,7 +230,7 @@ async function gatherContext(
     to: s.shiftTo,
     division: s.division?.title ?? null,
     maxEmployees: s.maxEmployees,
-    currentBookings: s.bookings.map((b) => b.userId),
+    currentBookings: s.bookings.map((b) => b.userId ?? "former:" + b.formerEmployeeId),
   }));
 
   // 7. Previous week's schedule for pattern detection
@@ -253,7 +255,7 @@ async function gatherContext(
         where: { deletedAt: null },
         include: {
           division: { select: { title: true } },
-          bookings: { select: { userId: true } },
+          bookings: { select: { userId: true, formerEmployeeId: true } },
         },
       },
     },
@@ -267,7 +269,7 @@ async function gatherContext(
       to: s.shiftTo,
       division: s.division?.title ?? null,
       maxEmployees: s.maxEmployees,
-      currentBookings: s.bookings.map((b) => b.userId),
+      currentBookings: s.bookings.map((b) => b.userId ?? "former:" + b.formerEmployeeId),
     })
   );
 

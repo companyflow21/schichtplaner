@@ -65,9 +65,9 @@ export async function branchForTime(tx: Tx, orgId: string, userId: string, recor
  * "Zeiterfassung bearbeiten" am Standort der Buchung UND "Stunden einsehen"
  * fuer die Person.
  */
-export async function timeReviewers(tx: Tx, orgId: string, record: { userId: string; branchId: string | null }): Promise<string[]> {
+export async function timeReviewers(tx: Tx, orgId: string, record: { userId: string | null; branchId: string | null }): Promise<string[]> {
   const admins = await branchHolders(tx, orgId, null, [], true);
-  if (!record.branchId) return admins;
+  if (!record.branchId || !record.userId) return admins;
   const [atBranch, forPerson] = await Promise.all([
     branchHolders(tx, orgId, record.branchId, ["EDIT_TIME"], false),
     staffHolders(tx, orgId, record.userId, "VIEW_HOURS"),

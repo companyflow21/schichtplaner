@@ -138,7 +138,7 @@ async function gatherBriefingContext(
 
     // Track booked employees
     for (const booking of shift.bookings) {
-      bookedEmployees.add(booking.userId);
+      if (booking.userId) bookedEmployees.add(booking.userId);
     }
 
     // Division counts

@@ -18,6 +18,7 @@ interface EmployeeGridProps {
 }
 
 type EmployeeRow = {
+  key: string;
   user: BookingUser;
   dayShifts: Record<number, ShiftData[]>;
   totalHours: number;
@@ -68,14 +69,17 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
 
     for (const shift of shifts) {
       for (const booking of shift.bookings) {
-        if (!userMap.has(booking.userId)) {
-          userMap.set(booking.userId, {
+        // Geloeschte Personen behalten ihre Zeile (Historie), Schluessel aus der Momentaufnahme.
+        const key = booking.personKey ?? booking.userId ?? "former:" + booking.id;
+        if (!userMap.has(key)) {
+          userMap.set(key, {
+            key,
             user: booking.user,
             dayShifts: { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] },
             totalHours: 0,
           });
         }
-        const row = userMap.get(booking.userId)!;
+        const row = userMap.get(key)!;
         row.dayShifts[shift.dayOfWeek].push(shift);
         row.totalHours += shiftDurationHours(shift);
       }
@@ -133,7 +137,7 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
           </thead>
           <tbody>
             {employees.map((emp) => (
-              <tr key={emp.user.id} className="border-t hover:bg-muted/10 transition-colors">
+              <tr key={emp.key} className="border-t hover:bg-muted/10 transition-colors">
                 {/* Employee name */}
                 <td className="border-r px-3 py-2 align-middle">
                   <div className="flex items-center gap-2">
@@ -190,7 +194,7 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
       {/* Handy: je Person eine Karte mit ihren Schichten der Woche */}
       <div className="space-y-3 md:hidden">
         {employees.map((emp) => (
-          <section key={emp.user.id} className="akro-panel overflow-hidden" aria-label={`${emp.user.firstName} ${emp.user.lastName}`}>
+          <section key={emp.key} className="akro-panel overflow-hidden" aria-label={`${emp.user.firstName} ${emp.user.lastName}`}>
             <div className="akro-panel-kopf flex items-center gap-2 border-b px-4 py-2.5">
               <Avatar size="sm">
                 <AvatarFallback className="text-[9px]">

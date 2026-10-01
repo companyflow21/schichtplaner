@@ -85,6 +85,7 @@ model Organization {
   qualificationCatalog Qualification[]
   checkins          Checkin[]
   pushSubscriptions PushSubscription[]
+  formerEmployees   FormerEmployee[]
 
   @@map("organizations")
 }
@@ -262,6 +263,8 @@ enum StaffRight {
   EDIT_PROFILE
   MANAGE_ABSENCES
   VIEW_HOURS
+  /// Mitarbeiter endgueltig loeschen - nur ausdruecklich vergeben, nie abgeleitet.
+  DELETE_EMPLOYEE
 }
 
 /// Interne Standortmeldung - getrennt von unbesetzten Schichten.
@@ -383,19 +386,36 @@ enum PauseOption {
   PER_SHIFT
 }
 
+/// Zuweisung einer Person zu einer Schicht. Nach dem Loeschen der Person
+/// bleiben begonnene und vergangene Einsaetze als Historie erhalten: userId ist
+/// dann leer und formerEmployeeId zeigt auf die Momentaufnahme (genau eins von
+/// beiden ist gesetzt, CHECK-Constraint in der Migration).
 model Booking {
   id        String   @id @default(cuid())
   shiftId   String
-  userId    String
+  userId    String?
+  formerEmployeeId String?
   bookedAt  DateTime @default(now())
   bookedBy  String?
+  /// Zeitpunkt, ab dem die Zuweisung als bestaetigt gilt (siehe confirmation).
   confirmedAt DateTime?
+  /// Herkunft der Bestaetigung: PLANNER = von Planung/Administration direkt
+  /// zugewiesen oder genehmigt (sofort verbindlich), EMPLOYEE = von der Person
+  /// selbst bestaetigt. Leer = Altbestand ohne eindeutige Herkunft.
+  confirmation BookingConfirmation?
 
   shift Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id], onDelete: Restrict)
+  formerEmployee FormerEmployee? @relation(fields: [formerEmployeeId], references: [id], onDelete: Restrict)
 
   @@unique([shiftId, userId])
+  @@index([formerEmployeeId])
   @@map("bookings")
+}
+
+enum BookingConfirmation {
+  PLANNER
+  EMPLOYEE
 }
 
 model ModRequest {
@@ -482,7 +502,7 @@ model LiveLog {
   loggedAt      DateTime @default(now())
 
   liveSession LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
-  user        User        @relation(fields: [userId], references: [id])
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("live_logs")
 }
@@ -492,9 +512,12 @@ enum LiveAction {
   UNBOOK
 }
 
+/// Arbeitszeit. Nach dem Loeschen der Person bleibt sie mit formerEmployeeId
+/// statt userId erhalten (genau eins von beiden, CHECK-Constraint).
 model TimeRecord {
   id             String       @id @default(cuid())
-  userId         String
+  userId         String?
+  formerEmployeeId String?
   organizationId String
   /// Standort der Arbeit; ohne Angabe nur fuer die Person selbst, ihre
   /// Personalverantwortlichen und Admins sichtbar.
@@ -516,13 +539,15 @@ model TimeRecord {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User?         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  formerEmployee FormerEmployee? @relation(fields: [formerEmployeeId], references: [id], onDelete: Restrict)
   category TimeCategory? @relation(fields: [categoryId], references: [id])
   branch   Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
   checkin  Checkin?
 
   @@index([organizationId, userId, date])
   @@index([organizationId, branchId, date])
+  @@index([formerEmployeeId])
   @@map("time_records")
 }
 
@@ -615,7 +640,7 @@ model Holiday {
 model Message {
   id             String   @id @default(cuid())
   organizationId String
-  senderId       String
+  senderId       String?
   subject        String
   body           String
   parentId       String?
@@ -627,7 +652,8 @@ model Message {
   createdAt      DateTime @default(now())
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  sender       User               @relation("sender", fields: [senderId], references: [id])
+  /// Leer, wenn das Konto der absendenden Person geloescht wurde.
+  sender       User?              @relation("sender", fields: [senderId], references: [id], onDelete: SetNull)
   parent       Message?           @relation("replies", fields: [parentId], references: [id])
   replies      Message[]          @relation("replies")
   recipients   MessageRecipient[]
@@ -674,12 +700,12 @@ model PortalFile {
   path           String
   size           Int
   mimeType       String?
-  uploadedById   String
+  uploadedById   String?
   createdAt      DateTime @default(now())
 
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   folder       PortalFolder? @relation(fields: [folderId], references: [id])
-  uploadedBy   User          @relation(fields: [uploadedById], references: [id])
+  uploadedBy   User?         @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
 
   @@map("portal_files")
 }
@@ -700,12 +726,12 @@ model Topic {
 model TopicPost {
   id        String   @id @default(cuid())
   topicId   String
-  userId    String
+  userId    String?
   text      String
   createdAt DateTime @default(now())
 
   topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  user  User  @relation(fields: [userId], references: [id])
+  user  User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("topic_posts")
 }
@@ -713,12 +739,12 @@ model TopicPost {
 model EmployeeNote {
   id         String   @id @default(cuid())
   subjectId  String
-  authorId   String
+  authorId   String?
   text       String
   createdAt  DateTime @default(now())
 
   subject User @relation("subject", fields: [subjectId], references: [id], onDelete: Cascade)
-  author  User @relation("author", fields: [authorId], references: [id])
+  author  User? @relation("author", fields: [authorId], references: [id], onDelete: SetNull)
 
   @@map("employee_notes")
 }
@@ -764,7 +790,9 @@ model TimeCorrection {
 model Checkin {
   id             String   @id @default(cuid())
   organizationId String
-  userId         String
+  /// Leer nach dem Loeschen der Person; dann ist formerEmployeeId gesetzt.
+  userId         String?
+  formerEmployeeId String?
   shiftId        String
   branchId       String
   /// Gestartete Zeiterfassung (bei MANUAL erst nach Freigabe).
@@ -789,7 +817,8 @@ model Checkin {
   decisionNote   String?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  formerEmployee FormerEmployee? @relation(fields: [formerEmployeeId], references: [id], onDelete: Restrict)
   shift        Shift        @relation(fields: [shiftId], references: [id], onDelete: Cascade)
   branch       Branch       @relation(fields: [branchId], references: [id], onDelete: Restrict)
   timeRecord   TimeRecord?  @relation(fields: [timeRecordId], references: [id], onDelete: SetNull)
@@ -801,6 +830,25 @@ model Checkin {
   @@index([organizationId, branchId, createdAt])
   @@index([organizationId, status])
   @@map("checkins")
+}
+
+/// Historische Momentaufnahme einer geloeschten Person: nur der Name, damit
+/// vergangene Einsaetze, Arbeitszeiten und Check-ins weiter auswertbar bleiben.
+/// Kein Konto, keine Kontakt-, Vertrags- oder Qualifikationsdaten.
+model FormerEmployee {
+  id             String   @id @default(cuid())
+  organizationId String
+  firstName      String
+  lastName       String
+  deletedAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bookings     Booking[]
+  timeRecords  TimeRecord[]
+  checkins     Checkin[]
+
+  @@index([organizationId])
+  @@map("former_employees")
 }
 
 model OrgSettings {

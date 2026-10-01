@@ -30,7 +30,8 @@ interface ReplyMsg {
   subject: string;
   body: string;
   createdAt: string;
-  sender: UserInfo;
+  /** null: Konto der absendenden Person geloescht. */
+  sender: UserInfo | null;
 }
 
 interface MessageFull {
@@ -39,7 +40,8 @@ interface MessageFull {
   body: string;
   createdAt: string;
   parentId: string | null;
-  sender: UserInfo;
+  /** null: Konto der absendenden Person geloescht. */
+  sender: UserInfo | null;
   recipients: {
     userId: string;
     isRead: boolean;
@@ -126,9 +128,10 @@ export function MessageDetail() {
     );
   }
 
-  function initials(user: UserInfo) {
+  function initials(user: Pick<UserInfo, "firstName" | "lastName">) {
     return (user.firstName[0] + user.lastName[0]).toUpperCase();
   }
+  const absender = (user: UserInfo | null) => user ?? { firstName: "Gelöschte", lastName: "Person" };
 
   return (
     <div className="flex-1">
@@ -147,13 +150,13 @@ export function MessageDetail() {
         <div className="flex items-start gap-3 mb-4">
           <Avatar className="size-10">
             <AvatarFallback className="bg-accent text-primary dark:text-primary">
-              {initials(msg.sender)}
+              {initials(absender(msg.sender))}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
             <div className="flex items-baseline gap-2">
               <span className="font-medium">
-                {msg.sender.firstName} {msg.sender.lastName}
+                {absender(msg.sender).firstName} {absender(msg.sender).lastName}
               </span>
               <time className="text-xs text-muted-foreground">
                 {format(new Date(msg.createdAt), "dd. MMMM yyyy, HH:mm", { locale: de })}
@@ -186,11 +189,11 @@ export function MessageDetail() {
                   <div className="mb-2 flex items-center gap-2">
                     <Avatar className="size-7">
                       <AvatarFallback className="text-xs bg-accent text-primary dark:text-primary">
-                        {initials(reply.sender)}
+                        {initials(absender(reply.sender))}
                       </AvatarFallback>
                     </Avatar>
                     <span className="text-sm font-medium">
-                      {reply.sender.firstName} {reply.sender.lastName}
+                      {absender(reply.sender).firstName} {absender(reply.sender).lastName}
                     </span>
                     <time className="text-xs text-muted-foreground">
                       {format(new Date(reply.createdAt), "dd. MMM yyyy, HH:mm", { locale: de })}

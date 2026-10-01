@@ -20,7 +20,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (!parent) throw new ApiError("Parent message not found", 404);
     const { body: text } = await body(request, z.object({ body: z.string().trim().min(1).max(10000) }));
     const people = parent.senderId === a.userId ? null : await visiblePeople(a);
-    const candidates = new Set<string>([parent.senderId, ...parent.recipients.map((r) => r.userId).filter((userId) => canSee(people, userId))]);
+    // Ohne Absender (Konto geloescht) gehen Antworten nur an die uebrigen Empfaenger.
+    const candidates = new Set<string>([...(parent.senderId ? [parent.senderId] : []), ...parent.recipients.map((r) => r.userId).filter((userId) => canSee(people, userId))]);
     candidates.delete(a.userId);
     const active = await db.organizationMember.findMany({ where: { organizationId: a.orgId, isActive: true, userId: { in: [...candidates] } }, select: { userId: true } });
     if (!active.length) throw new ApiError("Keine erreichbaren Empfänger.", 400);

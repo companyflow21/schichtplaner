@@ -80,11 +80,12 @@ type Note = {
   authorId: string;
   text: string;
   createdAt: string;
+  /** null: Konto der verfassenden Person geloescht. */
   author: {
     id: string;
     firstName: string;
     lastName: string;
-  };
+  } | null;
 };
 
 function getInitials(firstName: string, lastName: string) {
@@ -573,7 +574,7 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
                       <p className="whitespace-pre-wrap">{note.text}</p>
                       <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                         <span>
-                          {note.author.firstName} {note.author.lastName}
+                          {note.author ? note.author.firstName + " " + note.author.lastName : "Gelöschte Person"}
                         </span>
                         <span>-</span>
                         <span>

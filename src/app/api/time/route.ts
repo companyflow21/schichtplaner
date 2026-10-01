@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const userIdParam = searchParams.get("userId");
     const records = await db.timeRecord.findMany({
       where: { AND: [timeScope(a, "view"), { date: { gte: monthStart, lt: monthEnd } }, ...(userIdParam ? [{ userId: userIdParam }] : [])] },
-      include: { category: { select: { id: true, name: true } }, branch: { select: { id: true, name: true } }, user: person },
+      include: { category: { select: { id: true, name: true } }, branch: { select: { id: true, name: true } }, user: person, formerEmployee: { select: { id: true, firstName: true, lastName: true } } },
       orderBy: [{ date: "asc" }, { timeFrom: "asc" }],
     });
     // Zeilen auch ohne Buchung: die eigene sowie Personen, deren Stunden man
@@ -37,11 +37,15 @@ export async function GET(request: NextRequest) {
       where: { organizationId: a.orgId, isActive: true, AND: [...(rows ? [{ userId: { in: rows } }] : []), ...(userIdParam ? [{ userId: userIdParam }] : [])] },
       include: { user: person },
     });
-    const grouped = new Map<string, { userId: string; firstName: string; lastName: string; profileImage: string | null; totalHours: number; records: unknown[] }>();
+    const grouped = new Map<string, { userId: string; former?: boolean; firstName: string; lastName: string; profileImage: string | null; totalHours: number; records: unknown[] }>();
     for (const p of people) grouped.set(p.userId, { userId: p.userId, firstName: p.user.firstName, lastName: p.user.lastName, profileImage: p.user.profileImage, totalHours: 0, records: [] });
-    for (const { user, ...record } of records) {
-      if (!grouped.has(record.userId)) grouped.set(record.userId, { userId: user.id, firstName: user.firstName, lastName: user.lastName, profileImage: user.profileImage, totalHours: 0, records: [] });
-      const group = grouped.get(record.userId)!;
+    for (const { user, formerEmployee, ...record } of records) {
+      // Geloeschte Person (nur Admins sehen diese Historie): eigene Gruppe je Momentaufnahme.
+      const key = record.userId ?? "former:" + record.formerEmployeeId;
+      if (!grouped.has(key)) grouped.set(key, user
+        ? { userId: user.id, firstName: user.firstName, lastName: user.lastName, profileImage: user.profileImage, totalHours: 0, records: [] }
+        : { userId: key, former: true, firstName: formerEmployee?.firstName ?? "Gelöschte", lastName: formerEmployee?.lastName ?? "Person", profileImage: null, totalHours: 0, records: [] });
+      const group = grouped.get(key)!;
       group.records.push(record);
       group.totalHours += recordMinutes(record) / 60;
     }

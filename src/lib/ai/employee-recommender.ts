@@ -185,6 +185,7 @@ export async function getEmployeeScores(
   const userDayShifts = new Map<string, { from: string; to: string }[]>();
 
   for (const b of weekBookings) {
+    if (!b.userId) continue;
     const hours = estimateHours(b.shift.shiftFrom, b.shift.shiftTo);
     weekHoursMap.set(b.userId, (weekHoursMap.get(b.userId) ?? 0) + hours);
 
@@ -232,6 +233,7 @@ export async function getEmployeeScores(
   // Count how many of the 4 weeks each user worked this slot
   const historyCountMap = new Map<string, number>();
   for (const hb of historicalBookings) {
+    if (!hb.userId) continue;
     historyCountMap.set(
       hb.userId,
       (historyCountMap.get(hb.userId) ?? 0) + 1

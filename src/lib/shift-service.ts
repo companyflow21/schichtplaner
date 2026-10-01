@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Prisma, Schedule } from "@prisma/client";
 import { ApiError } from "./errors";
 import { timeSchema } from "./api";
-import { assessAssignment, notify, shiftInclude } from "./planning";
+import { assessAssignment, notify, personIds, shiftInclude } from "./planning";
 import { isoWeek, weekDate, addDate, shiftRange } from "./berlin";
 import { assertCan, branchHolders, type Access } from "./access";
 import { catalogQualifications } from "./qualifications";
@@ -87,6 +87,8 @@ export async function updateShift(tx: Tx, a: Access, id: string, data: z.output<
   if (effective.shiftFrom === effective.shiftTo) throw new ApiError("Beginn und Ende müssen unterschiedlich sein.");
   if (effective.maxEmployees < existing.bookings.length) throw new ApiError("Die Schicht hat mehr Zuweisungen als Plätze.", 409);
   for (const booking of existing.bookings) {
+    // Historie geloeschter Personen wird nicht neu geprueft.
+    if (!booking.userId || !booking.user) continue;
     // Harte Sperren gelten immer. Ein Qualifikationshinweis, der schon vor der
     // Aenderung bestand, wurde beim Einteilen bestaetigt und blockiert nicht
     // erneut; erst durch die Aenderung entstehende Hinweise blockieren.
@@ -97,6 +99,6 @@ export async function updateShift(tx: Tx, a: Access, id: string, data: z.output<
   }
   const shift = await tx.shift.update({ where: { id }, data: { ...fields, scheduleId: schedule.id }, include: shiftInclude });
   await tx.booking.updateMany({ where: { shiftId: id }, data: { confirmedAt: null } });
-  if (existing.schedule.isPublic || schedule.isPublic) await notify(tx, a.orgId, a.userId, existing.bookings.map(b => b.userId), "Schicht geändert – bitte bestätigen", shiftRange(shift).date + ", " + shift.shiftFrom + "–" + shift.shiftTo + ". Bitte prüfe Zeit und Einsatzort.", id);
+  if (existing.schedule.isPublic || schedule.isPublic) await notify(tx, a.orgId, a.userId, personIds(existing.bookings), "Schicht geändert – bitte bestätigen", shiftRange(shift).date + ", " + shift.shiftFrom + "–" + shift.shiftTo + ". Bitte prüfe Zeit und Einsatzort.", id);
   return { shift, previousBranchId: existing.schedule.branchId };
 }

@@ -28,7 +28,8 @@ interface Post {
   id: string;
   text: string;
   createdAt: string;
-  user: UserInfo;
+  /** null: Konto der Person geloescht. */
+  user: UserInfo | null;
 }
 
 interface TopicFull {
@@ -93,9 +94,10 @@ export function TopicDetail({ topicId }: Props) {
     },
   });
 
-  function initials(user: UserInfo) {
+  function initials(user: Pick<UserInfo, "firstName" | "lastName">) {
     return (user.firstName[0] + user.lastName[0]).toUpperCase();
   }
+  const autor = (user: UserInfo | null) => user ?? { firstName: "Gelöschte", lastName: "Person" };
 
   if (isLoading) {
     return (
@@ -165,13 +167,13 @@ export function TopicDetail({ topicId }: Props) {
               <div key={post.id} className="flex gap-3 p-5">
                 <Avatar className="size-9 shrink-0">
                   <AvatarFallback className="text-xs bg-accent text-primary dark:text-primary">
-                    {initials(post.user)}
+                    {initials(autor(post.user))}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2">
                     <span className="text-sm font-medium">
-                      {post.user.firstName} {post.user.lastName}
+                      {autor(post.user).firstName} {autor(post.user).lastName}
                     </span>
                     <time className="text-xs text-muted-foreground">
                       {format(new Date(post.createdAt), "dd. MMM yyyy, HH:mm", { locale: de })}

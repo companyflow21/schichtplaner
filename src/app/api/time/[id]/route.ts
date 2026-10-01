@@ -15,6 +15,7 @@ export async function PATCH(request: Request, context: Context) {
     return serial(async tx => {
       const record = await tx.timeRecord.findFirst({ where: { id, organizationId: a.orgId } });
       if (!record || !(record.userId === a.userId || canSeeTime(a, record, "edit"))) throw new ApiError("Zeitbuchung nicht gefunden.", 404);
+      if (!record.userId) throw new ApiError("Zeiten gelöschter Personen bleiben als Historie unverändert.", 409);
       await validatedTimeChange(tx, a.orgId, record, data);
       if (await tx.timeCorrection.findFirst({ where: { recordId: id, status: "PENDING" } })) throw new ApiError("Für diese Buchung wartet bereits eine Korrektur auf Freigabe.", 409);
       const correction = await tx.timeCorrection.create({ data: { organizationId: a.orgId, recordId: id, requesterId: a.userId, reason, before: snapshot(record), proposed: data } });

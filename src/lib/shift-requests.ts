@@ -64,3 +64,33 @@ export async function deciders(tx: Tx, orgId: string, branchIds: (string | null)
   const sets = await Promise.all([...new Set(branchIds)].map(id => branchHolders(tx, orgId, id, ["HANDLE_REQUESTS"])));
   return sets.reduce((all, set) => all.filter(id => set.includes(id)));
 }
+
+export type ClosedRequest = { id: string; kind: string; shiftId: string; targetShiftId: string | null; userId: string; targetUserId: string | null };
+
+/**
+ * Offene Antraege schliessen, die durch eine Planungsaenderung hinfaellig
+ * werden (Schicht abgesagt, Zuweisung gewechselt oder aufgehoben, Person
+ * geloescht). Gemeinsamer Baustein fuer Schicht-, Zuweisungs- und
+ * Personenloeschung; laeuft in der Transaktion der Aenderung.
+ * - state: DECLINED (hinfaellig) oder ACCEPTED (durch die Aenderung erfuellt,
+ *   etwa eine Uebernahmeanfrage der direkt eingeteilten Person)
+ * - note wird als Entscheidungsnotiz gespeichert; Entscheider ist die
+ *   handelnde Person.
+ * Benachrichtigt wird hier nicht: Der Aufrufer fasst die Nachrichten je
+ * Person zusammen (requestParties), damit niemand doppelte oder
+ * widerspruechliche Mitteilungen bekommt.
+ */
+export async function closeOpenRequests(tx: Tx, a: Pick<Access, "orgId" | "userId">, where: Prisma.ModRequestWhereInput, note: string, state: "DECLINED" | "ACCEPTED" = "DECLINED"): Promise<ClosedRequest[]> {
+  const open = await tx.modRequest.findMany({
+    where: { AND: [where, { state: "OPEN", shift: { schedule: { organizationId: a.orgId } } }] },
+    select: { id: true, kind: true, shiftId: true, targetShiftId: true, userId: true, targetUserId: true },
+  });
+  if (open.length) await tx.modRequest.updateMany({ where: { id: { in: open.map(r => r.id) } }, data: { state, decidedById: a.userId, decidedAt: new Date(), decisionNote: note } });
+  return open;
+}
+
+/** Beteiligte geschlossener Antraege (antragstellende Person und ggf. Gegenseite), ohne Doppelte. */
+export function requestParties(requests: ClosedRequest[], except: (string | null)[] = []): string[] {
+  const skip = new Set(except.filter((id): id is string => !!id));
+  return [...new Set(requests.flatMap(r => [r.userId, ...(r.targetUserId ? [r.targetUserId] : [])]))].filter(id => !skip.has(id));
+}

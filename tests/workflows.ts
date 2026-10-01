@@ -227,18 +227,21 @@ try {
   console.log("SUCCESS: " + checks + " assertions / HTTP checks passed.");
 
   const context: TestContext = { base, users, password, categoryId: category.id, check, Session: Session as unknown as TestContext["Session"], counter: () => checks };
-  await permissionTests(context);
-  await staffSiteTests(context);
-  await catalogTargetTests(context);
-  await qualificationEditTests(context);
-  await exchangeTests(context);
-  await siteGpsTests(context);
-  await checkinTests(context);
-  await messagingTests(context);
-  await exchangeDstTests(context);
-  await fileTests(context);
-  await orgDeleteTests(context);
-  await pushApiTests(context);
+  // TEST_ONLY=name1,name2 beschraenkt die Folgereihen (Grundablauf oben laeuft immer).
+  const only = process.env.TEST_ONLY?.split(",").map((x) => x.trim()).filter(Boolean);
+  const run = (name: string) => !only?.length || only.includes(name);
+  if (run("permissions")) await permissionTests(context);
+  if (run("staff-sites")) await staffSiteTests(context);
+  if (run("catalog-targets")) await catalogTargetTests(context);
+  if (run("qualification-edit")) await qualificationEditTests(context);
+  if (run("exchange")) await exchangeTests(context);
+  if (run("sites-gps")) await siteGpsTests(context);
+  if (run("checkin")) await checkinTests(context);
+  if (run("messaging")) await messagingTests(context);
+  if (run("exchange-dst")) await exchangeDstTests(context);
+  if (run("files")) await fileTests(context);
+  if (run("org-delete")) await orgDeleteTests(context);
+  if (run("push-api")) await pushApiTests(context);
   console.log("FINAL SUCCESS: " + checks + " assertions / HTTP checks passed.");
   if (process.argv.includes("--serve")) {
     console.log("BROWSER_PREVIEW " + base + " — admin@akro-test.invalid / " + password);

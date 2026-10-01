@@ -15,14 +15,15 @@ export async function GET() {
     const a = await requireAccess();
     const corrections = await db.timeCorrection.findMany({
       where: { organizationId: a.orgId, record: timeScope(a, "view") },
-      include: { record: { select: { id: true, date: true, userId: true, branchId: true, user: { select: { firstName: true, lastName: true } }, branch: { select: { id: true, name: true } } } } },
+      include: { record: { select: { id: true, date: true, userId: true, branchId: true, user: { select: { firstName: true, lastName: true } }, formerEmployee: { select: { firstName: true, lastName: true } }, branch: { select: { id: true, name: true } } } } },
       orderBy: { createdAt: "desc" },
       take: 100,
     });
     return {
       corrections: corrections.map((c) => ({
         id: c.id, status: c.status, reason: c.reason, before: c.before, proposed: c.proposed, createdAt: c.createdAt, reviewedAt: c.reviewedAt,
-        record: c.record,
+        // Geloeschte Person: Name aus der Momentaufnahme.
+        record: { ...c.record, user: c.record.user ?? c.record.formerEmployee },
         canDecide: c.status === "PENDING" && canSeeTime(a, c.record, "edit"),
       })),
     };
@@ -39,17 +40,19 @@ export async function PATCH(request: Request) {
       if (!c || (!own && !canSeeTime(a, c.record, "edit"))) throw new ApiError("Korrektur nicht gefunden.", 404);
       if (!canSeeTime(a, c.record, "edit")) throw new ApiError("Keine Berechtigung.", 403);
       if (c.status !== "PENDING") throw new ApiError("Korrektur bereits entschieden.", 409);
+      const userId = c.record.userId;
+      if (!userId) throw new ApiError("Zeiten gelöschter Personen bleiben als Historie unverändert.", 409);
       if (status === "APPROVED") {
         const before = c.before as { updatedAt: string };
         if (before.updatedAt !== c.record.updatedAt.toISOString()) throw new ApiError("Die Zeitbuchung wurde inzwischen geändert. Bitte Antrag ablehnen und neu erfassen.", 409);
         const change = await validatedTimeChange(tx, a.orgId, c.record, timeChange.parse(c.proposed));
         const updated = await tx.timeRecord.update({ where: { id: c.recordId }, data: change });
         // Zuordnungsregel erneut anwenden; ohne eindeutiges Ergebnis bleibt der bisherige Standort.
-        const branchId = await branchForTime(tx, a.orgId, updated.userId, { date: updated.date.toISOString().slice(0, 10), timeFrom: updated.timeFrom, timeTo: updated.timeTo });
+        const branchId = await branchForTime(tx, a.orgId, userId, { date: updated.date.toISOString().slice(0, 10), timeFrom: updated.timeFrom, timeTo: updated.timeTo });
         if (branchId && branchId !== updated.branchId) await tx.timeRecord.update({ where: { id: updated.id }, data: { branchId } });
       }
       const correction = await tx.timeCorrection.update({ where: { id }, data: { status, reviewedBy: a.userId, reviewedAt: new Date() } });
-      await notify(tx, a.orgId, a.userId, [c.record.userId], status === "APPROVED" ? "Zeitkorrektur genehmigt" : "Zeitkorrektur abgelehnt", c.reason);
+      await notify(tx, a.orgId, a.userId, [userId], status === "APPROVED" ? "Zeitkorrektur genehmigt" : "Zeitkorrektur abgelehnt", c.reason);
       return { correction };
     });
   });

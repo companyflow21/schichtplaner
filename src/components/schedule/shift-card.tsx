@@ -139,7 +139,7 @@ export function ShiftCard({
   }
 
   const isPending = bookMutation.isPending || unbookMutation.isPending || addPlaceMutation.isPending;
-  const bookedUserIds = shift.bookings.map((b) => b.userId);
+  const bookedUserIds = shift.bookings.flatMap((b) => (b.userId ? [b.userId] : []));
 
   // Can the current user book themselves into an empty slot?
   const canSelfBook =
@@ -255,7 +255,8 @@ export function ShiftCard({
       <div className="space-y-0.5 px-2.5 pb-2">
         {/* Booked employees */}
         {shift.bookings.map((booking) => {
-          const canUnbook = canEdit;
+          // Historie geloeschter Personen ist nicht bearbeitbar.
+          const canUnbook = canEdit && !!booking.userId;
           return (
             <div
               key={booking.id}
@@ -281,7 +282,7 @@ export function ShiftCard({
                   title="Zuweisung aufheben"
                   description={`${booking.user.firstName} ${booking.user.lastName} wird aus dieser Schicht entfernt. Der Platz ist danach wieder offen.`}
                   confirmLabel="Entfernen"
-                  onConfirm={() => unbookMutation.mutate(booking.userId)}
+                  onConfirm={() => booking.userId && unbookMutation.mutate(booking.userId)}
                 >
                 <button
                   type="button"

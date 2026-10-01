@@ -58,7 +58,9 @@ export function EmployeeNav({
     const byUser = new Map<string, OrgEmployee>();
     for (const shift of shifts) {
       for (const booking of shift.bookings) {
-        if (!byUser.has(booking.userId)) byUser.set(booking.userId, { id: booking.userId, role: "", user: { ...booking.user, email: "" } });
+        // Geloeschte Personen sind nicht auswaehlbar (kein Konto mehr).
+        if (!booking.userId || !booking.user.id) continue;
+        if (!byUser.has(booking.userId)) byUser.set(booking.userId, { id: booking.userId, role: "", user: { ...booking.user, id: booking.user.id, email: "" } });
       }
     }
     return [...byUser.values()];
@@ -70,6 +72,7 @@ export function EmployeeNav({
     for (const shift of shifts) {
       const shiftDuration = calcShiftHours(shift.shiftFrom, shift.shiftTo);
       for (const booking of shift.bookings) {
+        if (!booking.userId) continue;
         hours[booking.userId] = (hours[booking.userId] ?? 0) + shiftDuration;
       }
     }

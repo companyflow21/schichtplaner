@@ -47,6 +47,7 @@ export async function GET(request: Request) {
       if (other.bookings.some(b => b.userId === a.userId)) continue;
       for (const booking of other.bookings) {
         if (checks >= MAX_CHECKS) break;
+        if (!booking.userId || !booking.user) continue;
         if (booking.userId === a.userId || own.bookings.some(b => b.userId === booking.userId)) continue;
         checks++;
         if ((await exchangeProblems(db, a.orgId, own, a.userId, other, booking.userId, true)).length) continue;

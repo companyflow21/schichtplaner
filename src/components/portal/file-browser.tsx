@@ -46,11 +46,12 @@ interface FileItem {
   size: number;
   mimeType: string | null;
   createdAt: string;
+  /** null: Konto der hochladenden Person geloescht. */
   uploadedBy: {
     id: string;
     firstName: string;
     lastName: string;
-  };
+  } | null;
 }
 
 interface BreadcrumbItem {
@@ -293,7 +294,7 @@ export function FileBrowser() {
                       <div className="truncate text-sm font-medium">{file.name}</div>
                       <div className="text-xs text-muted-foreground">
                         {formatSize(file.size)} &middot;{" "}
-                        {file.uploadedBy.firstName} {file.uploadedBy.lastName} &middot;{" "}
+                        {file.uploadedBy ? file.uploadedBy.firstName + " " + file.uploadedBy.lastName : "Gelöschte Person"} &middot;{" "}
                         {format(new Date(file.createdAt), "dd. MMM yyyy", { locale: de })}
                       </div>
                     </div>

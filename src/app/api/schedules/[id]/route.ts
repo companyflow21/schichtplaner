@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { api, body, serial, ApiError } from "@/lib/api";
 import { assertCan, branchHolders, requireAccess } from "@/lib/access";
-import { notify } from "@/lib/planning";
+import { notify, personIds } from "@/lib/planning";
 import { emitToBranch } from "@/lib/emit";
 
 const updateScheduleSchema = z.object({
@@ -28,7 +28,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       void _public;
       if (Object.keys(display).length) assertCan(a, "EDIT_SHIFTS", existing.branchId);
       const schedule = await tx.schedule.update({ where: { id }, data });
-      const booked = existing.shifts.flatMap(s => s.bookings.map(b => b.userId));
+      const booked = existing.shifts.flatMap(s => personIds(s.bookings));
       if (data.isPublic !== undefined && data.isPublic !== existing.isPublic) {
         // Wer den Plan sehen oder Schichten anfragen darf, plus alle Eingeteilten.
         const audience = [...await branchHolders(tx, a.orgId, existing.branchId, ["VIEW_SCHEDULE", "REQUEST_SHIFTS"], false), ...booked];

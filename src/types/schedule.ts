@@ -5,7 +5,8 @@
  */
 
 export type BookingUser = {
-  id: string;
+  /** null: Person geloescht - nur noch der Name aus der Momentaufnahme. */
+  id: string | null;
   firstName: string;
   lastName: string;
   profileImage: string | null;
@@ -13,9 +14,16 @@ export type BookingUser = {
 
 export type ShiftBooking = {
   confirmedAt?: string | null;
+  /** PLANNER: von Planung zugewiesen/genehmigt (verbindlich), EMPLOYEE: selbst bestaetigt, null: Altbestand. */
+  confirmation?: "PLANNER" | "EMPLOYEE" | null;
   id: string;
   shiftId: string;
-  userId: string;
+  /** null: historische Zuweisung einer geloeschten Person (nur vergangene Schichten). */
+  userId: string | null;
+  /** Historische Zuweisung einer geloeschten Person - nicht bearbeitbar. */
+  former?: boolean;
+  /** Stabiler Schluessel je Person (userId oder "former:<id>" fuer geloeschte). */
+  personKey?: string;
   bookedAt: string;
   /** Nur fuer die Planung: Konto inaktiv oder genehmigte Abwesenheit. */
   unavailable?: boolean;
