@@ -1,16 +1,10 @@
-import type { Prisma } from "@prisma/client";
 import { api, serial, ApiError } from "@/lib/api";
-import { branchIds, can, requireAccess, type Access } from "@/lib/access";
+import { can, requireAccess, type Access } from "@/lib/access";
 import { ineffectiveBookings, shiftInclude, shiftView } from "@/lib/planning";
+import { ineffectiveFor, mergedScope, visibleFor } from "@/lib/schedule-visibility";
 import { ensureSchedule } from "@/lib/shift-service";
 
 const LEGACY = "ohne";
-
-/** Ohne "Dienstplan ansehen" nur eigene und noch offene Schichten - nicht den ganzen Plan. */
-function visibleFor(a: Access) {
-  return (s: { schedule: { branchId: string | null }; bookings: { userId: string | null }[]; maxEmployees: number }) =>
-    can(a, "VIEW_SCHEDULE", s.schedule.branchId) || s.bookings.some(b => b.userId === a.userId) || s.bookings.length < s.maxEmployees;
-}
 
 function scheduleAccess(a: Access, branchId: string | null) {
   const view = can(a, "VIEW_SCHEDULE", branchId);
@@ -58,20 +52,12 @@ export async function GET(request: Request) {
         };
       }
       // Zusammengefuehrte Sicht: eigene veroeffentlichte Schichten plus alles, was Freigaben zeigen.
-      const view = branchIds(a, "VIEW_SCHEDULE"), request = branchIds(a, "REQUEST_SHIFTS");
-      const manager = a.role === "MANAGER";
-      const scope: Prisma.ShiftWhereInput[] = a.isAdmin ? [{}] : [
-        { schedule: { isPublic: true }, bookings: { some: { userId: a.userId } } },
-        ...(view?.length ? [{ schedule: { branchId: { in: view }, ...(manager ? {} : { isPublic: true }) } }] : []),
-        ...(request?.length ? [{ schedule: { branchId: { in: request }, isPublic: true } }] : []),
-      ];
       const shifts = (await tx.shift.findMany({
-        where: { deletedAt: null, schedule: { organizationId: a.orgId, weekNumber, year, deletedAt: null }, OR: scope },
+        where: { deletedAt: null, schedule: { organizationId: a.orgId, weekNumber, year, deletedAt: null }, OR: mergedScope(a) },
         include: shiftInclude,
         orderBy: [{ dayOfWeek: "asc" }, { shiftFrom: "asc" }],
       })).filter(visibleFor(a));
-      const planned = shifts.filter(s => can(a, "VIEW_SCHEDULE", s.schedule.branchId) && (a.isAdmin || manager));
-      const ineffective = await ineffectiveBookings(tx, a.orgId, planned);
+      const ineffective = await ineffectiveFor(tx, a, shifts);
       return {
         schedule: { id: "", organizationId: a.orgId, branchId: null, weekNumber, year, isPublic: shifts.every(s => s.schedule.isPublic), settingsLayout: "LAYOUT_1", showTitle: true, showPauses: true, shifts: shifts.map(s => shiftView(s, a, ineffective)) },
         merged: true,

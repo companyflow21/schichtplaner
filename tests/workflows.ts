@@ -22,6 +22,7 @@ import { exchangeDstTests } from "./exchange-dst";
 import { orgDeleteTests } from "./org-delete";
 import { pushApiTests } from "./push-api";
 import { qualificationEditTests } from "./qualification-edit";
+import { scheduleExportTests } from "./schedule-export";
 import webpush from "web-push";
 
 async function main() {
@@ -242,6 +243,7 @@ try {
   if (run("files")) await fileTests(context);
   if (run("org-delete")) await orgDeleteTests(context);
   if (run("push-api")) await pushApiTests(context);
+  if (run("schedule-export")) await scheduleExportTests(context);
   console.log("FINAL SUCCESS: " + checks + " assertions / HTTP checks passed.");
   if (process.argv.includes("--serve")) {
     console.log("BROWSER_PREVIEW " + base + " — admin@akro-test.invalid / " + password);
