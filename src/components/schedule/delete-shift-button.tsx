@@ -48,7 +48,7 @@ export function DeleteShiftButton({ shiftId, onDeleted }: { shiftId: string; onD
   const folgen = preview
     ? "Die Schicht wird gelöscht. " + anzahl(preview.assignments, "Zuweisung wird", "Zuweisungen werden") + " entfernt"
       + (preview.openRequests ? " und " + anzahl(preview.openRequests, "offener Antrag wird", "offene Anträge werden") + " geschlossen" : "")
-      + ". Betroffene Personen werden benachrichtigt, sobald der Plan veröffentlicht ist. Das lässt sich nicht rückgängig machen."
+      + ". Bei veröffentlichtem Plan werden die Betroffenen benachrichtigt. Das lässt sich nicht rückgängig machen."
     : "";
 
   return (

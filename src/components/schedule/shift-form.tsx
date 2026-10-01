@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { Check, Copy, UserPlus, X } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { TimeInput } from "@/components/ui/time-input";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,6 +14,7 @@ import { json, useAction, selectClass, ErrorMessage } from "@/components/workfor
 import { QualifikationAuswahl } from "@/components/workforce/qualification-select";
 import { cn } from "@/lib/utils";
 import { CopyShiftDialog, PreviewSummary, ShiftPreviewList } from "./copy-shift-dialog";
+import { DeleteShiftButton } from "./delete-shift-button";
 import type { ShiftData, DivisionOption, PoolData, ShiftPreview } from "@/types/schedule";
 
 type Props = { open: boolean; onOpenChange: (value: boolean) => void; scheduleId: string; branchId: string | null; defaultDayOfWeek?: number; shift?: ShiftData | null };
@@ -120,7 +120,7 @@ function Editor({ open, onOpenChange, scheduleId, branchId, defaultDayOfWeek = 1
       <label className="sm:col-span-2">Hinweise<Textarea name="description" defaultValue={shift?.description || ""} maxLength={2000} /></label>
       {!shift && <fieldset className="sm:col-span-2"><legend className="mb-1.5">Mitarbeiter (optional)</legend><AssigneeSelect branchId={branchId} value={assignees} limit={places} onChange={value => { reset(); setAssignees(value); }} /><p className={cn("mt-1.5 text-xs", tooMany ? "text-destructive" : "text-muted-foreground")}>{tooMany ? "Mehr Personen ausgewählt als Plätze vorhanden." : "Ohne Auswahl bleibt die Schicht offen. Eingeteilte Personen sind sofort fest eingeplant."}</p></fieldset>}
       {withAssignees && preview && <div data-keep-preview className="sm:col-span-2 space-y-2" aria-live="polite"><p className="text-sm font-medium">Vorschau – noch nichts gespeichert</p><ShiftPreviewList preview={preview} /><PreviewSummary preview={preview} confirmed={confirmed} onConfirmedChange={setConfirmed} idPrefix="neue-schicht" /></div>}
-      <div className="sm:col-span-2 flex flex-wrap justify-end gap-2">{shift && <ConfirmDialog title="Schicht absagen" description="Die Schicht wird gelöscht und alle Zuweisungen werden aufgehoben. Betroffene Mitarbeitende verlieren diesen Einsatz." confirmLabel="Schicht löschen" disabled={action.isPending} onConfirm={() => { action.mutateAsync({ url: "/api/shifts/" + shift.id, method: "DELETE", message: "Schicht abgesagt" }).then(() => onOpenChange(false)).catch(() => {}); }}><Button type="button" variant="destructive" disabled={action.isPending}>Schicht löschen</Button></ConfirmDialog>}<Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button><Button disabled={action.isPending || check.isPending || blocked}>{submitLabel}</Button></div>
+      <div className="sm:col-span-2 flex flex-wrap justify-end gap-2">{shift && <DeleteShiftButton shiftId={shift.id} onDeleted={() => onOpenChange(false)} />}<Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button><Button disabled={action.isPending || check.isPending || blocked}>{submitLabel}</Button></div>
     </form>
     {shift && shift.branchId && <div className="mt-4 border-t pt-4 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-muted-foreground">Auf weitere Tage am selben Standort kopieren – auf Wunsch mit den Zuweisungen.</p><Button type="button" variant="outline" onClick={() => setKopieren(true)}><Copy className="size-4" />Kopieren …</Button></div>}
     {shift && kopieren && <CopyShiftDialog shift={shift} open={kopieren} onOpenChange={setKopieren} onDone={() => onOpenChange(false)} />}
