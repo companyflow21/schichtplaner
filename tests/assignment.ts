@@ -14,7 +14,7 @@ type S = InstanceType<TestContext["Session"]>;
 export async function assignmentTests(t: TestContext) {
   const { users, check } = t;
   const session = async (name: string) => { const s = new t.Session(); await s.login(users[name].email); return s; };
-  const admin = await session("admin"), mA = await session("managerA"), mB = await session("managerB"), viewer = await session("viewer");
+  const admin = await session("admin"), mA = await session("managerA"), mB = await session("managerB");
   const sA = await session("staffA"), sB = await session("staffB"), emp = await session("employee"), rep = await session("replacement"), loner = await session("loner"), foreign = await session("foreign");
   const grant = (member: string, branchId: string, rights: string[]) => admin.request("/api/employees/" + member + "/access", "PUT", { kind: "branch", branchId, rights });
   const id = users;
@@ -211,8 +211,9 @@ export async function assignmentTests(t: TestContext) {
   check((await titled(nord.id, targets[0], "Nachtkopie")).length === 0 && (await titled(nord.id, targets[2], "Nachtkopie")).length === 0, "copy preview creates nothing");
   check((await admin.request(copyUrl, "POST", { dates: [d7], preview: true })).occurrences[0].duplicate === true, "copy preview flags an identical shift as duplicate");
   await mB.request(copyUrl, "POST", { dates: targets }, 404);
-  await grant(id.viewer.memberId, nord.id, ["VIEW_SCHEDULE"]);
-  await viewer.request(copyUrl, "POST", { dates: targets }, 403);
+  // Nur Ansicht am Standort der Ausgangsschicht: sichtbar, aber nicht kopierbar.
+  await grant(id.managerB.memberId, nord.id, ["VIEW_SCHEDULE"]);
+  await mB.request(copyUrl, "POST", { dates: targets }, 403);
   await foreign.request(copyUrl, "POST", { dates: targets }, 404);
   await admin.request(copyUrl, "POST", { dates: [] }, 400);
   await admin.request(copyUrl, "POST", { dates: ["2026-02-30"] }, 400);
