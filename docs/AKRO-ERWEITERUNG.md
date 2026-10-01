@@ -18,9 +18,10 @@ Eine bestehende Abweichung zwischen Schema und Migration (`mod_requests.note`) w
 ### Dienstplanung
 - Einsatzort, Arbeitsbereich, Tätigkeit, Hinweise und benötigte Qualifikationen im vorhandenen Schichtformular.
 - Wiederholung für ausgewählte Wochentage über 1–52 Wochen. Die erzeugten Schichten bleiben einzeln bearbeitbar; keine zusätzliche Serienverwaltung.
-- Kopie auf ein beliebiges Datum; Zuweisungen werden bewusst nicht kopiert.
+- Kopie auf mehrere Tage mit Vorschau; Zuweisungen optional (standardmäßig aus), dann mit allen Prüfungen.
 - Entwurf bleibt für Mitarbeiter unsichtbar. Veröffentlichung informiert aktive Teammitglieder.
-- Bestätigung eigener veröffentlichter Schichten. Änderungen setzen Bestätigungen zurück und informieren Betroffene.
+- Zuweisungen durch Planung/Administration sind sofort verbindlich (Herkunft PLANNER); Änderungen werden nur mitgeteilt.
+  Die Bestätigung durch Mitarbeitende gilt nur noch für Altbestand ohne eindeutige Herkunft.
 - Zuweisung prüft Kapazität, aktive Mitgliedschaft, Qualifikationen, Tätigkeit am Einsatzort,
   Arbeitsbereichszugehörigkeit, genehmigte Abwesenheiten, Verfügbarkeit und Überschneidungen – auch nachts und über Jahresgrenzen.
 - Konflikte werden serverseitig mit verständlicher Meldung abgewiesen.
@@ -51,7 +52,7 @@ Eine bestehende Abweichung zwischen Schema und Migration (`mod_requests.note`) w
 - Erfasste Zeiten werden nicht gelöscht; Korrekturen bleiben nachvollziehbar.
 - Monatsauswertung enthält Soll, veröffentlichten Plan, tatsächliche Nettozeit und Ist-minus-Plan.
 - CSV mit UTF-8-BOM, Semikolon, deutschen Dezimalwerten und Schutz gegen Tabellenformeln;
-  lässt sich in Excel öffnen. Kein separater XLSX- oder PDF-Export.
+  lässt sich in Excel öffnen. Dienstplan als PDF (A4 quer) aus Wochen- und Monatsansicht; kein XLSX-Export.
 - Sollberechnung: Wochenstunden / 5 × Montag–Freitag des Monats. Keine automatische Feiertags-,
   Urlaubs-, Tarif- oder Lohnabrechnung. Planvergleich umfasst den ganzen Monat einschließlich künftiger Schichten.
 - Manuelle Von/Bis-Zeiten sind lokale Uhrzeiten; bei einer Zeitumstellung ist die reine Dauererfassung

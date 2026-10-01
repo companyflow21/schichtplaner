@@ -50,6 +50,37 @@ Zeiten und Abwesenheiten. Details: `docs/AKRO-ERWEITERUNG.md`, Abschnitte 5 und 
 - Bis zur Genehmigung bleibt die Besetzung unverändert. Die Genehmigung prüft alles erneut; ein Tausch ändert
   beide Schichten gemeinsam oder gar nicht. Offene eigene Anträge lassen sich zurückziehen.
 
+**Planen: besetzen, wechseln, kopieren, löschen** (Dienstplan → Wochenansicht eines Standorts)
+- Zuweisungen durch Planung oder Administration gelten sofort als fest eingeteilt; Mitarbeitende müssen nichts
+  bestätigen und bekommen nur eine Information. Spätere Änderungen an Zeit, Tag, Standort, Pause oder Tätigkeit
+  werden ebenfalls nur mitgeteilt.
+- *Schicht hinzufügen*: optional „Mitarbeiter auswählen“ (höchstens so viele wie Plätze). Mit Auswahl prüft
+  „Prüfen“ jeden Termin (auch bei Wiederholung über Tage und Wochen) und zeigt Konflikte mit Person, Datum und
+  Ursache; angelegt wird erst danach – alles oder nichts. Ohne Auswahl bleibt die Schicht offen.
+- *Mitarbeiter wechseln*: Wechsel-Symbol neben dem Namen auf der Schichtkarte. Entfernen und neu Einteilen
+  geschehen gemeinsam; scheitert eine Prüfung, bleibt die bisherige Zuweisung unverändert. Nach Schichtende oder
+  nach einem Check-in der Person ist kein Wechsel mehr möglich.
+- *Kopieren*: „Kopieren“ auf der Schichtkarte oder im Bearbeiten-Fenster. Mehrere Zieltage im Kalender wählen,
+  Zuweisungen auf Wunsch übernehmen (standardmäßig aus); die Vorschau zeigt Termine, Nachtschichten und
+  Konflikte vor dem Anlegen.
+- *Schicht löschen* (Bearbeiten-Fenster): nur künftige Schichten ohne Check-in und ohne erfasste Zeiten – auch
+  für Admins. Sonst nennt der Dialog den Grund. Zuweisungen und offene Anträge zur Schicht werden geschlossen,
+  Betroffene informiert.
+- *Als PDF exportieren* (Wochen- und Monatsansicht): Zeitraum bis 62 Tage, Kunde, Standort und Mitarbeiter
+  wählbar; DIN A4 quer, offene Plätze markiert. Enthält nur, was man im Plan sehen darf, und entsteht im Browser.
+
+**Mitarbeiter löschen** (Mitarbeiter → Person → Aktionen → „Mitarbeiter löschen“)
+- Admins sowie Manager mit dem ausdrücklich vergebenen Recht „Mitarbeiter löschen“ für die Person
+  (Mitarbeiter → Manager → Zugriffe). Manager löschen nur Mitarbeitende, keine Manager oder Admins.
+- Die Sicherheitsabfrage zeigt Name, künftige Zuweisungen und was als Historie bleibt. Gesperrt, solange eine
+  Zeiterfassung läuft, ein Check-in-Antrag offen ist oder die Person gerade im Einsatz ist.
+- Gelöscht werden Mitgliedschaft, Zugang (Sitzungen enden sofort), Freigaben, Abwesenheiten, Verfügbarkeiten,
+  Anträge und künftige Zuweisungen (die Schichten werden wieder offen, die Planung erhält eine Nachricht).
+  Arbeitszeiten, Check-ins und vergangene Einsätze bleiben mit Vor- und Nachname erhalten, damit Plan- und
+  Iststunden stimmen (Auswertung: „gelöscht“). Hat die Person ein Konto in einer weiteren Organisation, bleibt
+  dieses bestehen.
+- „Deaktivieren“ sperrt dagegen nur den Zugang und lässt sich rückgängig machen.
+
 **Qualifikationen** (Einstellungen → Qualifikationen, nur Admins)
 - Anlegen, Umbenennen und Löschen. Umbenennen zieht die neue Schreibweise bei allen Mitarbeitenden und Schichten nach.
 - Löschen geht nur, solange die Qualifikation bei keiner aktiven Person und keiner künftigen Schicht eingetragen ist.

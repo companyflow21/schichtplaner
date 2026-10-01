@@ -8,11 +8,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { addDate, berlinDate, isoWeek, weekDate } from "../src/lib/berlin";
 import type { TestContext } from "./permissions";
+import { newPerson } from "./people";
 
 export async function scheduleExportTests(t: TestContext) {
   const { users, check } = t;
   const session = async (name: string) => { const s = new t.Session(); await s.login(users[name].email); return s; };
-  const admin = await session("admin"), mA = await session("managerA"), mB = await session("managerB"), viewer = await session("viewer");
+  const admin = await session("admin"), mA = await session("managerA"), mB = await session("managerB");
+  // Eigener Manager nur mit "Dienstplan ansehen": der geteilte "viewer" ist nach tests/permissions.ts deaktiviert.
+  const viewerPerson = await newPerson(t, admin, "export-viewer", "Vera", "Exportblick", "MANAGER"), viewer = viewerPerson.session;
   const sA = await session("staffA"), sB = await session("staffB"), loner = await session("loner"), employee = await session("employee"), foreign = await session("foreign");
 
   // --- Daten: zwei Kunden, drei Standorte, sechs Schichten ----------------
@@ -25,7 +28,7 @@ export async function scheduleExportTests(t: TestContext) {
   const grant = (member: string, branchId: string, rights: string[]) => admin.request("/api/employees/" + member + "/access", "PUT", { kind: "branch", branchId, rights });
   await grant(users.managerA.memberId, b1.id, ["EDIT_SHIFTS", "PUBLISH_SCHEDULE"]);
   await grant(users.managerB.memberId, b3.id, ["EDIT_SHIFTS"]);
-  await grant(users.viewer.memberId, b1.id, ["VIEW_SCHEDULE"]);
+  await grant(viewerPerson.memberId, b1.id, ["VIEW_SCHEDULE"]);
   await grant(users.staffA.memberId, b1.id, ["REQUEST_SHIFTS"]);
 
   const mon = weekDate(isoWeek(addDate(berlinDate(), 150)).year, isoWeek(addDate(berlinDate(), 150)).weekNumber, 1);
