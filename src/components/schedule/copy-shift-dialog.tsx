@@ -115,18 +115,20 @@ export function CopyShiftDialog({ shift, open, onOpenChange, onDone }: CopyShift
   const [confirmed, setConfirmed] = useState(false);
   const busy = useRef(false);
   const dates = days.map((d) => format(d, "yyyy-MM-dd")).sort();
-  const assigned = shift.bookings.filter((b) => b.userId).length;
+  const assigned = shift.bookings.filter((b) => b.userId || b.contractorWorkerId).length;
+  const assignmentsRestricted = shift.bookings.some((b) => b.contractorWorkerId) && !shift.can?.manageContractors;
+  const takeAssignments = withAssignments && !assignmentsRestricted;
   const url = "/api/shifts/" + shift.id + "/copy";
 
   const preview = useQuery({
-    queryKey: ["shift-copy-preview", shift.id, dates.join(","), withAssignments],
-    queryFn: () => post(url, { dates, withAssignments, preview: true }),
+    queryKey: ["shift-copy-preview", shift.id, dates.join(","), takeAssignments],
+    queryFn: () => post(url, { dates, withAssignments: takeAssignments, preview: true }),
     enabled: open && dates.length > 0,
     retry: false,
   });
 
   const create = useMutation({
-    mutationFn: () => post(url, { dates, withAssignments, ...(confirmed ? { confirm: true } : {}) }),
+    mutationFn: () => post(url, { dates, withAssignments: takeAssignments, ...(confirmed ? { confirm: true } : {}) }),
     onSuccess: (result) => {
       const n = result.shifts?.length ?? dates.length;
       toast.success(n === 1 ? "1 Schicht angelegt" : n + " Schichten angelegt");
@@ -165,7 +167,7 @@ export function CopyShiftDialog({ shift, open, onOpenChange, onDone }: CopyShift
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-md">
+      <DialogContent className="max-h-[92vh] overflow-y-auto p-3 sm:max-w-md sm:p-6">
         <DialogHeader>
           <DialogTitle>Schicht kopieren</DialogTitle>
           <DialogDescription>
@@ -190,26 +192,30 @@ export function CopyShiftDialog({ shift, open, onOpenChange, onDone }: CopyShift
               locale={de}
               weekStartsOn={1}
               defaultMonth={shift.date ? new Date(shift.date + "T12:00:00") : undefined}
-              className="rounded-[var(--radius)] border"
+              className="rounded-[var(--radius)] border p-0 sm:p-3"
             />
           </div>
 
           <label className="flex items-center justify-between gap-3 text-[13px]">
             <span>
-              Mitarbeiterzuweisungen übernehmen
+              Zuweisungen übernehmen
               <span className="block text-[12px] text-muted-foreground">
-                {assigned ? `${assigned} ${assigned === 1 ? "Person" : "Personen"} mit allen Prüfungen erneut einteilen` : "Die Schicht hat keine Zuweisungen."}
+                {assigned ? `${assigned} ${assigned === 1 ? "Zuweisung" : "Zuweisungen"} mit allen Prüfungen übernehmen` : "Die Schicht hat keine Zuweisungen."}
               </span>
             </span>
             <Switch
-              checked={withAssignments}
-              disabled={!assigned}
+              checked={takeAssignments}
+              disabled={!assigned || assignmentsRestricted}
+              aria-describedby={assignmentsRestricted ? "kopie-" + shift.id + "-rechte" : undefined}
               onCheckedChange={(value) => {
                 setWithAssignments(value);
                 setConfirmed(false);
               }}
             />
           </label>
+          {assignmentsRestricted && <p id={"kopie-" + shift.id + "-rechte"} className="text-[13px] text-muted-foreground">
+            Zuweisungen mit Subunternehmern kann nur die Administration übernehmen. Du kannst die Schicht ohne Zuweisungen kopieren.
+          </p>}
 
           {dates.length > 0 && (
             <div className="space-y-2" aria-live="polite">

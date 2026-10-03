@@ -32,13 +32,23 @@ type Candidate = {
   reasons: string[];
   hints: string[];
 };
-type CandidateData = { site: string | null; customer: string | null; admin: boolean; candidates: Candidate[] };
+type ContractorCandidate = {
+  id: string;
+  name: string;
+  subcontractor: { id: string; name: string };
+  selectable: boolean;
+  confirm: boolean;
+  reasons: string[];
+  hints: string[];
+};
+type CandidateData = { site: string | null; customer: string | null; admin: boolean; candidates: Candidate[]; contractorWorkers?: ContractorCandidate[] };
 
 interface EmployeePickerProps {
   /** IDs of users already booked in this shift */
   bookedUserIds: string[];
   /** Auswahl; confirm ist gesetzt, wenn ein Hinweis bestätigt wurde. */
   onSelect: (userId: string, confirm: boolean) => void;
+  onSelectContractor?: (contractorWorkerId: string, confirm: boolean) => void;
   shiftId: string;
   children: React.ReactNode;
   /** replace: Auswahl ersetzt eine bestehende Zuweisung ("Mitarbeiter wechseln"). */
@@ -73,6 +83,7 @@ function getInitials(firstName: string, lastName: string): string {
 export function EmployeePicker({
   bookedUserIds,
   onSelect,
+  onSelectContractor,
   shiftId,
   children,
   mode = "assign",
@@ -81,8 +92,9 @@ export function EmployeePicker({
   const replace = mode === "replace";
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<Candidate | null>(null);
+  const [pendingContractor, setPendingContractor] = useState<ContractorCandidate | null>(null);
 
-  const { data, isLoading } = useQuery<CandidateData>({
+  const { data, isLoading, error } = useQuery<CandidateData>({
     queryKey: ["employees", "candidates", shiftId],
     queryFn: async () => {
       const res = await fetch("/api/shifts/" + shiftId + "/candidates");
@@ -166,11 +178,48 @@ export function EmployeePicker({
                   </CommandGroup>
                 );
               })}
+              {error && <p role="alert" className="px-3 py-2 text-xs text-destructive">{error.message}</p>}
+              {onSelectContractor && data?.admin && !!data.contractorWorkers?.length && (
+                <CommandGroup heading="Subunternehmer · Platzhalter">
+                  {data.contractorWorkers.map((worker) => (
+                    <CommandItem
+                      key={worker.id}
+                      value={`${worker.subcontractor.name} ${worker.name} ${worker.id}`}
+                      disabled={!worker.selectable}
+                      className="items-start"
+                      onSelect={() => {
+                        if (!worker.selectable) return;
+                        setOpen(false);
+                        if (worker.confirm) setPendingContractor(worker);
+                        else onSelectContractor(worker.id, false);
+                      }}
+                    >
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <span className="text-sm">{worker.subcontractor.name} · {worker.name}</span>
+                        <span className="text-[11.5px] text-muted-foreground">{worker.reasons.join(" ")}</span>
+                        {worker.hints.length > 0 && <span className="text-[11.5px] text-warn">{worker.hints.join(" ")}</span>}
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
             </CommandList>
           </Command>
         </PopoverContent>
       </Popover>
 
+      <ConfirmDialog
+        open={pendingContractor !== null}
+        onOpenChange={(value) => { if (!value) setPendingContractor(null); }}
+        title="Subunternehmer trotz Hinweis einteilen?"
+        description={pendingContractor ? `${pendingContractor.subcontractor.name} · ${pendingContractor.name}: ${pendingContractor.hints.join(" ")}` : ""}
+        confirmLabel="Trotzdem einteilen"
+        destructive={false}
+        onConfirm={() => {
+          if (pendingContractor) onSelectContractor?.(pendingContractor.id, true);
+          setPendingContractor(null);
+        }}
+      />
       <ConfirmDialog
         open={pending !== null}
         onOpenChange={(value) => {

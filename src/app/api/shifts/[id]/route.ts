@@ -43,12 +43,13 @@ export async function DELETE(_request: Request, context: Context) {
       // Beteiligte der geschlossenen Antraege, die nicht schon als Eingeteilte Bescheid wissen.
       const parties = requestParties(closed, [...informed, a.userId]);
       const voided = await notify(tx, a.orgId, a.userId, parties, "Antrag hinfällig", "Dein Antrag wurde geschlossen, weil die Schicht am " + when + " abgesagt wurde.", id);
-      await tx.booking.deleteMany({ where: { shiftId: id } });
+      // Alle Zuweisungen zaehlen, auch Subunternehmer-Platzhalter ohne Konto.
+      const removed = await tx.booking.deleteMany({ where: { shiftId: id } });
       await tx.shift.update({ where: { id }, data: { deletedAt: new Date() } });
-      return { shift, booked, notified: [...informed, ...voided], requestsClosed: closed.length };
+      return { shift, booked, removed: removed.count, notified: [...informed, ...voided], requestsClosed: closed.length };
     }, { retry: true });
     emitToBranch(a.orgId, result.shift.schedule.branchId, "schedule:updated", result.booked);
     emitToUsers(result.notified, "message:new");
-    return { success: true, assignmentsRemoved: result.booked.length, requestsClosed: result.requestsClosed };
+    return { success: true, assignmentsRemoved: result.removed, requestsClosed: result.requestsClosed };
   });
 }

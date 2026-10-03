@@ -294,3 +294,32 @@ Reihenfolge; der Grund steht an der Person:
 - Eine Einteilung an einem anderen Standort ändert die Standortzuordnung der Person nicht. Mitarbeitende tragen
   sich nie selbst ein; sie stellen Übernahme- oder Tauschanträge.
 
+## 7. Subunternehmer und Planungsplatzhalter (01.10.2026)
+
+- Subunternehmer sind eigene interne Unternehmensstammdaten, getrennt von Kunden und Organisationen.
+  Darunter stehen beliebig viele benannte Platzhalter (z.B. MA 1, MA 2). Es werden keine `User`,
+  Mitgliedschaften, E-Mail-Adressen oder Aktivierungslinks dafür angelegt.
+- OWNER/ADMIN verwalten Unternehmen und Platzhalter und besetzen vorhandene Schichten damit.
+  Manager erhalten keine neuen Rechte. Die bestehende Standortplansicht zeigt berechtigten Personen
+  die Besetzung mit Unternehmensname und Platzhalter; Entwürfe bleiben Mitarbeitern verborgen.
+- Ein Platzhalter zählt als ein belegter Platz. Kapazität, doppelte Einteilung, Aktivstatus und
+  zeitliche Überschneidung werden in derselben serialisierbaren Transaktion wie die Buchung geprüft.
+  Bei geforderter Qualifikation, Tätigkeit oder einem nicht allgemeinen Arbeitsbereich weist die
+  Auswahl auf die fehlenden Angaben hin und verlangt die Bestätigung der Planung.
+  Urlaub und Verfügbarkeit werden für diese kontolosen Platzhalter nicht geführt.
+- Kopieren mit Zuweisungen übernimmt auch Platzhalter und prüft den Zieltermin erneut.
+  Änderungen einer belegten Schicht prüfen Konflikte und neu entstehende fachliche Hinweise.
+  Platzhalter erhalten keine Benachrichtigungen, Übernahme-/Tauschanträge, Bestätigungsaufforderungen
+  oder Zeiterfassung. Eine direkte Einteilung ist verbindlich (`PLANNER`).
+- Die Monatsübersicht unter Subunternehmer zeigt belegte Schichten je Unternehmen/Platzhalter,
+  einschließlich Entwürfen und Nachtschichten aus dem Vormonat. Sie ist kein Iststunden- oder
+  Abrechnungsnachweis. Umbenennungen erscheinen auch in der Historie unter dem aktuellen Namen.
+- Deaktivierung verhindert neue Einteilungen, erhält vorhandene Einsätze und deren belegte Plätze.
+  Vergangene Zuweisungen können nicht entfernt werden. Eine endgültige Löschung von Subs/Platzhaltern
+  wird nicht angeboten.
+- Migration `20261001120000_subcontractors` ergänzt Tabellen und eine dritte mögliche Personenreferenz
+  an Buchungen. Der CHECK erlaubt genau eine Referenz; Fremdschlüssel und Trigger verhindern
+  Verbindungen über Organisationsgrenzen. Vorhandene Buchungen werden nicht verändert.
+- Lokale Prüfergebnisse stehen in `docs/FERTIGSTELLUNG.md`; Betriebsinstallation und Betriebsdaten
+  wurden für diese Erweiterung nicht geändert.
+

@@ -69,10 +69,10 @@ export function TopNav() {
       {/* Markenlinie: das einzige Farbelement der Kopfschiene. */}
       <div className="akro-markenlinie h-[2px]" aria-hidden="true" />
 
-      <div className="flex h-14 items-center gap-3 px-4 md:px-6 lg:px-8">
+      <div className="flex h-[72px] items-center gap-3 px-4 md:px-6 lg:px-8">
         <Link
           href="/dashboard"
-          className="flex shrink-0 items-center md:hidden"
+          className="flex min-h-11 shrink-0 items-center md:hidden"
           aria-label="AKRO Schichtplaner - zur Startseite"
         >
           <Image
@@ -85,7 +85,7 @@ export function TopNav() {
           />
         </Link>
 
-        <h2 className="hidden min-w-0 truncate text-[15px] leading-none font-semibold tracking-[-0.02em] md:block">
+        <h2 className="hidden min-w-0 truncate text-[22px] leading-none font-semibold tracking-[-0.02em] md:block">
           {titel}
         </h2>
 
@@ -95,7 +95,7 @@ export function TopNav() {
           </span>
           <ConnectionStatus />
           <span className="md:hidden">
-            <UserMenu />
+            <UserMenu collapsed />
           </span>
         </div>
       </div>

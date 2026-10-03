@@ -21,7 +21,7 @@ export function MainContainer({ children }: { children: React.ReactNode }) {
     <main
       id="inhalt"
       className={cn(
-        "mx-auto w-full px-4 pt-5 pb-24 md:px-6 md:pb-8 lg:px-8",
+        "mx-auto min-w-0 w-full px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))] md:px-6 md:pt-6 md:pb-8 lg:px-8",
         breit ? "max-w-[1920px]" : "max-w-[1344px]"
       )}
     >

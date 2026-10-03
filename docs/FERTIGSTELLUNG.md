@@ -1,5 +1,88 @@
 # Fertigstellung – Arbeitsliste
 
+## Subunternehmer mit Planungsplatzhaltern (01.10.2026)
+
+Auftrag: Unternehmen mit beliebig vielen benannten Platzhaltern ohne Zugang anlegen,
+damit offene Schichten besetzen und Einsätze je Subunternehmer nachvollziehen.
+Umsetzung: getrennte Stammdaten, keine Benutzerkonten, Einladungen oder Zeiterfassung.
+Verwaltung und neue Einteilung zunächst nur OWNER/ADMIN; bestehende Managerrechte bleiben unverändert.
+Deaktivierung verhindert neue Einteilungen; vorhandene Einsätze bleiben erhalten und belegt.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P1 | `prisma/schema.prisma`, Migration `20261001120000_subcontractors` | Bestand bleibt unverändert; genau eine Personenreferenz, keine fremde Organisation, kein Konto für Platzhalter | bestanden (lokal) | `tests/subcontractor-migration.ts`: 21/21 (jede Ablehnung mit erwartetem Constraint/Trigger), bestehende Migrationstests: 61/61, Historie: 29/29; Prisma-Client erzeugt |
+| P1 | `api/subcontractors/**`, Verwaltung | Unternehmen/Platzhalter anlegen, umbenennen, deaktivieren; nur eigene Organisation und Administration | bestanden (lokal) | `tests/subcontractors.ts` im vollständigen HTTP-Testlauf; Mitgliederverzeichnis bleibt unverändert |
+| P1 | `lib/planning.ts`, `lib/shift-service.ts`, `api/contractor-bookings`, Schichtauswahl | Belegter Platz, Name mit Sub, Kapazität/Überschneidung/Parallelzugriff geprüft; Kopieren behält Zuordnung | bestanden (lokal) | HTTP-Tests: gemischte Besetzung, Rücknahme fehlerhafter Änderung, Kopieren; zwei Parallelfälle jeweils 1×200/1×409 und genau eine gespeicherte Buchung |
+| P1 | Monatsübersicht Subunternehmer | Einsätze je Platzhalter und Sub, einschließlich Nachtschichten aus dem Vormonat | bestanden (lokal) | HTTP-Tests: Dezember/Januar, veröffentlichte/Entwurfspläne, Zuordnung und Deaktivierung nach erneutem Lesen |
+| P2 | Desktop/mobile Bedienung | Hauptablauf bedienbar und nach Neuladen erhalten | bestanden (lokal) | Browser auf lokaler Produktionsinstanz (synthetische Daten, 1440 und 375 px): Sub A, MA 1–3 (Namensvorschlag) angelegt, nach Neuladen vorhanden, umbenannt; MA 1 über Auswahl mit Hinweisdialog eingeteilt („Sub A · MA 1“, 13/13 voll, keine Bestätigung offen); Kopie mit gemischter Besetzung inkl. Vorschau/Hinweis; Monatsübersicht; MA 1 deaktiviert → Einsätze bleiben, nicht mehr angeboten; künftige Zuweisung mit Sicherheitsabfrage entfernt; 375 px ohne Überlauf, „Subunternehmer“ unter „Mehr“ |
+| P2 | Typprüfung/Lint/Build | Keine neuen Prüfungsfehler | bestanden | Typprüfung 0 Fehler; Lint 0 Fehler, 25 bestehende Warnungen; finaler Next-Build nach HTTP-Testlauf erfolgreich |
+| P1 | Betriebsfreigabe der Erweiterung | Sicherung, Migration auf Kopie, Einspielen und Nachprüfung | nicht geprüft | Kein Auftrag zur Änderung der Betriebsinstallation; nur lokale Vorbereitung |
+
+Arbeitsteilung: Planung, Oberfläche und gezielte Tests getrennt delegiert; Schema,
+Stammdaten-API und gemeinsame Prüfung beim Hauptagenten. Kostenmessung liegt nicht vor.
+Prüfungen am 01.10.2026: gezielter Lauf mit Grundablauf 277/277; vollständiger
+Workflow-/Rechtetest 2425/2425 (inklusive 140 zusätzlicher Subunternehmer-Prüfungen).
+Der erste vollständige Lauf brach im bestehenden Einladungsablauf mit HTTP 500
+und einem JSON-Lesefehler ab. Die unveränderte Wiederholung bestand vollständig;
+Ursache des einmaligen Fehlers ist nicht abschließend geklärt. Keine Tests abgeschwächt.
+Da npm/npx hier nicht im Suchpfad liegen, wurden die Paketwerkzeuge mit dem
+vorhandenen Node-Runtime direkt aufgerufen; Testdatenbanken waren flüchtig und isoliert.
+
+Einschränkungen: Die Übersicht zeigt geplante Einsätze, keine Istzeiten oder Abrechnung.
+Qualifikation, Tätigkeit und Arbeitsbereich werden bei Anforderungen durch die Planung
+extern bestätigt, da Platzhalter keine Personaldaten besitzen. Es gibt kein technisches
+Anzahl-Limit für Platzhalter; große Bestände wurden nicht als Lasttest geprüft.
+
+Vor Einspielen: Sicherung und Migration auf einer verifizierten Datenbankkopie prüfen;
+die neue Migration wurde nicht gegen Betriebsdaten ausgeführt.
+
+## Design-Paket, Subunternehmer-Abschluss und Gesamtprüfung (01.10.2026, abends)
+
+Grundlage: Branch `feat/plan-delete-assign-copy-pdf` (4884201) plus uncommittete Arbeiten (Postfach/CSV/Adresse,
+Subunternehmer, Design). Live läuft weiterhin `a9f5b9d` (am 01.10. per Dateiabgleich geprüft); nichts eingespielt, nichts committet.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P1 | Design-Paket (Version C, Wochenansicht mit Tageskarten) – 23 Dateien in `layout/`, `ui/`, `schedule/`, `workforce/`, `globals.css` | Appweit übernommen, alle Funktionen erhalten | bestanden (lokal) | Drei-Wege-Zusammenführung gegen Paketbasis `a9f5b9d`; Konflikte nur in `dashboard`, `shift-card`, `schedule-toolbar` – PDF, Wechseln, Kopieren, gelöschte Personen, „fest eingeteilt“, Subunternehmer, CSV, Adresse erhalten. `tests/ui-design.mjs` 71/71 (Admin/Manager/Mitarbeiter, 1440/375 px) |
+| P1 | Postfach-Fehler, CSV-Monatswahl, Adresse kopieren | Ehrliche Fehler, Wiederholen, Teilerfolge; CSV wählbar; Adresse ohne Treffpunkt | bestanden (lokal) | `tests/message-list-requests.ts`; `tests/ui-quality.mjs` 16/16 |
+| P2 | `tests/ui-design.mjs` an aktuelle Fachregeln angepasst | Keine Abschwächung | erledigt | (1) Planer-Einteilung ist „fest eingeteilt“ statt Bestätigen-Knopf (prüft zusätzlich `confirmation = PLANNER` und dass kein Knopf erscheint); (2) Vorbereitung entfernt nur Zuweisungen nicht beendeter Schichten (beendete → 409 als Nachweis) |
+| P2 | `lib/ai/chat-tools.ts` | KI-Dienstplan nennt Platzhalter und gelöschte Personen richtig | behoben | Vorher „Gelöschte Person“ für beide; `tests/ai-schedule-names.ts` scheitert mit alter, besteht mit neuer Fassung |
+| P2 | `api/shifts/[id]` DELETE | `assignmentsRemoved` zählt auch Platzhalter | behoben | `tests/subcontractors.ts` („deleting a future shift counts …“) |
+| P2 | `migration-history.ts` | Test unabhängig von der Rechner-Zeitzone | behoben | 29/29 in Europe/Berlin und UTC |
+
+Prüfungen auf dem Endstand: Typprüfung 0 Fehler; Lint 0 Fehler, 25 alte Warnungen; Migration 61/61; Historie 29/29;
+Subunternehmer-Migration 21/21; Mitarbeiterlöschung DB 26/26; Postfach-Regression bestanden; KI-Namen bestanden;
+Workflow/Rechte 2479/2479 (Zahl der HTTP-Prüfungen schwankt mit der Uhrzeit, jede Einzelprüfung besteht); Build erfolgreich;
+Browser 71/71 + 16/16 (Playwright mit lokalem Chrome, lokale Produktionsinstanz Port 3337, synthetische Daten).
+Einladungs-500 trat in drei Volltests nicht auf; vermutete Ursache: nicht atomar geschriebene Next-Manifeste bei
+Dateiänderungen während des Dev-Testlaufs – Suite daher nie parallel zu Dateiänderungen ausführen.
+
+Offen zum Zeitpunkt dieser Übergabe (die ersten beiden Punkte werden im nachfolgenden Abschnitt bearbeitet):
+- P2 Bedienung: Wechseln/Entfernen erscheinen auch bei beendeten Schichten (vorbestehend, durch das Design jetzt immer sichtbar); der Server lehnt mit verständlicher Meldung ab.
+- Manager kopiert eine Schicht mit Platzhalter und „Zuweisungen übernehmen“ → ganze Kopie 403, auch für die Mitarbeiterzuweisungen.
+- Parallelzugriffe sind nur mit einer Testverbindung geprüft (PGlite); echtes PostgreSQL-Verhalten unter Last nicht nachgewiesen.
+- Kein Nachweis für 100 gleichzeitige Mitarbeiter auf einem Server; geplant auf separatem Netcup-Testserver (Bestellung erst nach Freigabe).
+- Vor Betriebsfreigabe: Commit, Sicherung, Migrationen `20261001090000` und `20261001120000` auf Datenbankkopie, Einspielen, echte Geräte (GPS/Push).
+
+## Bedienbausteine zur Übernahme durch Claude (01.–02.10.2026)
+
+Auftrag: Die beiden offenen Bedienpunkte fertig umsetzen und eine sparsame,
+prüfbare Übergabe vorbereiten. Bestehende Arbeiten bleiben erhalten. Keine neuen
+Managerrechte: Bei Sub-Besetzung kann ein Manager die Schicht ausdrücklich ohne
+Zuweisungen kopieren. Administration kann weiterhin die gesamte Besetzung übernehmen.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P2 | `planning.ts`, `types/schedule.ts`, `schedule/shift-card.tsx` | Wechseln/Entfernen für Konten und Sub-Platzhalter am echten Berliner Schichtende ausblenden; Historie und Kopieren erhalten | bestanden (lokal) | `tests/schedule-actions.tsx`: 45/45, inklusive Nachtschicht, Jahreswechsel und beider Zeitumstellungen; Browser: beendete Karte ohne Aktionen, zukünftige mit 2 Entfernen/1 Wechseln. Timer im Browser nicht über ein tatsächliches Ende beobachtet |
+| P2 | `schedule/copy-shift-dialog.tsx`, `tests/subcontractors.ts` | Manager + Sub: ausgeschalteter, gesperrter Schalter mit Erklärung; Vorschau/Speichern ohne Zuweisungen; normale Mitarbeiterkopie unverändert | bestanden (lokal) | Workflow/Rechte 2508/2508. Erster Lauf scheiterte an fehlender Mitarbeiterfreigabe im neuen Testaufbau; explizit ergänzt. Browser: Admin-Übernahme möglich, Manager-Schalter gesperrt, tatsächliche Kopie nach Navigation 0/2 besetzt, Mitarbeiterkopie freigeschaltet |
+| P2 | Mobiler Kopierdialog | Kalender, Hinweis und Aktionen bei 375 px bedienbar, große Touchflächen erhalten | bestanden (lokal) | Abstände ausschließlich im Kopierdialog reduziert; finale Browserprüfung 375×812, höchstens 1 px Subpixel-Rundung; `manager-kopie-mobil.png` |
+| P2 | Typprüfung/Lint/Build | Keine neuen Prüfungsfehler | bestanden (lokal) | Typprüfung 0 Fehler, Lint 0 Fehler/25 bestehende Warnungen; abschließender Build nach reiner Abstandsänderung erfolgreich. Volltest davor, danach Browser erneut geprüft |
+| P2 | `docs/UEBERGABE-CLAUDE.md`, `docs/bausteine-2026-10-01/` | Eigene Ergänzungen als Patch gegen den vorherigen Arbeitsstand mit SHA256 abgrenzen | bestanden | Rückwärtsprüfung des finalen Patches; Code liegt bereits im Arbeitsverzeichnis. Kein Commit/Deploy |
+| P1 | `docs/UEBERGABE-BETRIEB.md` | Isolierter PostgreSQL-Start, Sicherung/Restore, beide aktuellen Migrationen, Parallelzugriff und 100-Nutzer-Prüfung konkret vorbereitet | vorbereitet; Betriebsnachweise nicht geprüft | Kein verfügbares Docker/psql/pg_dump; keine Betriebskonfiguration geändert, nichts bestellt oder veröffentlicht. Altes Kopiemigrations-Skript passt nicht allgemein zu den aktuellen Migrationen |
+
+Die obigen Ergebnisse wurden in diesem Auftrag tatsächlich geprüft. Frühere
+Design-/Betriebseinträge sind historische Übergaben, keine erneute Prüfung hier.
+
 Stand 28.09.2026, Branch `feat/kommunikation-tausch-gps` (Basis `7d80426`, läuft produktiv).
 Status: `bestanden` · `fehlgeschlagen` · `nicht geprüft` · `offen` (fachliche Entscheidung).
 Nachweise sind lokal (PGlite-Workflowtests, isolierte Docker-Testinstallation), soweit nicht anders vermerkt.

@@ -18,6 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ComposeMessage } from "./compose-message";
+import { messageRequest, updateMessages } from "./message-requests";
 
 interface Recipient {
   userId: string;
@@ -57,46 +58,42 @@ export function MessageList({ folder }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [composeOpen, setComposeOpen] = useState(false);
 
-  const { data, isLoading } = useQuery<{ messages: MessageItem[]; unreadCount?: number }>({
+  const { data, isLoading, isError, isFetching, refetch } = useQuery<{ messages: MessageItem[]; unreadCount?: number }>({
     queryKey: ["messages", folder],
-    queryFn: () => fetch(`/api/messages?folder=${folder}`).then((r) => r.json()),
+    queryFn: () => messageRequest(`/api/messages?folder=${folder}`).then((r) => r.json()),
   });
 
   const messages = data?.messages ?? [];
 
+  function finishAction(failedIds: string[], deleted = false) {
+    setSelected(new Set(failedIds));
+    if (failedIds.length > 0) {
+      toast.error(`${failedIds.length} Nachricht(en) konnten nicht geändert werden. Bitte erneut versuchen.`);
+    } else if (deleted) {
+      toast.success("Nachrichten geloescht");
+    }
+  }
+
   const patchMutation = useMutation({
-    mutationFn: async ({ ids, patch }: { ids: string[]; patch: Record<string, boolean> }) => {
-      await Promise.all(
-        ids.map((id) =>
-          fetch(`/api/messages/${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(patch),
-          })
-        )
-      );
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
-      setSelected(new Set());
-    },
+    mutationFn: ({ ids, patch }: { ids: string[]; patch: Record<string, boolean> }) =>
+      updateMessages(ids, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      }),
+    onSuccess: (failedIds) => finishAction(failedIds),
+    onError: () => toast.error("Nachrichten konnten nicht geändert werden."),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["messages"] }),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
-      await Promise.all(
-        ids.map((id) =>
-          fetch(`/api/messages/${id}`, { method: "DELETE" })
-        )
-      );
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
-      setSelected(new Set());
-      toast.success("Nachrichten geloescht");
-    },
+    mutationFn: (ids: string[]) => updateMessages(ids, { method: "DELETE" }),
+    onSuccess: (failedIds) => finishAction(failedIds, true),
+    onError: () => toast.error("Nachrichten konnten nicht gelöscht werden."),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["messages"] }),
   });
 
+  const actionPending = patchMutation.isPending || deleteMutation.isPending;
   function toggleSelect(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -138,7 +135,7 @@ export function MessageList({ folder }: Props) {
 
       {/* Bulk actions */}
       {selected.size > 0 && (
-        <div className="mb-3 flex items-center gap-2 rounded-md bg-muted p-2">
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md bg-muted p-2">
           <span className="text-sm text-muted-foreground">
             {selected.size} ausgewaehlt
           </span>
@@ -147,6 +144,7 @@ export function MessageList({ folder }: Props) {
               <Button
                 variant="ghost"
                 size="sm"
+                disabled={actionPending || isError}
                 onClick={() =>
                   patchMutation.mutate({ ids: Array.from(selected), patch: { isRead: true } })
                 }
@@ -157,6 +155,7 @@ export function MessageList({ folder }: Props) {
               <Button
                 variant="ghost"
                 size="sm"
+                disabled={actionPending || isError}
                 onClick={() =>
                   patchMutation.mutate({ ids: Array.from(selected), patch: { isDeleted: true } })
                 }
@@ -171,6 +170,7 @@ export function MessageList({ folder }: Props) {
               <Button
                 variant="ghost"
                 size="sm"
+                disabled={actionPending || isError}
                 onClick={() =>
                   patchMutation.mutate({ ids: Array.from(selected), patch: { isDeleted: false } })
                 }
@@ -181,6 +181,7 @@ export function MessageList({ folder }: Props) {
               <Button
                 variant="ghost"
                 size="sm"
+                disabled={actionPending || isError}
                 className="text-destructive"
                 onClick={() => deleteMutation.mutate(Array.from(selected))}
               >
@@ -199,6 +200,14 @@ export function MessageList({ folder }: Props) {
             <div key={i} className="h-16 animate-pulse rounded-md bg-muted" />
           ))}
         </div>
+      ) : isError ? (
+        <div role="alert" className="rounded-lg border p-6 text-center">
+          <p className="mb-3 text-sm text-destructive">Nachrichten konnten nicht geladen werden.</p>
+          <Button variant="outline" disabled={isFetching} onClick={() => refetch()}>
+            <RotateCcw className="mr-2 size-4" />
+            Erneut versuchen
+          </Button>
+        </div>
       ) : messages.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-muted-foreground">
           <Mail className="mb-3 size-10 text-muted-foreground" />
@@ -213,10 +222,12 @@ export function MessageList({ folder }: Props) {
           {/* Select all */}
           <div className="flex items-center gap-3 px-4 py-2 bg-muted/50">
             <Checkbox
+              disabled={actionPending}
               checked={selected.size === messages.length && messages.length > 0}
               onCheckedChange={toggleAll}
             />
             <button
+              disabled={actionPending}
               onClick={toggleAll}
               className="text-xs text-muted-foreground hover:text-foreground dark:text-muted-foreground"
             >
@@ -236,6 +247,7 @@ export function MessageList({ folder }: Props) {
                 )}
               >
                 <Checkbox
+                  disabled={actionPending}
                   checked={selected.has(msg.id)}
                   onCheckedChange={() => toggleSelect(msg.id)}
                   onClick={(e) => e.stopPropagation()}

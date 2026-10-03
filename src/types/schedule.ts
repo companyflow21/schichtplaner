@@ -20,6 +20,8 @@ export type ShiftBooking = {
   shiftId: string;
   /** null: historische Zuweisung einer geloeschten Person (nur vergangene Schichten). */
   userId: string | null;
+  /** Platzhalter eines Subunternehmers ohne Benutzerkonto. */
+  contractorWorkerId?: string | null;
   /** Historische Zuweisung einer geloeschten Person - nicht bearbeitbar. */
   former?: boolean;
   /** Stabiler Schluessel je Person (userId oder "former:<id>" fuer geloeschte). */
@@ -53,9 +55,11 @@ export type ShiftData = {
   /** Fehlende Besetzung: benoetigte minus wirksam zugewiesene Plaetze. */
   missing?: number;
   date?: string;
+  /** Echtes Schichtende (UTC), berechnet mit derselben Berlin-Regel wie die Serversperre. */
+  endsAt?: string;
   endsNextDay?: boolean;
   isPublic?: boolean;
-  can?: { edit: boolean; handle: boolean; request: boolean };
+  can?: { edit: boolean; handle: boolean; request: boolean; manageContractors?: boolean };
   id: string;
   scheduleId: string;
   divisionId: string | null;

@@ -138,7 +138,7 @@ export function DivisionList() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4 sm:items-center">
         <div>
           <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">Arbeitsbereiche</h1>
           <p className="text-sm text-muted-foreground">

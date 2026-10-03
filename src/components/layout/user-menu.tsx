@@ -40,7 +40,7 @@ export function UserMenu({
           variant="ghost"
           className={cn(
             "h-11 w-full",
-            collapsed ? "justify-center px-0" : "justify-start gap-2.5 px-2",
+            collapsed ? "min-w-11 justify-center px-0" : "justify-start gap-2.5 px-2",
             dunkel &&
               "text-[color:var(--schiene-text)] hover:bg-[var(--schiene-flaeche)] hover:text-[color:var(--schiene-text)]"
           )}
@@ -102,6 +102,7 @@ export function UserMenu({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem
+          className="min-h-11 md:min-h-9"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
         >
           {theme === "dark" ? (
@@ -113,6 +114,7 @@ export function UserMenu({
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
+          className="min-h-11 md:min-h-9"
           onClick={() => signOut({ callbackUrl: "/login" })}
           variant="destructive"
         >

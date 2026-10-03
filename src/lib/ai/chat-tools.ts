@@ -8,7 +8,7 @@
 
 import { db } from "@/lib/db";
 import { serial } from "@/lib/api";
-import { assign } from "@/lib/planning";
+import { assign, contractorWorkerView, formerView, personName } from "@/lib/planning";
 import { accessFor } from "@/lib/access";
 
 // ─── Tool Definitions ──────────────────────────────────────────────
@@ -261,6 +261,8 @@ async function executeGetSchedule(
               user: {
                 select: { id: true, firstName: true, lastName: true },
               },
+              formerEmployee: { select: formerView },
+              contractorWorker: { select: contractorWorkerView },
             },
           },
         },
@@ -282,7 +284,7 @@ async function executeGetSchedule(
     for (const shift of schedule.shifts) {
       const day = DAY_NAMES[shift.dayOfWeek] ?? `Tag ${shift.dayOfWeek}`;
       const bookedNames = shift.bookings
-        .map((b) => b.user ? `${b.user.firstName} ${b.user.lastName}` : "Gelöschte Person")
+        .map((b) => { const n = personName(b); return `${n.firstName} ${n.lastName}`; })
         .join(", ");
       const division = shift.division ? ` [${shift.division.title}]` : "";
       const spots = `${shift.bookings.length}/${shift.maxEmployees}`;

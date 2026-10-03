@@ -38,14 +38,14 @@ export function MobileNav() {
 
   const eintragKlasse = (active: boolean) =>
     cn(
-      "relative flex h-full flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
-      active ? "text-primary" : "text-muted-foreground"
+      "relative flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
+      active ? "bg-primary/5 text-primary" : "text-muted-foreground"
     );
 
   return (
     <nav
       aria-label="Hauptnavigation"
-      className="fixed inset-x-0 bottom-0 z-40 flex h-16 border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 flex min-h-[calc(4rem+env(safe-area-inset-bottom))] border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
     >
       {items.map((item) => {
         const Icon = item.icon;
@@ -108,7 +108,7 @@ export function MobileNav() {
                             onClick={() => setOpen(false)}
                             aria-current={active ? "page" : undefined}
                             className={cn(
-                              "flex items-center gap-3 rounded-md px-3 py-3 text-[14px] font-medium",
+                              "flex min-h-11 items-center gap-3 rounded-md px-3 py-3 text-[14px] font-medium",
                               active ? "bg-accent text-accent-foreground" : "text-foreground"
                             )}
                           >
@@ -136,7 +136,7 @@ export function MobileNav() {
                   key={item.key}
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className="flex items-center gap-3 border-t px-3 py-3 text-[14px] font-medium"
+                  className="flex min-h-11 items-center gap-3 border-t px-3 py-3 text-[14px] font-medium"
                 >
                   <Icon className="size-5 text-muted-foreground" />
                   {item.label}

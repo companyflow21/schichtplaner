@@ -3,10 +3,9 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { CalendarDays, Plus } from "lucide-react";
 import { isToday } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { dayNames, formatDateShort } from "@/lib/utils/calendar";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
 import { cn } from "@/lib/utils";
@@ -188,19 +187,19 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
         </div>
       )}
 
-      {/* Planungsflaeche: ein Board, sieben Spalten, Haarlinien dazwischen */}
+      {/* Sieben Tageskarten; schmale Bildschirme scrollen nur innerhalb des Boards. */}
       <LiveBorder isActive={isLiveActive}>
-        <div className="akro-panel hidden overflow-hidden md:block">
-          <div className="grid grid-cols-7 divide-x divide-[var(--linie-fein)]">
+        <div className="hidden max-w-full overflow-x-auto pb-3 md:block">
+          <div className="grid min-w-[1120px] grid-cols-7 items-start gap-2">
             {weekDates.map((date, index) => {
               const dayOfWeek = index + 1; // 1=Mo .. 7=So
               const dayShifts = shiftsByDay[dayOfWeek] ?? [];
               const heute = isToday(date);
               return (
-                <div key={dayOfWeek} className="flex min-h-[19rem] flex-col">
+                <div key={dayOfWeek} className={cn("akro-panel flex min-h-[28rem] min-w-0 flex-col overflow-hidden", heute && "border-primary/40")}>
                   <TagesKopf kuerzel={dayNames[index]} datum={formatDateShort(date)} anzahl={dayShifts.length} offen={offeneMenge(dayShifts)} heute={heute} />
-                  <div className={cn("flex-1 space-y-2 p-2", heute ? "bg-[var(--flaeche-heute)]" : "akro-vertieft")}>
-                    {dayShifts.length === 0 && <p className="py-6 text-center text-[12px] text-muted-foreground">Keine Schichten</p>}
+                  <div className={cn("flex flex-1 flex-col gap-2 p-2", heute && "bg-[var(--flaeche-heute)]")}>
+                    {dayShifts.length === 0 && <LeererTag />}
                     {dayShifts.map((shift) => (
                       <ShiftCard
                         key={shift.id}
@@ -235,7 +234,7 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
             return (
               <div key={dayOfWeek} className="akro-panel overflow-hidden">
                 <TagesKopf kuerzel={dayNames[index]} datum={formatDateShort(date)} anzahl={dayShifts.length} offen={offeneMenge(dayShifts)} heute={heute} breit />
-                <div className={cn("space-y-2 p-3", heute ? "bg-[var(--flaeche-heute)]" : "akro-vertieft")}>
+                <div className={cn("space-y-3 p-3", heute && "bg-[var(--flaeche-heute)]")}>
                   {dayShifts.length === 0 && <p className="py-2 text-center text-[12px] text-muted-foreground">Keine Schichten</p>}
                   {dayShifts.map((shift) => (
                     <ShiftCard
@@ -273,42 +272,40 @@ function offeneMenge(shifts: ShiftData[]): number {
   return shifts.reduce((summe, shift) => summe + (shift.missing ?? Math.max(0, shift.maxEmployees - (shift.occupiedCount ?? shift.bookings.length))), 0);
 }
 
-/**
- * Spaltenkopf des Boards: Tag, Datum und die Lage in einer Zeile.
- * Der heutige Tag traegt die Markenkante - keine zweite Auszeichnung.
- */
+/** Tag und Datum bilden die ruhige Orientierung oberhalb der Schichten. */
 function TagesKopf({ kuerzel, datum, anzahl, offen, heute, breit = false }: { kuerzel: string; datum: string; anzahl: number; offen: number; heute: boolean; breit?: boolean }) {
   return (
-    <div className={cn("relative border-b", breit ? "px-4 py-2.5" : "px-3 py-2", heute ? "bg-[var(--flaeche-heute)]" : "akro-panel-kopf")}>
-      {heute && <span aria-hidden="true" className="akro-markenlinie absolute inset-x-0 top-0 h-[2px]" />}
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[13px] font-semibold tracking-[-0.01em]">
-          {kuerzel}
-          {heute && <span className="ml-1.5 text-[11px] font-medium text-primary">heute</span>}
-        </span>
-        <span className="tabular text-[12px] text-muted-foreground">{datum}</span>
+    <div className={cn("border-b px-3 py-3", heute ? "bg-[var(--flaeche-heute)] text-primary" : "bg-card", !breit && "text-center")}>
+      <div className={cn("flex gap-2", breit ? "items-center justify-between" : "flex-col items-center gap-0.5")}>
+        <span className="text-[14px] font-semibold">{kuerzel}{heute && <span className="ml-1.5 text-[11px] font-medium">heute</span>}</span>
+        <span className={cn("tabular text-[12px]", !heute && "text-muted-foreground")}>{datum}</span>
       </div>
-      <div className="tabular mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-muted-foreground">
+      <div className={cn("mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground", !breit && "justify-center")}>
         <span>{anzahl} {anzahl === 1 ? "Schicht" : "Schichten"}</span>
-        {offen > 0 ? (
-          <StatusBadge ton="hinweis" klein>{offen} offen</StatusBadge>
-        ) : anzahl > 0 ? (
-          <StatusBadge ton="ok" klein>besetzt</StatusBadge>
-        ) : null}
+        {offen > 0 && <span className="font-medium text-warn">{offen} offen</span>}
       </div>
     </div>
   );
 }
 
-/** Ruhiger Platzhalter am Spaltenende statt einer weiteren Schaltflaeche. */
+function LeererTag() {
+  return (
+    <div className="flex min-h-48 flex-1 flex-col items-center justify-center gap-2 rounded-lg bg-muted/40 px-3 py-6 text-center text-muted-foreground">
+      <CalendarDays className="size-6 opacity-60" aria-hidden="true" />
+      <p className="text-[13px] font-medium">Keine Schichten</p>
+      <p className="text-[12px] leading-5">Für diesen Tag ist noch keine Schicht geplant.</p>
+    </div>
+  );
+}
+
 function SchichtHinzufuegen({ onClick, label }: { onClick: () => void; label: string }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center justify-center gap-1.5 rounded-[var(--radius)] border border-dashed border-border py-1.5 text-[12px] text-muted-foreground transition-colors hover:border-primary/60 hover:bg-card hover:text-foreground"
+      className="mt-auto flex min-h-10 w-full items-center max-md:min-h-11 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary justify-center gap-1.5 rounded-lg border border-dashed border-primary/30 bg-primary/[0.03] px-2 py-2 text-[12px] font-medium text-primary transition-colors hover:border-primary hover:bg-primary/10"
     >
-      <Plus className="size-3.5" />
+      <Plus className="size-3.5" aria-hidden="true" />
       {label}
     </button>
   );
@@ -317,8 +314,8 @@ function SchichtHinzufuegen({ onClick, label }: { onClick: () => void; label: st
 /** Geruest in der Form des Boards. */
 function ScheduleGridSkeleton() {
   return (
-    <div className="akro-panel hidden overflow-hidden md:block" aria-busy="true">
-      <div className="grid grid-cols-7 divide-x divide-[var(--linie-fein)]">
+    <div className="max-w-full overflow-hidden" aria-busy="true" aria-label="Dienstplan wird geladen">
+      <div className="grid grid-cols-1 gap-3 md:min-w-[1120px] md:grid-cols-7 md:gap-2">
         {Array.from({ length: 7 }).map((_, i) => (
           <div key={i} className="min-h-[19rem]">
             <div className="akro-panel-kopf space-y-1.5 border-b px-3 py-2">

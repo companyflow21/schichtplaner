@@ -11,10 +11,11 @@ export const publicUser = { id: true, firstName: true, lastName: true, profileIm
 export const branchView = { id: true, name: true, address: true, meetingPoint: true, notes: true, positions: true, isActive: true, customer: { select: { id: true, name: true } } } as const;
 /** Momentaufnahme einer geloeschten Person (nur Name) - fuer die Historie. */
 export const formerView = { id: true, firstName: true, lastName: true } as const;
+export const contractorWorkerView = { id: true, name: true, subcontractor: { select: { id: true, name: true } } } as const;
 export const shiftInclude = {
   schedule: { include: { branch: { select: branchView } } },
   division: true,
-  bookings: { include: { user: { select: publicUser }, formerEmployee: { select: formerView } } },
+  bookings: { include: { user: { select: publicUser }, formerEmployee: { select: formerView }, contractorWorker: { select: contractorWorkerView } } },
 } as const;
 
 /**
@@ -27,8 +28,9 @@ export function personIds(rows: { userId: string | null }[]): string[] {
 }
 
 /** Anzeigename einer Zeile mit Konto oder Momentaufnahme. */
-export function personName(row: { user?: { firstName: string; lastName: string } | null; formerEmployee?: { firstName: string; lastName: string } | null }): { firstName: string; lastName: string; former: boolean } {
+export function personName(row: { user?: { firstName: string; lastName: string } | null; formerEmployee?: { firstName: string; lastName: string } | null; contractorWorker?: { name: string; subcontractor: { name: string } } | null }): { firstName: string; lastName: string; former: boolean } {
   if (row.user) return { firstName: row.user.firstName, lastName: row.user.lastName, former: false };
+  if (row.contractorWorker) return { firstName: row.contractorWorker.subcontractor.name, lastName: "· " + row.contractorWorker.name, former: false };
   return { firstName: row.formerEmployee?.firstName ?? "Gelöschte", lastName: row.formerEmployee?.lastName ?? "Person", former: true };
 }
 export type PlannedShift = Shift & { schedule: Schedule };
@@ -100,6 +102,28 @@ export async function assessAssignment(tx: Tx, shift: PlannedShift, userId: stri
 export async function checkAssignment(tx: Tx, shift: PlannedShift, userId: string, excludeShiftId = shift.id): Promise<string[]> {
   const { blocks, warnings } = await assessAssignment(tx, shift, userId, excludeShiftId);
   return [...blocks, ...warnings];
+}
+
+/** Platzhalter haben kein Konto und keine Personaldaten; Eignung wird extern bestaetigt. */
+export async function assessContractorAssignment(tx: Tx, shift: PlannedShift, contractorWorkerId: string, excludeShiftId = shift.id): Promise<Assessment> {
+  const worker = await tx.contractorWorker.findFirst({ where: { id: contractorWorkerId, organizationId: shift.schedule.organizationId }, include: { subcontractor: true } });
+  if (!worker) throw new ApiError("Subunternehmer-Platzhalter nicht gefunden.", 404);
+  const blocks: string[] = [], warnings: string[] = [];
+  if (!worker.isActive || !worker.subcontractor.isActive) blocks.push("Subunternehmer oder Platzhalter ist nicht aktiv.");
+  if (shift.schedule.branchId) {
+    const branch = await tx.branch.findUnique({ where: { id: shift.schedule.branchId } });
+    if (!branch?.isActive) blocks.push("Einsatzort ist nicht aktiv.");
+    if (branch?.positions.length) warnings.push("Bei Platzhaltern ist die Tätigkeit nicht hinterlegt. Bitte die Tätigkeiten am Einsatzort beim Subunternehmer prüfen.");
+  }
+  if (shift.requiredQualifications.length) warnings.push("Bei Platzhaltern sind Qualifikationen nicht hinterlegt. Bitte die erforderlichen Qualifikationen beim Subunternehmer prüfen: " + shift.requiredQualifications.join(", ") + ".");
+  if (shift.divisionId) {
+    const division = await tx.division.findUnique({ where: { id: shift.divisionId } });
+    if (division && !division.isSystem) warnings.push("Bei Platzhaltern ist der Arbeitsbereich nicht hinterlegt. Bitte die Einsatzfähigkeit beim Subunternehmer prüfen.");
+  }
+  const range = shiftRange(shift);
+  const bookings = await tx.booking.findMany({ where: { contractorWorkerId, shiftId: { not: excludeShiftId }, shift: { deletedAt: null, schedule: { deletedAt: null, organizationId: shift.schedule.organizationId, year: { gte: shift.schedule.year - 1, lte: shift.schedule.year + 1 } } } }, include: { shift: { include: { schedule: true } } } });
+  if (bookings.some(b => overlaps(range, shiftRange(b.shift)))) blocks.push("Zeitliche Überschneidung mit einer anderen Schicht.");
+  return { blocks, warnings, declared: false };
 }
 
 /**
@@ -195,12 +219,23 @@ export async function shiftCandidates(tx: Tx, a: Access, shift: ShiftWithRelatio
   }
   // Stabil: Gruppe, dann waehlbar vor gesperrt (Gruppe 5), dann eingetragene Verfuegbarkeit, dann Name.
   candidates.sort((x, y) => x.group - y.group || Number(y.selectable) - Number(x.selectable) || Number(y.declared) - Number(x.declared));
+  const contractorWorkers: { id: string; name: string; subcontractor: { id: string; name: string }; selectable: boolean; confirm: boolean; reasons: string[]; hints: string[] }[] = [];
+  if (a.isAdmin) {
+    const workers = await tx.contractorWorker.findMany({ where: { organizationId: a.orgId, isActive: true, subcontractor: { isActive: true } }, select: contractorWorkerView, orderBy: [{ subcontractor: { name: "asc" } }, { name: "asc" }] });
+    for (const worker of workers) {
+      if (shift.bookings.some(b => b.contractorWorkerId === worker.id)) continue;
+      const r = await assessContractorAssignment(tx, shift, worker.id);
+      const free = r.blocks.length === 0;
+      contractorWorkers.push({ ...worker, selectable: free, confirm: free && r.warnings.length > 0, reasons: free ? ["Frei."] : r.blocks, hints: free ? r.warnings : [] });
+    }
+  }
   return {
     // Fuer die Ueberschriften der Gruppen.
     site: shift.schedule.branch?.name ?? null,
     customer: shift.schedule.branch?.customer?.name ?? null,
     admin: a.isAdmin,
     candidates: candidates.map(({ declared: _d, ...c }) => { void _d; return c; }),
+    contractorWorkers,
   };
 }
 
@@ -241,6 +276,17 @@ export async function placeBooking(tx: Tx, a: Access, shift: ShiftWithRelations,
   if (blocks.length) throw new ApiError([...blocks, ...warnings].join(" "), 409);
   if (warnings.length && !confirm) throw new ApiError(warnings.join(" "), 409, { confirm: true, warnings });
   return tx.booking.create({ data: { shiftId: shift.id, userId, ...plannerBooking(a) }, include: { user: { select: publicUser } } });
+}
+
+/** Verbindliche Sub-Einteilung ohne Benachrichtigung oder Zugangskonto. */
+export async function placeContractorBooking(tx: Tx, a: Access, shift: ShiftWithRelations, contractorWorkerId: string, confirm = false) {
+  if (!a.isAdmin) throw new ApiError("Keine Berechtigung.", 403);
+  const { blocks, warnings } = await assessContractorAssignment(tx, shift, contractorWorkerId);
+  if (shift.bookings.some(b => b.contractorWorkerId === contractorWorkerId)) throw new ApiError("Bereits zugewiesen.", 409);
+  if (shift.bookings.length >= shift.maxEmployees) throw new ApiError("Schicht ist bereits besetzt.", 409);
+  if (blocks.length) throw new ApiError(blocks.join(" "), 409);
+  if (warnings.length && !confirm) throw new ApiError(warnings.join(" "), 409, { confirm: true, warnings });
+  return tx.booking.create({ data: { shiftId: shift.id, contractorWorkerId, ...plannerBooking(a) }, include: { contractorWorker: { select: contractorWorkerView } } });
 }
 
 /** Einteilen mit Nachricht an die Person (nur veroeffentlichte Plaene). */
@@ -313,18 +359,18 @@ export function shiftView(shift: ShiftWithRelations, a: Access, ineffective: Set
     shiftFrom: shift.shiftFrom, shiftTo: shift.shiftTo, maxEmployees: shift.maxEmployees,
     pauseOption: shift.pauseOption, pauseValue: shift.pauseValue, title: shift.title, description: shift.description,
     requiredQualifications: shift.requiredQualifications, createdAt: shift.createdAt, deletedAt: shift.deletedAt,
-    date: range.date, endsNextDay: rangeMinutes(shift.shiftFrom, shift.shiftTo) + Number(shift.shiftFrom.slice(0, 2)) * 60 + Number(shift.shiftFrom.slice(3)) > 1440,
+    date: range.date, endsAt: new Date(wallToUtcMinutes(range.end) * 60000).toISOString(), endsNextDay: rangeMinutes(shift.shiftFrom, shift.shiftTo) + Number(shift.shiftFrom.slice(0, 2)) * 60 + Number(shift.shiftFrom.slice(3)) > 1440,
     isPublic: shift.schedule.isPublic,
     branchId,
     branch: branch ? { id: branch.id, name: branch.name, address: branch.address, meetingPoint: branch.meetingPoint, notes: branch.notes, customer: branch.customer } : null,
     division: shift.division ? { id: shift.division.id, title: shift.division.title, color: shift.division.color } : null,
     bookings: shift.bookings.filter(b => fullPlan || (b.userId !== null && b.userId === a.userId)).map(b => ({
-      id: b.id, shiftId: b.shiftId, userId: b.userId, bookedAt: b.bookedAt,
+      id: b.id, shiftId: b.shiftId, userId: b.userId, contractorWorkerId: b.contractorWorkerId, bookedAt: b.bookedAt,
       // Geloeschte Person: nur der Name aus der Momentaufnahme, kein Konto.
       user: b.user ?? { id: null, ...personName(b), profileImage: null },
-      former: !b.userId,
+      former: !b.userId && !b.contractorWorkerId,
       // Stabiler Schluessel je Person, auch fuer geloeschte (Momentaufnahme).
-      personKey: b.userId ?? "former:" + b.formerEmployeeId,
+      personKey: b.userId ?? (b.contractorWorkerId ? "contractor:" + b.contractorWorkerId : "former:" + b.formerEmployeeId),
       confirmedAt: planner || b.userId === a.userId ? b.confirmedAt : null,
       confirmation: planner || b.userId === a.userId ? b.confirmation : null,
       ...(planner ? { unavailable: ineffective.has(b.id) } : {}),
@@ -335,6 +381,7 @@ export function shiftView(shift: ShiftWithRelations, a: Access, ineffective: Set
       edit: can(a, "EDIT_SHIFTS", branchId),
       handle: can(a, "HANDLE_REQUESTS", branchId),
       request: shift.schedule.isPublic && can(a, "REQUEST_SHIFTS", branchId),
+      manageContractors: a.isAdmin,
     },
   };
 }

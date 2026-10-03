@@ -28,6 +28,7 @@
     "test:push": "tsx tests/push-outbox.ts",
     "test:migration": "tsx tests/migration.ts",
     "test:migration:history": "tsx tests/migration-history.ts",
+    "test:migration:subcontractors": "tsx tests/subcontractor-migration.ts",
     "test:employee-delete:db": "tsx tests/employee-delete-db.ts",
     "test:pdf:sample": "tsx tests/schedule-pdf-sample.ts",
     "test:migration:copy": "tsx tests/migration-copy.ts",

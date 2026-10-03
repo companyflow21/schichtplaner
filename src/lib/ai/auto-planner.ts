@@ -65,7 +65,7 @@ async function gatherContext(
         where: { deletedAt: null },
         include: {
           division: { select: { id: true, title: true } },
-          bookings: { select: { userId: true, formerEmployeeId: true } },
+          bookings: { select: { userId: true, formerEmployeeId: true, contractorWorkerId: true } },
         },
       },
     },
@@ -230,7 +230,7 @@ async function gatherContext(
     to: s.shiftTo,
     division: s.division?.title ?? null,
     maxEmployees: s.maxEmployees,
-    currentBookings: s.bookings.map((b) => b.userId ?? "former:" + b.formerEmployeeId),
+    currentBookings: s.bookings.map((b) => b.userId ?? (b.contractorWorkerId ? "contractor:" + b.contractorWorkerId : "former:" + b.formerEmployeeId)),
   }));
 
   // 7. Previous week's schedule for pattern detection
@@ -255,7 +255,7 @@ async function gatherContext(
         where: { deletedAt: null },
         include: {
           division: { select: { title: true } },
-          bookings: { select: { userId: true, formerEmployeeId: true } },
+          bookings: { select: { userId: true, formerEmployeeId: true, contractorWorkerId: true } },
         },
       },
     },
@@ -269,7 +269,7 @@ async function gatherContext(
       to: s.shiftTo,
       division: s.division?.title ?? null,
       maxEmployees: s.maxEmployees,
-      currentBookings: s.bookings.map((b) => b.userId ?? "former:" + b.formerEmployeeId),
+      currentBookings: s.bookings.map((b) => b.userId ?? (b.contractorWorkerId ? "contractor:" + b.contractorWorkerId : "former:" + b.formerEmployeeId)),
     })
   );
 

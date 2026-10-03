@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getISOWeek } from "date-fns";
-import { ChevronLeft, ChevronRight, Download, EyeOff, MoreHorizontal, Plus, Table2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock3, Download, EyeOff, FileText, MoreHorizontal, Plus, Table2, Users, type LucideIcon } from "lucide-react";
+import { ExportModal } from "@/components/reporting/export-modal";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -40,13 +42,14 @@ function maxISOWeek(year: number): number {
   return getISOWeek(new Date(year, 11, 28));
 }
 
-/** Eine neutrale Kennzahl der Woche - Zahl und Beschriftung. */
-function Kennwert({ zahl, label }: { zahl: number; label: string }) {
+/** Echte Zahlen aus dem geladenen Wochenplan, ohne zusätzliche Abfragen. */
+function Kennwert({ zahl, label, icon: Icon, hinweis = false }: { zahl: number; label: string; icon: LucideIcon; hinweis?: boolean }) {
   return (
-    <span className="flex items-baseline gap-1 text-[13px]">
-      <span className="akro-kennzahl text-[15px] text-foreground">{zahl}</span>
-      <span className="text-muted-foreground">{label}</span>
-    </span>
+    <div className="flex min-w-0 items-center gap-3 px-4 py-3 sm:px-5">
+      <Icon className={hinweis && zahl > 0 ? "size-5 shrink-0 text-warn" : "size-5 shrink-0 text-primary"} aria-hidden="true" />
+      <span className="akro-kennzahl text-[24px] text-foreground">{zahl}</span>
+      <span className="text-[12px] leading-4 text-muted-foreground">{label}</span>
+    </div>
   );
 }
 
@@ -74,6 +77,8 @@ export function ScheduleToolbar({
   selectedEmployeeId = null,
 }: ScheduleToolbarProps) {
   const router = useRouter();
+  const [exportOpen, setExportOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const current = getCurrentKW();
   const weekDates = getWeekDates(weekNumber, year);
   const istAktuelleWoche = weekNumber === current.weekNumber && year === current.year;
@@ -107,12 +112,13 @@ export function ScheduleToolbar({
   ) : null;
 
   return (
-    <div className="-mx-4 mb-4 border-b bg-background px-4 md:sticky md:top-[var(--kopf-hoehe)] md:z-20 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
+    <div className="mb-4 space-y-3">
+      <ExportModal open={exportOpen} onOpenChange={setExportOpen} defaultMonth={weekDates[0].getMonth() + 1} defaultYear={weekDates[0].getFullYear()} standort={standort} />
       {/* Zeile 1: Kunde und Standort, rechts die Ansicht */}
-      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 pt-3">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div className="w-full min-w-0 sm:w-auto sm:flex-1">
           <p className="akro-label truncate">{standort === "ohne" ? "Altbestand" : branch?.customer?.name ?? "Ohne Kunde"}</p>
-          <p className="truncate text-[17px] leading-tight font-semibold tracking-[-0.02em]">
+          <p className="truncate text-[21px] leading-tight font-semibold tracking-[-0.02em]">
             {standort === "ohne" ? "Ohne Standort" : branch?.name}
           </p>
         </div>
@@ -122,53 +128,38 @@ export function ScheduleToolbar({
         </div>
       </div>
 
-      {/* Zeile 2: die Woche */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-3">
-        <div className="flex items-center overflow-hidden rounded-[var(--radius)] border bg-card">
-          <button type="button" onClick={zurueck} aria-label="Vorherige Woche" className="flex size-9 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-            <ChevronLeft className="size-4" />
-          </button>
-          <span className="h-9 w-px bg-border" aria-hidden="true" />
-          <button type="button" onClick={vor} aria-label="Nächste Woche" className="flex size-9 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-            <ChevronRight className="size-4" />
-          </button>
-        </div>
-        <h1 className="flex flex-wrap items-baseline gap-x-2">
-          <span className="akro-kennzahl text-[22px]">{wochenLabel}</span>
-          <span className="tabular text-[13px] font-normal tracking-normal text-muted-foreground">
-            {formatDateShort(weekDates[0])}.–{formatDateShort(weekDates[6])}.{year}
-          </span>
-        </h1>
-        {istAktuelleWoche ? (
-          <span className="text-[12px] font-medium text-primary">diese Woche</span>
+      <div className={`akro-panel grid grid-cols-1 divide-y sm:divide-x sm:divide-y-0 ${access?.handleRequests ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+        <Kennwert zahl={offenePlätze} label="offene Plätze" icon={Users} />
+        {access?.planner ? (
+          <Kennwert zahl={fehlendeBestätigungen} label="Bestätigungen offen" icon={Clock3} hinweis />
         ) : (
-          <Button variant="outline" size="sm" onClick={() => geheZu(current.weekNumber, current.year)}>Diese Woche</Button>
+          <Kennwert zahl={shifts.length} label={shifts.length === 1 ? "Schicht" : "Schichten"} icon={Clock3} />
         )}
+        {access?.handleRequests && <Kennwert zahl={openWishCount} label="Anfragen offen" icon={FileText} hinweis />}
       </div>
 
-      {/* Zeile 3: Stand der Woche links, Aktionen rechts */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 py-3">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          {schedule &&
-            (schedule.isPublic ? (
-              <StatusBadge ton="ok">Veröffentlicht</StatusBadge>
-            ) : (
-              <StatusBadge ton="hinweis" icon={EyeOff}>Entwurf</StatusBadge>
-            ))}
-          <Kennwert zahl={shifts.length} label={shifts.length === 1 ? "Schicht" : "Schichten"} />
-          {offenePlätze > 0 ? (
-            <StatusBadge ton="hinweis">{offenePlätze} offen</StatusBadge>
-          ) : shifts.length > 0 ? (
-            <StatusBadge ton="ok">voll besetzt</StatusBadge>
-          ) : null}
-          {access?.planner && fehlendeBestätigungen > 0 && <Kennwert zahl={fehlendeBestätigungen} label="unbestätigt" />}
-          {openWishCount > 0 && <Kennwert zahl={openWishCount} label={openWishCount === 1 ? "Anfrage" : "Anfragen"} />}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
+        <div className="flex min-h-10 max-w-full items-center overflow-hidden rounded-lg border bg-card">
+          <button type="button" onClick={zurueck} aria-label="Vorherige Woche" className="flex size-10 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><ChevronLeft className="size-4" /></button>
+          <h1 className="min-w-0 px-1 text-[14px] leading-5 font-semibold tracking-normal sm:px-3">
+            <span className="tabular whitespace-nowrap">{formatDateShort(weekDates[0])}.–{formatDateShort(weekDates[6])}.{year}</span>
+            <span className="ml-2 text-[11px] font-normal text-muted-foreground">{wochenLabel}</span>
+          </h1>
+          <button type="button" onClick={vor} aria-label="Nächste Woche" className="flex size-10 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><ChevronRight className="size-4" /></button>
         </div>
+        {!istAktuelleWoche && <Button variant="outline" size="sm" onClick={() => geheZu(current.weekNumber, current.year)}>Diese Woche</Button>}
+        <Button variant="outline" size="sm" asChild><Link href="/schedule/month">Standort wechseln</Link></Button>
+        {schedule && (schedule.isPublic ? <StatusBadge ton="ok">Veröffentlicht</StatusBadge> : <StatusBadge ton="hinweis" icon={EyeOff}>Entwurf</StatusBadge>)}
 
         {schedule?.id && (
           <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
             {/* Filter ab Tablet sichtbar, auf dem Handy im Menue */}
             <div className="hidden items-center gap-2 md:flex">{filter}</div>
+            {access?.viewTime && standort !== "ohne" && (
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setExportOpen(true)}>
+                <Download className="size-3.5" aria-hidden="true" />Stunden als CSV
+              </Button>
+            )}
             {onAddShift && (
               <Button size="sm" variant={veröffentlichenZuerst ? "outline" : "default"} className="gap-1.5" onClick={onAddShift}>
                 <Plus className="size-3.5" />
@@ -179,7 +170,7 @@ export function ScheduleToolbar({
               <VisibilityToggle scheduleId={schedule.id} isPublic={false} wochenLabel={wochenLabel} hauptaktion={veröffentlichenZuerst || !onAddShift} />
             )}
 
-            <Popover>
+            <Popover open={moreOpen} onOpenChange={setMoreOpen}>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="icon-sm" aria-label="Weitere Aktionen" title="Weitere Aktionen">
                   <MoreHorizontal className="size-4" />
@@ -208,14 +199,6 @@ export function ScheduleToolbar({
                 <BriefingButton scheduleId={schedule.id} isManager={!!access?.edit} />
                 {access?.edit && <LiveMode scheduleId={schedule.id} isManager />}
                 {isAdmin && <AISuggestButton scheduleId={schedule.id} />}
-                {access?.viewTime && standort !== "ohne" && (
-                  <Button variant="outline" size="sm" className="w-full justify-start gap-1.5" asChild>
-                    <Link href={`/api/reporting/export?standort=${encodeURIComponent(standort)}`}>
-                      <Download className="size-3.5" />
-                      Stunden als CSV
-                    </Link>
-                  </Button>
-                )}
                 {darfVeröffentlichen && schedule.isPublic && (
                   <VisibilityToggle scheduleId={schedule.id} isPublic wochenLabel={wochenLabel} className="w-full justify-start" />
                 )}

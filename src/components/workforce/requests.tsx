@@ -44,7 +44,7 @@ export function Requests({ manager, userId }: { manager: boolean; userId: string
     } finally { setBusy(false); }
   }
   const pending = action.isPending || busy;
-  return <section id="antraege" className="scroll-mt-20 space-y-3" aria-label={manager ? "Anträge bearbeiten" : "Anträge und Schichttausch"}><h2 className="text-[17px] font-semibold tracking-[-0.02em]">Anträge</h2><ErrorMessage error={requests.error || corrections.error} />
+  const content = <section id="antraege" className="scroll-mt-20 space-y-3" aria-label={manager ? "Anträge bearbeiten" : "Anträge und Schichttausch"}><h2 className="text-[17px] font-semibold tracking-[-0.02em]">Anträge</h2><ErrorMessage error={requests.error || corrections.error} />
     <div className="grid items-start gap-4 lg:grid-cols-2"><Card className="p-4"><h3 className="text-[14px] font-semibold tracking-[-0.02em]">Übernahmen, Abgaben und Tausch</h3>{requests.isPending ? <p>Lädt …</p> : !requests.data?.requests.length ? <p className="text-sm text-muted-foreground">Keine Anträge vorhanden.</p> : requests.data.requests.map(r => <div key={r.id} className="space-y-2 border-t py-3">
       <p className="flex flex-wrap items-center gap-2 font-medium">{kinds[r.kind] ?? r.kind}<StatusBadge ton={tones[r.state] ?? "neutral"} klein>{labels[r.state]}</StatusBadge></p>
       {r.kind === "EXCHANGE" && r.targetShift ? <div className="tabular space-y-0.5 text-sm">
@@ -68,6 +68,16 @@ export function Requests({ manager, userId }: { manager: boolean; userId: string
     <div className="space-y-4"><TauschAnfragen />
     <Card className="p-4"><h3 className="text-[14px] font-semibold tracking-[-0.02em]">Zeitkorrekturen</h3>{corrections.isPending ? <p>Lädt …</p> : !corrections.data?.corrections.length ? <p className="text-sm text-muted-foreground">Keine Zeitkorrekturen vorhanden.</p> : corrections.data.corrections.map(c => <div key={c.id} className="space-y-2 border-t py-3"><p className="font-medium">{c.record.user.firstName} {c.record.user.lastName} · {dateLabel(c.record.date)}{c.record.branch ? " · " + c.record.branch.name : ""}</p><p className="flex flex-wrap items-center gap-2 text-sm">{c.reason}<StatusBadge ton={tones[c.status] ?? "neutral"} klein>{labels[c.status]}</StatusBadge></p><dl className="text-sm">{Object.entries(c.proposed).map(([key,value]) => <div key={key}><dt className="inline text-muted-foreground">{fieldLabels[key] || key}: </dt><dd className="inline">{String(c.before[key] ?? "–")} → {String(value ?? "–")}</dd></div>)}</dl>{c.canDecide && <div className="flex gap-2"><Button size="sm" disabled={pending} onClick={() => action.mutate({ url: "/api/time/corrections", method: "PATCH", data: { id: c.id, status: "APPROVED" }, message: "Zeitkorrektur bestätigt" })}>Bestätigen</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => action.mutate({ url: "/api/time/corrections", method: "PATCH", data: { id: c.id, status: "DECLINED" }, message: "Zeitkorrektur abgelehnt" })}>Ablehnen</Button></div>}</div>)}</Card></div></div>
   </section>;
+  if (manager) return content;
+  const actionable = (requests.data?.requests ?? []).filter(r => r.state === "OPEN" && (r.can.consent || r.can.withdraw || r.can.decide));
+  const correctionsPending = (corrections.data?.corrections ?? []).filter(c => c.status === "PENDING");
+  const openCount = actionable.length + correctionsPending.length;
+  return <details className="akro-panel px-4" open={openCount > 0 || !!requests.error || !!corrections.error}>
+    <summary className="min-h-11 cursor-pointer py-4 text-[15px] font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+      Anträge und Schichttausch{openCount > 0 ? <span className="ml-2 text-[13px] text-warn">{openCount} offen</span> : null}
+    </summary>
+    <div className="pb-4">{content}</div>
+  </details>;
 }
 
 /**

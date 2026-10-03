@@ -171,7 +171,7 @@ export function EmployeeList() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4 sm:items-center">
         <div>
           <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">Mitarbeiter</h1>
           <p className="text-sm text-muted-foreground">
@@ -182,6 +182,7 @@ export function EmployeeList() {
           <Button
             variant="outline"
             size="sm"
+            aria-label="Abwesenheiten öffnen"
             onClick={() => router.push("/employees/absences")}
           >
             <CalendarDays className="size-4" />
@@ -212,15 +213,16 @@ export function EmployeeList() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
+                aria-pressed={active}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  "inline-flex min-h-11 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-primary transition-colors",
                   active
                     ? "bg-accent text-primary dark:text-primary"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
                 <Icon className="size-3.5" />
-                <span className="hidden sm:inline">{tab.label}</span>
+                <span>{tab.label}</span>
                 <span className="tabular-nums text-xs opacity-70">
                   ({count})
                 </span>

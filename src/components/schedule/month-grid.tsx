@@ -48,7 +48,7 @@ function weekHref(date: string, standort: string) {
   return `/schedule/flexible/${formatKW(w.weekNumber, w.year)}?standort=${standort}`;
 }
 function names(shift: ShiftData) {
-  return shift.bookings.map((b) => b.user.firstName + " " + b.user.lastName.charAt(0) + ".").join(", ");
+  return shift.bookings.map((b) => b.user.firstName + " " + (b.contractorWorkerId ? b.user.lastName : b.user.lastName.charAt(0) + ".")).join(", ");
 }
 
 /**

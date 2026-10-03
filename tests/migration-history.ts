@@ -68,7 +68,8 @@ async function main() {
   for (const t of tables) check(await count(t) === before[t], t + ": no row lost");
 
   const b = Object.fromEntries((await rows<{ id: string; userId: string | null; confirmation: string | null; confirmedAt: Date | null; bookedAt: Date }>(sql, `SELECT "id","userId","confirmation","confirmedAt","bookedAt" FROM "bookings"`)).map((r) => [r.id, r]));
-  check(b.emp.confirmation === "EMPLOYEE" && b.emp.confirmedAt?.toISOString() === "2026-09-21T09:00:00.000Z", "own confirmation kept as EMPLOYEE with its timestamp");
+  // timestamp ohne Zone: PGlite liest ihn in der Ortszeit, daher auch hier ohne "Z" vergleichen.
+  check(b.emp.confirmation === "EMPLOYEE" && b.emp.confirmedAt?.getTime() === new Date("2026-09-21T09:00:00").getTime(), "own confirmation kept as EMPLOYEE with its timestamp");
   check(b.plan.confirmation === "PLANNER" && b.plan.confirmedAt?.getTime() === b.plan.bookedAt.getTime(), "assignment by someone else becomes PLANNER from the assignment time");
   check(b.self.confirmation === null && b.self.confirmedAt === null, "self-entered booking stays unconfirmed (origin unclear)");
   check(b.none.confirmation === null && b.none.confirmedAt === null, "booking without bookedBy stays unconfirmed (origin unclear)");

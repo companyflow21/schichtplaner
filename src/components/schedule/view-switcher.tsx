@@ -68,8 +68,8 @@ export function ViewSwitcher({ kw, month, standort }: ViewSwitcherProps) {
             href={view.href}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "flex h-9 flex-1 items-center justify-center gap-1.5 border-l px-3 text-[13px] font-medium transition-colors first:border-l-0 sm:flex-none",
-              isActive ? "bg-accent font-semibold text-accent-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              "flex h-10 flex-1 items-center justify-center gap-1.5 border-l px-3 text-[13px] font-medium transition-colors first:border-l-0 sm:flex-none",
+              isActive ? "bg-primary font-semibold text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >
             <Icon className="size-3.5" aria-hidden="true" />

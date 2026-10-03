@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ArrowRight, Building2, ChevronRight, Clock, EyeOff, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -120,7 +121,8 @@ export function Dashboard() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <p className="akro-label md:hidden">{dateLabel(data.today)}</p>
-          <h1 className="text-[24px] leading-tight font-semibold tracking-[-0.03em]">Guten Tag, {data.firstName}</h1>
+          <h1 className="text-[28px] leading-tight font-semibold tracking-[-0.03em]">{data.manager ? "Übersicht" : "Heute"}</h1>
+          <p className="mt-1 text-[14px] text-muted-foreground">Guten Tag, {data.firstName}</p>
         </div>
         {/* Wartet eine Bestaetigung, ist sie die Hauptaktion - dann tritt der Plan zurueck. */}
         <Button asChild variant={offeneBestätigung ? "outline" : "default"}>
@@ -132,8 +134,6 @@ export function Dashboard() {
       </header>
 
       {data.manager ? <ManagerStart data={data} /> : <MitarbeiterStart data={data} action={action} />}
-
-      <Requests manager={data.manager} userId={data.userId} />
 
       {/* Nur eine kurze Zusammenfassung; die Auswertung hat eine eigene Seite. */}
       <section className="akro-panel flex flex-wrap items-center justify-between gap-3 p-4" aria-labelledby="stunden-titel">
@@ -149,6 +149,8 @@ export function Dashboard() {
         </div>
         <Button asChild variant="outline" size="sm"><Link href="/reporting">Zur Auswertung</Link></Button>
       </section>
+
+      <Requests manager={data.manager} userId={data.userId} />
     </div>
   );
 }
@@ -340,7 +342,18 @@ function MitarbeiterStart({ data, action }: { data: EmployeeData; action: Return
     ? <StatusBadge ton="ok" klein>fest eingeteilt</StatusBadge>
     : bestätigt
       ? <StatusBadge ton="ok" klein>bestätigt</StatusBadge>
-      : <StatusBadge ton="hinweis" klein>nicht bestätigt</StatusBadge>;
+      : <StatusBadge ton="hinweis" klein>Bestätigung offen</StatusBadge>;
+  const adresse = nächste?.branch?.address?.trim();
+
+  async function adresseKopieren() {
+    if (!adresse) return;
+    try {
+      await navigator.clipboard.writeText(adresse);
+      toast.success("Adresse kopiert.");
+    } catch {
+      toast.error("Adresse konnte nicht kopiert werden. Bitte markiere und kopiere sie direkt.");
+    }
+  }
 
   return (
     <>
@@ -349,16 +362,15 @@ function MitarbeiterStart({ data, action }: { data: EmployeeData; action: Return
 
       <section className="akro-panel overflow-hidden" aria-labelledby="naechste-titel">
         <div className="akro-panel-kopf flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
-          <h2 id="naechste-titel" className="text-[14px] font-semibold tracking-[-0.02em]">Deine nächste Schicht</h2>
+          <h2 id="naechste-titel" className="text-[15px] font-semibold tracking-[-0.02em]">Deine nächste Schicht</h2>
           {nächste && status}
         </div>
         {nächste ? (
           <div className="space-y-3 p-4">
-            <p className="akro-kennzahl text-[20px]">
-              {dateLabel(nächste.date)}
-              <span className="px-2 text-border" aria-hidden="true">|</span>
-              {nächste.shiftFrom}–{nächste.shiftTo}
-            </p>
+            <div>
+              <p className="text-[15px] font-medium">{dateLabel(nächste.date)}</p>
+              <p className="akro-kennzahl mt-1 text-[30px] leading-tight">{nächste.shiftFrom}–{nächste.shiftTo}</p>
+            </div>
             <div className="text-[14px]">
               <p className="font-medium">{[nächste.branch?.name, nächste.title].filter(Boolean).join(" · ") || "Schicht"}</p>
               {nächste.branch?.customer && <p className="text-muted-foreground">{nächste.branch.customer.name}</p>}
@@ -367,10 +379,18 @@ function MitarbeiterStart({ data, action }: { data: EmployeeData; action: Return
               <p className="flex items-start gap-1.5 text-[14px] text-muted-foreground">
                 <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                 Treffpunkt: {nächste.branch.meetingPoint}
-                {nächste.branch.address ? ` · ${nächste.branch.address}` : ""}
               </p>
             )}
-            <div className="flex flex-wrap gap-2">
+            {adresse && (
+              <div className="flex flex-wrap items-center gap-2 text-[14px] text-muted-foreground">
+                <p className="flex min-w-0 items-start gap-1.5">
+                  <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                  <span className="break-words">Adresse: {adresse}</span>
+                </p>
+                <Button variant="outline" size="sm" onClick={adresseKopieren}>Adresse kopieren</Button>
+              </div>
+            )}
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               {!bestätigt && (
                 <Button
                   disabled={action.isPending}
@@ -382,10 +402,16 @@ function MitarbeiterStart({ data, action }: { data: EmployeeData; action: Return
               <Button variant="outline" asChild>
                 <Link href="/time"><Clock className="size-4" />Zeiterfassung</Link>
               </Button>
-              <Button variant="ghost" disabled={action.isPending} onClick={() => action.mutate({ url: "/api/mod-requests", data: { shiftId: nächste.id, kind: "SWAP" }, message: "Schicht zur Übernahme angeboten" })}>
-                Zur Übernahme anbieten
-              </Button>
             </div>
+            <details className="rounded-[var(--radius)] border px-3">
+              <summary className="min-h-11 cursor-pointer py-3 text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">Weitere Schichtaktionen</summary>
+              <div className="pb-3">
+                <Button variant="outline" disabled={action.isPending} onClick={() => action.mutate({ url: "/api/mod-requests", data: { shiftId: nächste.id, kind: "SWAP" }, message: "Schicht zur Übernahme angeboten" })}>
+                  Zur Übernahme anbieten
+                </Button>
+              </div>
+            </details>
+
           </div>
         ) : (
           <p className="p-4 text-[14px] text-muted-foreground">Noch keine kommende Schicht veröffentlicht.</p>
@@ -491,7 +517,7 @@ function Abschnitt({ titel, leer, eintraege, render }: { titel: string; leer: st
         <h2 className="text-[14px] font-semibold tracking-[-0.02em]">{titel}</h2>
         {eintraege.length > 0 && <span className="akro-kennzahl text-[13px] text-muted-foreground">{eintraege.length}</span>}
       </div>
-      {eintraege.length ? <div className="divide-y divide-[var(--linie-fein)]">{eintraege.map(render)}</div> : <p className="px-4 py-6 text-[14px] text-muted-foreground">{leer}</p>}
+      {eintraege.length ? <div className="divide-y divide-[var(--linie-fein)]">{eintraege.map(render)}</div> : <p className="px-4 py-3 text-[14px] text-muted-foreground">{leer}</p>}
     </section>
   );
 }

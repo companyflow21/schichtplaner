@@ -86,6 +86,8 @@ model Organization {
   checkins          Checkin[]
   pushSubscriptions PushSubscription[]
   formerEmployees   FormerEmployee[]
+  subcontractors    Subcontractor[]
+  contractorWorkers ContractorWorker[]
 
   @@map("organizations")
 }
@@ -172,6 +174,42 @@ model Customer {
 
   @@unique([organizationId, name])
   @@map("customers")
+}
+
+/// Interne Subunternehmer-Stammdaten, ohne Benutzerkonto oder Zugang.
+model Subcontractor {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workers      ContractorWorker[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, name])
+  @@map("subcontractors")
+}
+
+/// Benannter Planungsplatz eines Subunternehmers, z.B. MA 1. Kein User.
+model ContractorWorker {
+  id             String   @id @default(cuid())
+  organizationId String
+  subcontractorId String
+  name           String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subcontractor Subcontractor @relation(fields: [subcontractorId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  bookings      Booking[]
+
+  @@unique([subcontractorId, name])
+  @@index([organizationId])
+  @@map("contractor_workers")
 }
 
 model Branch {
@@ -395,6 +433,7 @@ model Booking {
   shiftId   String
   userId    String?
   formerEmployeeId String?
+  contractorWorkerId String?
   bookedAt  DateTime @default(now())
   bookedBy  String?
   /// Zeitpunkt, ab dem die Zuweisung als bestaetigt gilt (siehe confirmation).
@@ -407,9 +446,11 @@ model Booking {
   shift Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
   user  User? @relation(fields: [userId], references: [id], onDelete: Restrict)
   formerEmployee FormerEmployee? @relation(fields: [formerEmployeeId], references: [id], onDelete: Restrict)
+  contractorWorker ContractorWorker? @relation(fields: [contractorWorkerId], references: [id], onDelete: Restrict)
 
   @@unique([shiftId, userId])
   @@index([formerEmployeeId])
+  @@unique([shiftId, contractorWorkerId])
   @@map("bookings")
 }
 

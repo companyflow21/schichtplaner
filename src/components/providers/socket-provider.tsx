@@ -29,6 +29,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         queryClient.invalidateQueries({ queryKey: ["shifts"] });
         queryClient.invalidateQueries({ queryKey: ["branch-month"] });
         queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+        queryClient.invalidateQueries({ queryKey: ["subcontractor-assignments"] });
       })
     );
 
@@ -41,6 +42,16 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         queryClient.invalidateQueries({ queryKey: ["dashboard"] });
         queryClient.invalidateQueries({ queryKey: ["requests"] });
         queryClient.invalidateQueries({ queryKey: ["mod-requests"] });
+        queryClient.invalidateQueries({ queryKey: ["subcontractor-assignments"] });
+        queryClient.invalidateQueries({ queryKey: ["employees", "candidates"] });
+      })
+    );
+
+    unsubs.push(
+      subscribe("subcontractors:changed", () => {
+        queryClient.invalidateQueries({ queryKey: ["subcontractors"] });
+        queryClient.invalidateQueries({ queryKey: ["subcontractor-assignments"] });
+        queryClient.invalidateQueries({ queryKey: ["employees", "candidates"] });
       })
     );
 

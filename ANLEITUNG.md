@@ -33,6 +33,26 @@ Zeiten und Abwesenheiten. Details: `docs/AKRO-ERWEITERUNG.md`, Abschnitte 5 und 
 
 ## Bedienung: Nachrichten, Tausch und Check-in
 
+**Subunternehmer** (nur Administration, „Mehr“ → „Subunternehmer“)
+- Unternehmen anlegen, darunter benannte Platzhalter wie „MA 1“, „MA 2“ usw. hinzufügen.
+  Es gibt keine feste Gesamtzahl; jeder Platzhalter kann in mehreren zeitlich getrennten Schichten eingesetzt werden.
+  Die Platzhalter haben keine E-Mail-Adresse, Einladung, Anmeldung oder eigene Zeiterfassung.
+- In der Wochenansicht „Mitarbeiter zuweisen“ öffnen und einen Platzhalter aus „Subunternehmer“ wählen.
+  Der Plan zeigt den Unternehmensnamen und den Platzhalter. Jeder zählt als ein belegter Platz.
+  Volle Schichten und zeitliche Überschneidungen sind gesperrt. Nicht hinterlegte fachliche Angaben
+  (Qualifikation, Tätigkeit oder Arbeitsbereich) erfordern die Bestätigung der Planung.
+- Eine Einteilung vor Schichtende kann mit Sicherheitsabfrage entfernt werden. Vergangene Einsätze bleiben erhalten.
+- In der Subunternehmerverwaltung einen Monat auswählen: die Einsatzliste zeigt Standort, Schicht und Platzhalter,
+  auch Entwürfe. Nachtschichten am Monatswechsel erscheinen in beiden berührten Monaten mit ihrem Startdatum.
+  Dies ist eine Übersicht der geplanten Besetzung, kein Arbeitszeit- oder Abrechnungsnachweis.
+- Unternehmen und Platzhalter können umbenannt oder deaktiviert werden. Bestehende Einsätze bleiben dabei bestehen;
+  Deaktivierung sperrt neue Einteilungen. Die Einsatzliste verwendet die aktuellen Namen.
+- Verwaltung und neue Einteilung sind zunächst nur OWNER/ADMIN erlaubt. Manager sehen die Besetzung weiterhin
+  nur an ihren freigegebenen Standorten; Mitarbeiter nur im ausdrücklich freigegebenen veröffentlichten Plan.
+
+Die Erweiterung benötigt Migration `20261001120000_subcontractors`. Vor Einspielen in den Betrieb:
+Sicherung und Wiederherstellung vorbereiten und die Migration auf einer verifizierten Kopie prüfen.
+
 **Nachrichten** (Mehr → Postfach → „Neue Nachricht“)
 - „An Zuständige“ wählt die zuständigen Manager: persönlich zugeordnete Manager und die Planung der eigenen
   Standorte. Ist niemand zuständig, steht dort ein Hinweis, und die Administration ist Ansprechpartner.

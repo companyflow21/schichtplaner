@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeftRight, Copy, Loader2, Plus, X } from "lucide-react";
+import { ArrowLeftRight, Copy, Loader2, Pencil, Plus, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -63,6 +63,15 @@ export function ShiftCard({
   zeigeStandort = true,
 }: ShiftCardProps) {
   const queryClient = useQueryClient();
+  const endsAt = Date.parse(shift.endsAt ?? "");
+  const [now, setNow] = useState(() => Date.now());
+  const ended = endsAt <= now;
+  // Eine offen gelassene Karte verliert die Aktionen auch ohne Neuladen am Schichtende.
+  useEffect(() => {
+    if (!(endsAt > now)) return;
+    const timer = setTimeout(() => setNow(Date.now()), Math.min(endsAt - now + 1, 2_147_483_647));
+    return () => clearTimeout(timer);
+  }, [endsAt, now]);
   const bookedCount = shift.occupiedCount ?? shift.bookings.length;
   const isFull = bookedCount >= shift.maxEmployees;
   const emptySlots = Math.max(0, shift.maxEmployees - bookedCount);
@@ -164,11 +173,32 @@ export function ShiftCard({
     },
   });
 
+  const contractorMutation = useMutation({
+    mutationFn: async ({ method, contractorWorkerId, confirm = false }: { method: "POST" | "DELETE"; contractorWorkerId: string; confirm?: boolean }) => {
+      const res = await fetch("/api/contractor-bookings", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shiftId: shift.id, contractorWorkerId, ...(confirm ? { confirm: true } : {}) }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result.error || "Subunternehmer-Zuweisung konnte nicht gespeichert werden.");
+      return result;
+    },
+    onSuccess: (_result, variables) => {
+      toast.success(variables.method === "POST" ? "Subunternehmer zugewiesen" : "Subunternehmer-Zuweisung aufgehoben");
+      queryClient.invalidateQueries({ queryKey: ["schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["branch-month"] });
+      queryClient.invalidateQueries({ queryKey: ["subcontractor-assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["employees", "candidates"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   function handleBook(userId: string, confirm = false) {
     bookMutation.mutate({ userId, confirm });
   }
 
-  const isPending = bookMutation.isPending || unbookMutation.isPending || replaceMutation.isPending || addPlaceMutation.isPending;
+  const isPending = bookMutation.isPending || unbookMutation.isPending || replaceMutation.isPending || addPlaceMutation.isPending || contractorMutation.isPending;
   const bookedUserIds = shift.bookings.flatMap((b) => (b.userId ? [b.userId] : []));
 
   // Can the current user book themselves into an empty slot?
@@ -183,245 +213,188 @@ export function ShiftCard({
   // Nur fuer die Planung und nur Altbestand: Einteilungen der Planung sind verbindlich.
   const offeneBestätigungen = canEdit ? shift.bookings.filter((b) => b.userId && !b.confirmedAt).length : 0;
 
-  return (
-    <div
-      className={cn(
-        "group overflow-hidden rounded-[var(--radius)] border bg-card transition-colors",
-        // Rangfolge: unbesetzt faellt auf, fehlende Bestätigung bleibt
-        // dezent, vollstaendig besetzte Schichten bleiben ruhig.
-        !isFull && "border-warn/50",
-        isFull && offeneBestätigungen > 0 && "border-dashed",
-        canEdit && "hover:border-primary/50",
-        isPending && "opacity-70 pointer-events-none",
-        isDimmed && "opacity-40",
-        highlightUserId && hasHighlightUser && "border-primary"
-      )}
-      style={
-        isLayout1
-          ? {}
-          : { borderLeftWidth: "3px", borderLeftColor: divisionColor }
-      }
-    >
-      {/* Header - clickable for edit */}
-      <button
-        type="button"
-        className={cn(
-          "w-full space-y-1 px-2.5 py-2 text-left",
-          canEdit && "cursor-pointer transition-colors hover:bg-[var(--flaeche-kopf)]"
-        )}
-        onClick={() => canEdit && onEdit(shift)}
-        disabled={!canEdit}
-      >
-        {/* Kopfzeile: Zeit zuerst, dann die Besetzung.
-            Besetzte Schichten bleiben ruhig, unbesetzte tragen das Signal -
-            im Dienstplan zaehlt die Luecke, nicht die erledigte Zeile. */}
-        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-          <span className="tabular text-[13px] leading-5 font-semibold tracking-[-0.01em] whitespace-nowrap">
-            {shift.shiftFrom}
-            <span className="text-muted-foreground">–</span>
-            {shift.shiftTo}
-          </span>
-          <StatusBadge
-            ton={isFull ? "ok" : "hinweis"}
-            klein
-            title={`${bookedCount} von ${shift.maxEmployees} ${shift.maxEmployees === 1 ? "Platz" : "Plätzen"} besetzt`}
-          >
-            {isFull ? "besetzt" : `${emptySlots} offen`}
-          </StatusBadge>
-        </div>
-
-        {/* Einsatzort und Tätigkeit - Adresse, Treffpunkt und Hinweise
-            stehen im Detailbereich, nicht auf jeder Karte. */}
-        {zeigeStandort && shift.branch && (
-          <div
-            className="truncate text-[12.5px] leading-snug font-medium"
-            title={shift.branch.name}
-          >
-            {shift.branch.name}
-          </div>
-        )}
-        {(showTitle && shift.title) || shift.division ? (
-          <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            {shift.division && (
-              <span
-                aria-hidden="true"
-                className="size-2 shrink-0 rounded-full"
-                style={{ backgroundColor: divisionColor }}
-              />
-            )}
-            <span className="truncate">
-              {[showTitle ? shift.title : null, shift.division?.title]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
-          </div>
-        ) : null}
-
-        {/* Nur der Hinweis, der eine Handlung ausloest. */}
-        {canEdit && isFull && offeneBestätigungen > 0 && (
-          <div className="text-[11px] text-muted-foreground">
-            {offeneBestätigungen} unbestätigt
-          </div>
-        )}
-        {showPauses && hasPause && (
-          <div className="text-[11px] text-muted-foreground">{pauseLabel}</div>
-        )}
-
-        {/* Wish plan indicators */}
-        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-          {shift.can?.handle && (
-            <WishCountBadge shiftId={shift.id} scheduleId={shift.scheduleId} />
-          )}
-          {!canEdit && shift.can?.request && currentUserId && !bookedUserIds.includes(currentUserId) && (
-            <WishRequestButton
-              shiftId={shift.id}
-              currentUserId={currentUserId}
-              existingRequest={userWishRequest}
-            />
-          )}
-        </div>
-      </button>
-
-      {/* Content - employee slots */}
-      <div className="space-y-0.5 px-2.5 pb-2">
-        {/* Booked employees */}
-        {shift.bookings.map((booking) => {
-          // Historie geloeschter Personen ist nicht bearbeitbar.
-          const canUnbook = canEdit && !!booking.userId;
-          return (
-            <div
-              key={booking.id}
-              className={cn(
-                "flex items-center gap-2 py-0.5 group/slot rounded-sm px-0.5 -mx-0.5",
-                highlightUserId && booking.userId === highlightUserId && "bg-primary/10"
-              )}
-            >
-              <Avatar size="sm">
-                <AvatarFallback className="text-[9px]">
-                  {getInitials(booking.user.firstName, booking.user.lastName)}
-                </AvatarFallback>
-              </Avatar>
-              <span className="min-w-0 flex-1 truncate text-[12px]">
-                {booking.user.firstName} {booking.user.lastName}
-                {/* Nur fuer die Planung: zaehlt nicht als wirksame Besetzung. */}
-                {booking.unavailable && (
-                  <span className="ml-1 text-[11px] font-medium text-warn">· nicht verfügbar</span>
-                )}
-              </span>
-              {canUnbook && (
-                <EmployeePicker
-                  mode="replace"
-                  heading={`${booking.user.firstName} ${booking.user.lastName} ersetzen durch …`}
-                  bookedUserIds={bookedUserIds}
-                  shiftId={shift.id}
-                  onSelect={(replacementUserId, confirm) => booking.userId && replaceMutation.mutate({ userId: booking.userId, replacementUserId, confirm })}
-                >
-                  <button
-                    type="button"
-                    className="opacity-0 group-hover/slot:opacity-100 focus-visible:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
-                    title="Mitarbeiter wechseln"
-                    aria-label={`${booking.user.firstName} ${booking.user.lastName} durch andere Person ersetzen`}
-                  >
-                    {replaceMutation.isPending ? (
-                      <Loader2 className="size-3 animate-spin" />
-                    ) : (
-                      <ArrowLeftRight className="size-3" />
-                    )}
-                  </button>
-                </EmployeePicker>
-              )}
-              {canUnbook && (
-                <ConfirmDialog
-                  title="Zuweisung aufheben"
-                  description={`${booking.user.firstName} ${booking.user.lastName} wird aus dieser Schicht entfernt. Der Platz ist danach wieder offen.`}
-                  confirmLabel="Entfernen"
-                  onConfirm={() => booking.userId && unbookMutation.mutate(booking.userId)}
-                >
-                <button
-                  type="button"
-                  className="opacity-0 group-hover/slot:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                  title="Abbuchen"
-                  aria-label={`${booking.user.firstName} ${booking.user.lastName} aus der Schicht entfernen`}
-                >
-                  {unbookMutation.isPending ? (
-                    <Loader2 className="size-3 animate-spin" />
-                  ) : (
-                    <X className="size-3" />
-                  )}
-                </button>
-                </ConfirmDialog>
-              )}
-            </div>
-          );
-        })}
-
-        {/* Empty slots */}
-        {Array.from({ length: emptySlots }).map((_, i) => (
-          <div key={`empty-${i}`}>
-            {canEdit ? (
+  function renderBooking(booking: ShiftData["bookings"][number]) {
+    // Historie geloeschter Personen ist nicht bearbeitbar.
+    const canUnbook = canEdit && !ended && !!booking.userId;
+    const canUnbookContractor = !!shift.can?.manageContractors && !ended && !!booking.contractorWorkerId;
+    return (
+      <div key={booking.id} className={cn("-mx-1 flex min-h-9 flex-wrap items-center gap-x-1.5 rounded-md px-1", highlightUserId && booking.userId === highlightUserId && "bg-primary/10")}>
+        <Avatar size="sm" className="shrink-0">
+          <AvatarFallback className="bg-primary/10 text-[10px] text-primary">{getInitials(booking.user.firstName, booking.user.lastName)}</AvatarFallback>
+        </Avatar>
+        {/* Schmale Tagesspalten: die Aktionen rutschen unter den Namen statt ihn zu quetschen. */}
+        <span className="min-w-20 flex-1 text-[12px] leading-4">
+          {booking.user.firstName} {booking.user.lastName}
+          {booking.unavailable && <span className="block text-[11px] font-medium text-warn">Nicht verfügbar</span>}
+        </span>
+        {(canUnbook || canUnbookContractor) && (
+          <div className="ml-auto flex shrink-0 items-center">
+            {canUnbook && (
               <EmployeePicker
+                mode="replace"
+                heading={`${booking.user.firstName} ${booking.user.lastName} ersetzen durch …`}
                 bookedUserIds={bookedUserIds}
-                onSelect={handleBook}
                 shiftId={shift.id}
+                onSelect={(replacementUserId, confirm) => booking.userId && replaceMutation.mutate({ userId: booking.userId, replacementUserId, confirm })}
               >
                 <button
                   type="button"
-                  className="-mx-1 flex w-full cursor-pointer items-center gap-2 rounded-sm px-1 py-0.5 transition-colors hover:bg-muted"
+                  disabled={isPending}
+                  className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground max-md:size-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-colors hover:bg-muted hover:text-foreground"
+                  title="Mitarbeiter wechseln"
+                  aria-label={`${booking.user.firstName} ${booking.user.lastName} durch andere Person ersetzen`}
                 >
-                  <span className="flex size-6 items-center justify-center rounded-full border border-dashed border-border">
-                    <Plus className="size-3 text-muted-foreground" />
-                  </span>
-                  <span className="text-[12px] text-muted-foreground">
-                    Mitarbeiter zuweisen
-                  </span>
+                  {replaceMutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowLeftRight className="size-3.5" />}
                 </button>
               </EmployeePicker>
-            ) : canSelfBook && i === 0 ? (
-              <button
-                type="button"
-                className="-mx-1 flex w-full cursor-pointer items-center gap-2 rounded-sm px-1 py-0.5 transition-colors hover:bg-muted"
-                onClick={() => currentUserId && handleBook(currentUserId)}
+            )}
+            {canUnbook && (
+              <ConfirmDialog
+                title="Zuweisung aufheben"
+                description={`${booking.user.firstName} ${booking.user.lastName} wird aus dieser Schicht entfernt. Der Platz ist danach wieder offen.`}
+                confirmLabel="Entfernen"
+                onConfirm={() => booking.userId && unbookMutation.mutate(booking.userId)}
+                disabled={isPending}
               >
-                <span className="flex size-6 items-center justify-center rounded-full border border-dashed border-primary/50">
-                  <Plus className="size-3 text-primary" />
-                </span>
-                <span className="text-[12px] font-medium text-primary">
-                  Übernahme anfragen
-                </span>
-              </button>
-            ) : (
-              <div className="flex items-center gap-2 py-0.5">
-                <span className="flex size-6 items-center justify-center rounded-full border border-dashed border-border">
-                  <span className="text-[10px] text-muted-foreground" aria-hidden="true">
-                    ?
-                  </span>
-                </span>
-                <span className="text-[12px] text-muted-foreground">Frei</span>
-              </div>
+                <button
+                  type="button"
+                  disabled={isPending}
+                  className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground max-md:size-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  title="Zuweisung aufheben"
+                  aria-label={`${booking.user.firstName} ${booking.user.lastName} aus der Schicht entfernen`}
+                >
+                  {unbookMutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
+                </button>
+              </ConfirmDialog>
+            )}
+            {canUnbookContractor && (
+              <ConfirmDialog
+                title="Subunternehmer-Zuweisung aufheben"
+                description={`${booking.user.firstName} ${booking.user.lastName} wird aus dieser Schicht entfernt. Der Platz ist danach wieder offen.`}
+                confirmLabel="Entfernen"
+                onConfirm={() => booking.contractorWorkerId && contractorMutation.mutate({ method: "DELETE", contractorWorkerId: booking.contractorWorkerId })}
+                disabled={isPending}
+              >
+                <button
+                  type="button"
+                  disabled={isPending}
+                  className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground max-md:size-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  title="Zuweisung aufheben"
+                  aria-label={`${booking.user.firstName} ${booking.user.lastName} aus der Schicht entfernen`}
+                >
+                  <X className="size-3.5" />
+                </button>
+              </ConfirmDialog>
             )}
           </div>
-        ))}
+        )}
+      </div>
+    );
+  }
 
-        {/* + Platz und Kopieren fuer die Planung */}
-        {canEdit && (
-          <div className="flex items-center justify-between gap-2 pt-1">
-            <button
-              type="button"
-              className="flex items-center gap-1.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-              onClick={() => addPlaceMutation.mutate()}
+  return (
+    <article
+      aria-label={`Schicht ${shift.shiftFrom} bis ${shift.shiftTo}`}
+      aria-busy={isPending}
+      className={cn(
+        "overflow-hidden rounded-lg border bg-card transition-colors",
+        !isFull && "border-warn/40",
+        canEdit && "hover:border-primary/60",
+        isPending && "pointer-events-none opacity-70",
+        isDimmed && "opacity-40",
+        highlightUserId && hasHighlightUser && "border-primary ring-1 ring-primary/20"
+      )}
+      style={isLayout1 ? {} : { borderLeftWidth: "3px", borderLeftColor: divisionColor }}
+    >
+      <button
+        type="button"
+        className={cn("w-full space-y-1 px-3 pt-3 pb-2 text-left max-md:min-h-11 focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-primary", canEdit && "hover:bg-muted/40")}
+        onClick={() => canEdit && onEdit(shift)}
+        disabled={!canEdit}
+        aria-label={canEdit ? `Schicht ${shift.shiftFrom}–${shift.shiftTo} bearbeiten` : undefined}
+      >
+        <div className="flex items-start justify-between gap-1">
+          <span className="tabular whitespace-nowrap text-[14px] leading-5 font-semibold tracking-tight">
+            {shift.shiftFrom}–{shift.shiftTo}
+          </span>
+          {canEdit && <Pencil className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />}
+        </div>
+        {shift.endsNextDay && <p className="text-[11px] text-muted-foreground">Endet am nächsten Tag</p>}
+        {zeigeStandort && shift.branch && <p className="text-[12px] leading-snug font-medium">{shift.branch.name}</p>}
+        {showTitle && shift.title && <p className="text-[12px] leading-snug font-semibold">{shift.title}</p>}
+        {shift.division && (
+          <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span aria-hidden="true" className="size-2 shrink-0 rounded-full" style={{ backgroundColor: divisionColor }} />
+            <span>{shift.division.title}</span>
+          </p>
+        )}
+        {showPauses && hasPause && <p className="text-[11px] text-muted-foreground">{pauseLabel}</p>}
+      </button>
+
+      <div className="space-y-1 px-3 pb-3">
+        {shift.bookings.slice(0, 4).map(renderBooking)}
+        {shift.bookings.length > 4 && (
+          <details className="rounded-md">
+            <summary className="cursor-pointer rounded-md py-2 text-[12px] font-medium text-primary max-md:min-h-11 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary">
+              Weitere {shift.bookings.length - 4} Personen
+            </summary>
+            <div className="max-h-72 space-y-1 overflow-y-auto px-1 pb-1">
+              {shift.bookings.slice(4).map(renderBooking)}
+            </div>
+          </details>
+        )}
+        {emptySlots > 0 && (
+          canEdit ? (
+            <EmployeePicker
+              bookedUserIds={bookedUserIds}
+              onSelect={handleBook}
+              onSelectContractor={shift.can?.manageContractors ? (contractorWorkerId, confirm) => contractorMutation.mutate({ method: "POST", contractorWorkerId, confirm }) : undefined}
+              shiftId={shift.id}
             >
-              <Plus className="size-3" />
-              Platz
+              <button type="button" className="mt-2 flex min-h-10 w-full items-center max-md:min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary gap-1.5 rounded-md border border-dashed border-warn/50 bg-warn/5 px-2 py-2 text-left text-[11px] font-medium text-warn">
+                <Plus className="size-3.5 shrink-0" aria-hidden="true" />
+                <span>Mitarbeiter zuweisen</span>
+              </button>
+            </EmployeePicker>
+          ) : canSelfBook && !userWishRequest ? (
+            <button type="button" onClick={() => currentUserId && handleBook(currentUserId)} className="mt-2 flex min-h-10 w-full items-center max-md:min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary gap-1.5 rounded-md border border-dashed border-primary/50 bg-primary/5 px-2 py-2 text-left text-[12px] font-medium text-primary">
+              <Plus className="size-3.5 shrink-0" aria-hidden="true" />Übernahme anfragen
+            </button>
+          ) : null
+        )}
+
+        <div className="space-y-1 pt-2">
+          <StatusBadge ton={isFull ? "ok" : "hinweis"} klein className="max-w-full rounded-md">
+            {isFull ? "Voll besetzt" : `${emptySlots} ${emptySlots === 1 ? "Platz" : "Plätze"} offen`}
+          </StatusBadge>
+          <p className="tabular text-[11px] text-muted-foreground">{bookedCount} von {shift.maxEmployees} besetzt</p>
+          {ended && canEdit && <p className="text-[11px] text-muted-foreground">Schicht beendet · Zuweisungen bleiben erhalten.</p>}
+          {canEdit && offeneBestätigungen > 0 && <p className="text-[11px] text-warn">{offeneBestätigungen} {offeneBestätigungen === 1 ? "Bestätigung offen" : "Bestätigungen offen"}</p>}
+        </div>
+
+        {(shift.can?.handle || (!canEdit && shift.can?.request && currentUserId && !bookedUserIds.includes(currentUserId))) && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            {shift.can?.handle && <WishCountBadge shiftId={shift.id} scheduleId={shift.scheduleId} />}
+            {!canEdit && shift.can?.request && currentUserId && !bookedUserIds.includes(currentUserId) && (
+              <WishRequestButton shiftId={shift.id} currentUserId={currentUserId} existingRequest={userWishRequest} />
+            )}
+          </div>
+        )}
+        {/* Kapazität und Kopieren fuer die Planung */}
+        {canEdit && (
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2 border-t pt-2">
+            <button type="button" className="flex min-h-8 items-center max-md:min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary gap-1.5 text-left text-[11px] text-muted-foreground transition-colors hover:text-primary" onClick={() => addPlaceMutation.mutate()}>
+              <Plus className="size-3 shrink-0" aria-hidden="true" />Kapazität erhöhen
             </button>
             {shift.branchId && (
               <button
                 type="button"
-                className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                className="flex min-h-8 items-center max-md:min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary gap-1 text-left text-[11px] text-muted-foreground transition-colors hover:text-primary"
                 onClick={() => setKopieren(true)}
                 title="Schicht auf weitere Tage kopieren"
                 aria-label="Schicht auf weitere Tage kopieren"
               >
-                <Copy className="size-3" />
+                <Copy className="size-3 shrink-0" aria-hidden="true" />
                 Kopieren
               </button>
             )}
@@ -445,6 +418,6 @@ export function ShiftCard({
           setHinweis(null);
         }}
       />
-    </div>
+    </article>
   );
 }

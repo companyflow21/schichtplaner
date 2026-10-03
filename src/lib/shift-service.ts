@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Branch, Prisma, Schedule } from "@prisma/client";
 import { ApiError } from "./errors";
 import { timeSchema } from "./api";
-import { assessAssignment, dayLabel, notify, personIds, planningPool, plannerBooking, shiftInclude, shiftLabel, type ShiftWithRelations } from "./planning";
+import { assessAssignment, assessContractorAssignment, dayLabel, notify, personIds, planningPool, plannerBooking, shiftInclude, shiftLabel, type ShiftWithRelations } from "./planning";
 import { isoWeek, weekDate, addDate, shiftRange, rangeMinutes, minuteOfDay, validDate } from "./berlin";
 import { assertCan, branchHolders, type Access } from "./access";
 import { catalogQualifications } from "./qualifications";
@@ -80,7 +80,7 @@ async function validateDivision(tx: Tx, orgId: string, divisionId?: string | nul
 
 type ShiftBase = Omit<Prisma.ShiftUncheckedCreateInput, "id" | "scheduleId" | "dayOfWeek" | "createdAt" | "deletedAt"> & { shiftFrom: string; shiftTo: string; maxEmployees: number };
 type Target = { schedule: Schedule; dayOfWeek: number };
-type PlanOptions = { assignees: string[]; confirm?: boolean; preview?: boolean };
+type PlanOptions = { assignees: string[]; contractorWorkerIds?: string[]; confirm?: boolean; preview?: boolean };
 
 function endsNextDay(shift: { shiftFrom: string; shiftTo: string }) {
   return minuteOfDay(shift.shiftFrom) + rangeMinutes(shift.shiftFrom, shift.shiftTo) > 1440;
@@ -102,6 +102,10 @@ function describe(issues: Issue[]) {
  */
 async function placeShifts(tx: Tx, a: Access, branch: Branch, base: ShiftBase, targets: Target[], options: PlanOptions): Promise<ShiftWithRelations[]> {
   const { assignees } = options;
+  const contractorWorkerIds = options.contractorWorkerIds ?? [];
+  if (contractorWorkerIds.length && !a.isAdmin) throw new ApiError("Subunternehmer-Platzhalter dürfen nur von der Administration eingeteilt werden.", 403);
+  const workers = contractorWorkerIds.length ? await tx.contractorWorker.findMany({ where: { id: { in: contractorWorkerIds }, organizationId: a.orgId }, select: { id: true, name: true, subcontractor: { select: { name: true } } } }) : [];
+  const contractorNames = new Map(workers.map(w => [w.id, w.subcontractor.name + " · " + w.name]));
   if (assignees.length && !a.isAdmin) {
     const pool = await planningPool(tx, a, branch.id);
     if (assignees.some(id => !pool.has(id))) throw new ApiError("Diese Person kannst du für diesen Standort nicht einplanen.", 403);
@@ -125,6 +129,14 @@ async function placeShifts(tx: Tx, a: Access, branch: Branch, base: ShiftBase, t
       if (r.blocks.length) { conflicts.push({ userId, name, date, reasons: r.blocks }); continue; }
       if (r.warnings.length) warnings.push({ userId, name, date, reasons: r.warnings });
       await tx.booking.create({ data: { shiftId: shift.id, userId, ...plannerBooking(a) } });
+    }
+    for (const contractorWorkerId of contractorWorkerIds) {
+      const r = await assessContractorAssignment(tx, shift, contractorWorkerId);
+      const name = contractorNames.get(contractorWorkerId) ?? "Unbekannter Platzhalter";
+      const userId = "contractor:" + contractorWorkerId;
+      if (r.blocks.length) { conflicts.push({ userId, name, date, reasons: r.blocks }); continue; }
+      if (r.warnings.length) warnings.push({ userId, name, date, reasons: r.warnings });
+      await tx.booking.create({ data: { shiftId: shift.id, contractorWorkerId, ...plannerBooking(a) } });
     }
   }
   if (options.preview) throw new PreviewRollback({ preview: true, occurrences, conflicts, warnings });
@@ -192,7 +204,7 @@ export async function copyShift(tx: Tx, a: Access, id: string, data: z.output<ty
   for (const date of [...(data.dates ?? [data.date!])].sort()) {
     targets.push({ schedule: await ensureSchedule(tx, a.orgId, branch.id, isoWeek(date)), dayOfWeek: ((new Date(date + "T12:00:00Z").getUTCDay() + 6) % 7) + 1 });
   }
-  return placeShifts(tx, a, branch, base, targets, { assignees: data.withAssignments ? personIds(source.bookings) : [], confirm: data.confirm, preview: data.preview });
+  return placeShifts(tx, a, branch, base, targets, { assignees: data.withAssignments ? personIds(source.bookings) : [], contractorWorkerIds: data.withAssignments ? source.bookings.flatMap(b => b.contractorWorkerId ? [b.contractorWorkerId] : []) : [], confirm: data.confirm, preview: data.preview });
 }
 
 function pauseText(shift: { pauseOption: string; pauseValue: number }) {
@@ -217,6 +229,14 @@ export async function updateShift(tx: Tx, a: Access, id: string, data: z.output<
   if (effective.shiftFrom === effective.shiftTo) throw new ApiError("Beginn und Ende müssen unterschiedlich sein.");
   if (effective.maxEmployees < existing.bookings.length) throw new ApiError("Die Schicht hat mehr Zuweisungen als Plätze.", 409);
   for (const booking of existing.bookings) {
+    if (booking.contractorWorkerId && booking.contractorWorker) {
+      const after = await assessContractorAssignment(tx, effective, booking.contractorWorkerId);
+      const before = after.warnings.length ? (await assessContractorAssignment(tx, existing, booking.contractorWorkerId)).warnings : [];
+      // Deaktivierte Stammdaten loesen bestehende Zuweisungen nicht auf.
+      const problems = [...after.blocks.filter(b => b !== "Subunternehmer oder Platzhalter ist nicht aktiv."), ...after.warnings.filter(w => !before.includes(w))];
+      if (problems.length) throw new ApiError(booking.contractorWorker.subcontractor.name + " · " + booking.contractorWorker.name + ": " + problems.join(" "), 409);
+      continue;
+    }
     // Historie geloeschter Personen wird nicht neu geprueft.
     if (!booking.userId || !booking.user) continue;
     // Harte Sperren gelten immer. Ein Qualifikationshinweis, der schon vor der

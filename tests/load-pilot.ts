@@ -161,6 +161,7 @@ class Nutzer {
   private wecker: (() => void) | null = null;
   private schleife: Promise<void> | null = null;
   private geschrieben = 0;
+  private zustand = "inaktiv";
   orgId = "";
   orgName = "";
   userId = "";
@@ -186,6 +187,7 @@ class Nutzer {
       const res = await fetch(BASIS + pfad, {
         method,
         redirect: "manual",
+        signal: AbortSignal.timeout(30_000),
         headers: { Cookie: this.cookieKopf(), "Content-Type": "application/json" },
         ...(data === undefined ? {} : { body: JSON.stringify(data) }),
       });
@@ -214,6 +216,7 @@ class Nutzer {
     const start = performance.now();
     try {
       const csrfRes = await fetch(BASIS + "/api/auth/csrf", {
+        signal: AbortSignal.timeout(30_000),
         headers: { Cookie: this.cookieKopf() },
       });
       this.merkeCookies(csrfRes);
@@ -221,6 +224,7 @@ class Nutzer {
       const res = await fetch(BASIS + "/api/auth/callback/credentials", {
         method: "POST",
         redirect: "manual",
+        signal: AbortSignal.timeout(30_000),
         headers: {
           Cookie: this.cookieKopf(),
           "Content-Type": "application/x-www-form-urlencoded",
@@ -234,6 +238,7 @@ class Nutzer {
       });
       this.merkeCookies(res);
       const sitzungRes = await fetch(BASIS + "/api/auth/session", {
+        signal: AbortSignal.timeout(30_000),
         headers: { Cookie: this.cookieKopf() },
       });
       this.merkeCookies(sitzungRes);
@@ -274,7 +279,11 @@ class Nutzer {
     });
     this.socket = verbindung;
     const verbunden = await new Promise<boolean>((auf) => {
+      const uhr = setTimeout(() => fertig(false), 30_000);
+      // Socket.IO timeout begrenzt den Transportaufbau; eine bereits offene
+      // Verbindung kann trotzdem auf die asynchrone Namespace-Auth warten.
       const fertig = (wert: boolean) => {
+        clearTimeout(uhr);
         verbindung.off("connect", beiVerbindung);
         verbindung.off("connect_error", beiFehler);
         auf(wert);
@@ -374,13 +383,18 @@ class Nutzer {
     if (this.aktiv) return;
     this.aktiv = true;
     this.schleife = (async () => {
+      this.zustand = "Socket-Verbindung";
       await this.verbinde();
       while (this.aktiv) {
+        this.zustand = "HTTP-Lesedurchgang";
         await this.durchgang();
         if (!this.aktiv) break;
+        this.zustand = "Benutzerpause";
         await this.warte(PAUSE_MIN + Math.random() * (PAUSE_MAX - PAUSE_MIN));
       }
+      this.zustand = "Socket-Abbau";
       await this.trenne();
+      this.zustand = "beendet";
     })();
   }
 
@@ -391,7 +405,19 @@ class Nutzer {
     this.wecker?.();
     const laufend = this.schleife;
     this.schleife = null;
-    await laufend;
+    // Ein unaufgeloestes Promise allein haelt Node nicht am Leben. Der
+    // referenzierte Timer verhindert einen stillen Exit vor der Auswertung.
+    let uhr: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        laufend,
+        new Promise<never>((_, ab) => {
+          uhr = setTimeout(() => ab(new Error("Benutzerabbau haengt: " + this.email + " (" + this.zustand + ")")), 35_000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(uhr);
+    }
   }
 
   /** Abbrechbare Pause mit Jitter, damit nicht alle gleichzeitig abfragen. */
@@ -694,7 +720,16 @@ async function main(): Promise<void> {
   process.exitCode = 1;
 }
 
-main().catch((fehler) => {
+let abgeschlossen = false;
+process.on("beforeExit", () => {
+  if (!abgeschlossen) {
+    console.error("Ergebnis: NICHT BESTANDEN - Lasttest ohne vollstaendige Auswertung beendet.");
+    process.exitCode = 1;
+  }
+});
+
+main().then(() => { abgeschlossen = true; }).catch((fehler) => {
+  abgeschlossen = true;
   console.error(fehler);
   process.exitCode = 1;
 });

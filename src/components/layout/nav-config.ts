@@ -101,6 +101,7 @@ export function navGroups(me?: CurrentMember): NavGroup[] {
       title: "Personal",
       items: [
         ...(can.staff ? [{ key: "employees", href: "/employees", label: "Mitarbeiter", icon: Users }] : []),
+        ...(can.admin ? [{ key: "subcontractors", href: "/subcontractors", label: "Subunternehmer", icon: Building2 }] : []),
         { key: "absences", href: "/employees/absences", label: "Abwesenheiten", icon: CalendarCheck },
         { key: "time", href: "/time", label: "Zeiterfassung", icon: Clock },
       ],

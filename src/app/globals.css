@@ -144,13 +144,13 @@
   --chart-4: var(--deep);
   --chart-5: var(--ink-muted);
 
-  --sidebar: #ffffff;
-  --sidebar-foreground: var(--ink);
+  --sidebar: var(--schiene);
+  --sidebar-foreground: var(--schiene-text);
   --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--accent);
-  --sidebar-accent-foreground: var(--deep);
-  --sidebar-border: var(--line);
+  --sidebar-accent: var(--schiene-flaeche);
+  --sidebar-accent-foreground: var(--schiene-text);
+  --sidebar-border: var(--schiene-linie);
   --sidebar-ring: var(--brand);
 
   /* ----------------------------------------------------------
@@ -168,20 +168,21 @@
   --linie: var(--line);
   --linie-fein: color-mix(in oklab, var(--line) 50%, transparent);
 
-  /* Navigationsschiene: dunkle Strukturflaeche des Designsystems. */
-  --schiene: var(--cert-bg);
+  /* Navigationsschiene: bestehendes AKRO-Ink, auch im Dunkelmodus
+     konstant dunkel; aktive Auswahl in Markenblau. */
+  --schiene: #0b1b36;
   --schiene-flaeche: var(--cert-card);
   --schiene-linie: color-mix(in oklab, var(--cert-line) 65%, transparent);
   --schiene-text: #ffffff;
   --schiene-gedimmt: var(--cert-accent);
-  --schiene-aktiv: color-mix(in oklab, var(--brand) 34%, var(--cert-bg));
+  --schiene-aktiv: var(--brand);
 
   /* Radienstufen: 8px Bedienelement, 12px Panel, 24px Grossflaeche. */
   --radius-panel: calc(var(--radius) * 1.5);
 
-  /* Hoehe der Kopfschiene (2px Markenlinie + 56px Zeile).
+  /* Hoehe der Kopfschiene (2px Markenlinie + 72px Zeile).
      Klebende Unterkoepfe setzen darauf auf. */
-  --kopf-hoehe: 58px;
+  --kopf-hoehe: 74px;
 
   /* Heutiger Tag im Plan - eine Spur Marke, kein Farbkasten. */
   --flaeche-heute: color-mix(in oklab, var(--brand) 5%, var(--card));
@@ -229,13 +230,13 @@
   --chart-4: #99c4ff;
   --chart-5: #9db6d8;
 
-  --sidebar: #102e5b;
-  --sidebar-foreground: var(--ink);
+  --sidebar: var(--schiene);
+  --sidebar-foreground: var(--schiene-text);
   --sidebar-primary: #4d7dff;
   --sidebar-primary-foreground: #06143a;
-  --sidebar-accent: #16376a;
-  --sidebar-accent-foreground: #99c4ff;
-  --sidebar-border: var(--line);
+  --sidebar-accent: var(--schiene-flaeche);
+  --sidebar-accent-foreground: var(--schiene-text);
+  --sidebar-border: var(--schiene-linie);
   --sidebar-ring: #4d7dff;
 }
 
