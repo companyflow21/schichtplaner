@@ -88,6 +88,42 @@ Status: `bestanden` · `fehlgeschlagen` · `nicht geprüft` · `offen` (fachlich
 Nachweise sind lokal (PGlite-Workflowtests, isolierte Docker-Testinstallation), soweit nicht anders vermerkt.
 Auf Netcup eingespielt: `9eabd44` am 28.09.2026, `b5efa55` am 29.09.2026 (Löschen, Qualifikationen bearbeiten, Push).
 
+## Betriebsnachweise auf echtem PostgreSQL (03.–05.10.2026, lokal)
+
+Stand: Commit `ede961e`. Umgebung: Docker Desktop auf dem Arbeits-PC, Compose-Projekt `schichtplaner-test`
+(eigenes Netz, Volume `schichtplaner-test_postgres_test_data`, Datenbank `schichtplaner_test`, PostgreSQL 16.15),
+`.env.test`, App nur an `127.0.0.1:18080` (Override außerhalb des Repositorys). Nur synthetische Daten
+(„AKRO Pilot“, Fremdmandant, eigene Testorganisationen). Live (`a9f5b9d`) und Betriebsdaten unberührt.
+Diese Ergebnisse sind jetzt ausgeführt; frühere Einträge oben bleiben historische Nachweise.
+
+| Nachweis | Ergebnis | Beleg |
+|---|---|---|
+| Testinstallation | bestanden | Build 7 min, `migrate` Exit 0 (beide neuen Migrationen), App healthy, `/api/health` und `/login` 200; Admin-/Mitarbeiteranmeldung |
+| Sicherung/Wiederherstellung (Probe) | bestanden | Quelle `schichtplaner_test` (Stand Live: 8 Migrationen); `pg_dump -Fc` 115 kB, 255 Einträge, SHA256 lokal = Container; `pg_restore --exit-on-error` in **neue leere** `schichtplaner_kopie2`; 39 Tabellen / 445 Zeilen, alle Hashes gleich (`tests/migration-copy-current.ts snapshot/vergleich`) |
+| Kopiemigration (Probe) | bestanden | `prisma migrate deploy` auf `kopie2` (Ziel vorher per `migrate status` geprüft), 7 s; 51/51: alle Bestandsspalten unverändert, Bestätigungsherkunft 59× EMPLOYEE / 6× PLANNER exakt wie berechnet, keine erfundenen Zuordnungen, neue Tabellen leer, keine verwaisten Bezüge |
+| Schutzregeln auf PostgreSQL | bestanden | 10/10 in zurückgerollter Transaktion: Doppel-/Leer-Personenreferenz, fremder Platzhalter, Verschieben von Schicht/Plan/Platzhalter in fremde Organisation, RESTRICT für Unternehmen und Konten, Deaktivierung erhält Einsatz |
+| Parallelzugriffe, mehrere Verbindungen | bestanden | `tests/postgres-concurrency.ts`: 10 Runden warm 32/32, 3 Kaltstarts 10+10+4: je genau 1 Erfolg bei 10 gleichzeitigen Einteilungen auf den letzten Platz, beim selben Platzhalter in überlappenden Schichten und bei doppelter Antragsgenehmigung; App nutzte bis zu 12 Datenbankverbindungen |
+| Echtzeit, zwei Browser | bestanden | Admin ändert Schicht, offene Mitarbeiter-Startseite zeigt sie nach 1,9 s ohne Neuladen |
+| Last 100 Nutzer, nur Lesen | bestanden (lokal) | 6 min, App+DB auf 4 Kerne begrenzt: 4060 Anfragen, 0 Fehler, p95 125–191 ms, Login p95 1,96 s, 100/100 Sockets, 0 Abbrüche; Spitze App 2,6 Kerne/550 MiB, DB 0,3 Kerne/52 MiB, 12 Verbindungen |
+| Last 100 Nutzer, mit Schreiben | fehlgeschlagen (Testkriterium) | 4294 Anfragen, Lesen 0 Fehler (p95 ≤ 413 ms), 187 Schreibvorgänge (100/100 Bestätigungen); 119 Antragsversuche fachlich korrekt mit 409 abgewiesen (zweiter Antrag je Schicht, begonnene Schicht) – der Lasttest zählt sie als Fehler; **1 echter Fehler: Serialisierungskonflikt (40001) als HTTP 500** |
+
+Befunde:
+- **P1 offen – Serialisierungskonflikte:** 20 Transaktionen in API-Routen wiederholen bei 40001 nicht und antworten mit 500,
+  u. a. `POST /api/mod-requests` (im Lasttest aufgetreten), `POST /api/time/watch`, Zeitkorrekturen, Schicht-/Planbearbeitung,
+  Freigaben. Lösungsvorschlag: je Route prüfen, ob die Arbeit außer `tx` nebenwirkungsfrei ist, dann `{ retry: true }` setzen
+  und mit einem Parallelfall in `tests/postgres-concurrency.ts` absichern. Nicht umgesetzt (Auftrag: nur Betriebsnachweise).
+- Lasttest-Werkzeug: Ausweichpfad „Nachricht an anderes Testkonto“ ist für Mitarbeitende gesperrt (403, gewollt); wiederholte
+  Tauschanträge werden als Fehler gezählt. Für ein aussagekräftiges Schreibkriterium muss der Test fachliche 409 trennen.
+- Umgebung: Windows-Standby („Modern Standby“) hielt Docker an (Herzschlag-Lücken 115 s, 173 s, 769 s, später ~47 h).
+  Dadurch ungültige Läufe (erster Parallelitätslauf hing; zwei Lastläufe mit Socket-Abbrüchen) – verworfen; gültige Läufe
+  sind per lückenlosem Docker-Herzschlag belegt.
+
+Nicht nachgewiesen (Blocker):
+- Sicherung, Wiederherstellung und Kopiemigration **mit Betriebsdaten**: braucht ausdrücklichen Auftrag für eine Betriebssicherung
+  auf Netcup; Verfahren und Vergleichsskript sind erprobt.
+- Kapazität auf vergleichbarer Hardware: lokal nur Näherung (4 Kerne eines anderen Prozessors); separater Testserver nicht bestellt.
+- Rückweg mit altem Image-Stand plus Dump auf einer Kopie: lokal kein Image von `a9f5b9d` vorhanden; auf Netcup vor dem Update proben.
+
 ## Erweiterung Kommunikation, Tausch, GPS-Check-in
 
 | Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
