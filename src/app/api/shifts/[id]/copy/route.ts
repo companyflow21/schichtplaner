@@ -15,7 +15,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const a = await requireAccess();
     const { id } = await context.params;
     const data = await body(request, copyInput);
-    if (data.preview) return serial(tx => copyShift(tx, a, id, data)).catch(previewResult);
+    if (data.preview) return serial(tx => copyShift(tx, a, id, data), { retry: true }).catch(previewResult);
     const shifts = await serial(tx => copyShift(tx, a, id, data), { retry: true });
     const assigned = [...new Set(shifts.flatMap(s => personIds(s.bookings)))];
     emitToBranch(a.orgId, shifts[0]?.schedule.branchId ?? null, assigned.length ? "booking:changed" : "schedule:updated", assigned);

@@ -103,7 +103,7 @@ export async function PUT(request: Request, context: Context) {
         update: { rights },
       });
       return { rights };
-    });
+    }, { retry: true });
     await refreshRealtime([target.userId]);
     return result;
   });

@@ -45,7 +45,7 @@ export async function PATCH(request: Request, context: Params) {
           if (next) await tx.shift.update({ where: { id: s.id }, data: { requiredQualifications: next } });
         }
         return { qualification };
-      });
+      }, { retry: true });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new ApiError("Diese Qualifikation gibt es bereits.", 409);
       throw error;
@@ -76,6 +76,6 @@ export async function DELETE(_request: Request, context: Params) {
       }
       await tx.qualification.delete({ where: { id } });
       return { success: true };
-    });
+    }, { retry: true });
   });
 }

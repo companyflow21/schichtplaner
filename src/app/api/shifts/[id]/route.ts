@@ -14,7 +14,7 @@ export async function PATCH(request: Request, context: Context) {
     const a = await requireAccess();
     const { id } = await context.params;
     const data = await body(request, shiftPatch);
-    const { shift, previousBranchId } = await serial(tx => updateShift(tx, a, id, data));
+    const { shift, previousBranchId } = await serial(tx => updateShift(tx, a, id, data), { retry: true });
     const affected = personIds(shift.bookings);
     emitToBranch(a.orgId, shift.schedule.branchId, "schedule:updated", affected);
     if (previousBranchId !== shift.schedule.branchId) emitToBranch(a.orgId, previousBranchId, "schedule:updated");

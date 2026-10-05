@@ -18,7 +18,7 @@ async function change(context: Context, delta: 1 | -1) {
     if (shift._count.bookings > maxEmployees) throw new ApiError("Platz kann nicht entfernt werden – zu viele Zuweisungen.", 409);
     const updated = await tx.shift.update({ where: { id }, data: { maxEmployees }, select: { id: true, maxEmployees: true } });
     return { shift: updated, branchId: shift.schedule.branchId };
-  });
+  }, { retry: true });
   emitToBranch(a.orgId, result.branchId, "schedule:updated");
   return { shift: result.shift };
 }

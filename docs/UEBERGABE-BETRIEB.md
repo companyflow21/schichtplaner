@@ -1,13 +1,13 @@
 # Betriebsübergabe an Claude
 
-Stand: 01.10.2026. Diese Datei bereitet die nächsten Nachweise vor; sie bestätigt keine Veröffentlichung und keinen PostgreSQL-Betrieb. Nur im Projekt `schichtplaner` arbeiten. Keine Datenbank zurücksetzen, kein `docker compose down -v`, keine bestehenden Volumes löschen und keine Testdaten in Betriebsdatenbanken anlegen. Änderungen im Betrieb und Veröffentlichung benötigen einen ausdrücklichen Auftrag.
+Stand: 05.10.2026. Diese Datei beschreibt das Betriebsverfahren; den tatsächlichen Prüfstand führt `docs/FERTIGSTELLUNG.md`, dort zuerst den aktuellen Abschlussabschnitt lesen. Lokale PostgreSQL-, Restore- und Kopiemigrationsproben vom 03.–05.10. sind dort dokumentiert. Sie bestätigen keine Veröffentlichung auf Netcup. Nur im Projekt `schichtplaner` arbeiten. Keine Datenbank zurücksetzen, kein `docker compose down -v`, keine bestehenden Volumes löschen und keine Testdaten in Betriebsdatenbanken anlegen. Änderungen im Betrieb und Veröffentlichung benötigen einen ausdrücklichen Auftrag.
 
 ## Ausgangslage
 
-- Lokal sind `docker`, `psql` und `pg_dump` nicht im PATH verfügbar. Eine Installation oder ein anderer Ausführungshost ist noch bereitzustellen; nicht ungefragt installieren.
+- Docker Desktop ist inzwischen lokal vorhanden; PostgreSQL-Werkzeuge laufen im getrennten Testcontainer. Bei fehlendem PATH den tatsächlich installierten Docker-Pfad verwenden; keine neue Installation erforderlich.
 - Die localhost-Testports 15432 und 18080 wurden vom Hauptagenten als frei geprüft. Dies vor dem Start erneut prüfen.
-- `docker-compose.test.yml` beschreibt ein eigenes Projekt, Netzwerk, Volume und die Datenbank `schichtplaner_test`. Das ist eine vorbereitete Konfiguration, noch kein tatsächlicher PostgreSQL-, Wiederherstellungs- oder Lastnachweis.
-- PostgreSQL ist dort nur auf `127.0.0.1:15432` gebunden. Die App-Zuordnung `18080:3000` bindet dagegen standardmäßig auch andere Host-Schnittstellen; den Testhost entsprechend abschirmen.
+- `docker-compose.test.yml` beschreibt ein eigenes Projekt, Netzwerk, Volume und die Datenbank `schichtplaner_test`. Die vorhandene Testinstallation wurde separat geprüft; vor jedem weiteren Lauf die tatsächliche Isolation erneut verifizieren.
+- PostgreSQL und Test-App sind in der Konfiguration ausschließlich an localhost gebunden: `127.0.0.1:15432` und `127.0.0.1:18080`.
 - Der Dockerfile verwendet Node 24 und startet `server.ts` über `tsx`, einschließlich Socket.IO. Der Test-Compose-Migrationsdienst nutzt den `builder` und `prisma migrate deploy`; die App wartet auf dessen erfolgreichen Abschluss.
 - Maßgeblich sind `ANLEITUNG.md`, die aktuelle Arbeitsliste und die tatsächlich ausgeführten Prüfungen. Keine früheren Testergebnisse als neuen Betriebsnachweis übernehmen.
 
@@ -36,7 +36,7 @@ Stand: 01.10.2026. Diese Datei bereitet die nächsten Nachweise vor; sie bestät
 
 Die neuesten Migrationen sind `20261001090000_employee_delete_history_confirmation` und `20261001120000_subcontractors`. Zuerst den tatsächlichen Stand von `_prisma_migrations` und das Schema der Kopie feststellen; nur ausstehende Migrationen einspielen.
 
-**Wichtig:** `tests/migration-copy.ts` prüft die ältere Standortmigration und verlangt die alte Spalte `organizations.scheduleVisibility`. Eine aktuelle Kopie wird deshalb abgewiesen. Außerdem erwartet das Skript leere Kundenstammdaten und unveränderte Buchungsbestätigungen; das passt nicht allgemein zum aktuellen Bestand. `npm run test:migration:copy` nicht ungeprüft als Nachweis für diese beiden Migrationen verwenden. Dafür einen gezielten Vergleich auf der verifizierten Kopie vorbereiten und prüfen.
+**Wichtig:** `tests/migration-copy.ts` prüft die ältere Standortmigration und verlangt die alte Spalte `organizations.scheduleVisibility`. Eine aktuelle Kopie wird deshalb abgewiesen. Außerdem erwartet das Skript leere Kundenstammdaten und unveränderte Buchungsbestätigungen; das passt nicht allgemein zum aktuellen Bestand. `npm run test:migration:copy` nicht als Nachweis für diese beiden Migrationen verwenden. Der aktuelle Vergleich ist `tests/migration-copy-current.ts`: `snapshot`/`vergleich` für den Restore, `vorher`/`nachher` für die beiden Migrationen. Verbindung und Isolation vorher separat verifizieren; Vergleichsdateien geschützt außerhalb des Repositorys speichern.
 
 1. Vorher: Zeilenzahlen **aller vorhandenen Fachtabellen** sichern. Pro Tabelle einen deterministischen Hash der nach Primärschlüssel sortierten Zeilen über die erhalten bleibenden Spalten bilden. Vergleichsdaten geschützt außerhalb des Repositorys ablegen. Zusätzlich die Zuordnungen Schicht→Plan→Standort→Organisation sowie Buchung/Check-in/Zeit→Person, Nachrichten/Anträge/Live-Protokolle→Schicht erfassen.
 2. Erwartete Transformation festlegen: Bei Migration 090000 erhalten Buchungen mit `confirmedAt` die Herkunft `EMPLOYEE`; bisher unbestätigte fremd eingeteilte Buchungen erhalten `PLANNER` und `confirmedAt=bookedAt`. Andere Bestätigungen bleiben leer. Diese Felder gegen den **berechneten Erwartungswert** vergleichen; nicht pauschal aus der Prüfung streichen. Alle anderen Bestandsfelder und Referenzen müssen unverändert bleiben.
@@ -59,4 +59,4 @@ Vor dem Betriebswechsel alten Code-/Image-Stand, Konfiguration und verifizierten
 
 Rückweg vorher auf der Kopie proben: alter Code-/Image-Stand **und** dazu passender verifizierter Dump werden gemeinsam wiederhergestellt. Code allein setzt das Schema nicht zurück. Den Dump in eine neue separate Datenbank wiederherstellen und nach Prüfung kontrolliert umschalten; keine Rückmigration durch nachträgliches Umschreiben angewandter SQL-Dateien. Schreibzugriffe nach dem Sicherungszeitpunkt würden beim Rückweg fehlen: deshalb Schreibsperre bzw. gesonderte Sicherung und Übernahme dieser Änderungen vorab vereinbaren.
 
-Bis diese Schritte tatsächlich bestanden sind, bleiben PostgreSQL-Betrieb, Kopiemigration, Restore, 100-Nutzer-Last und Veröffentlichung **nicht geprüft**. Ein lokaler Build ersetzt sie nicht.
+Ausgeführte und ausstehende Nachweise stehen in der aktuellen Arbeitsliste. Lokale synthetische Proben ersetzen weder die Sicherung/Kopiemigration mit Betriebsdaten noch die Nachprüfung auf Netcup und echten Geräten.

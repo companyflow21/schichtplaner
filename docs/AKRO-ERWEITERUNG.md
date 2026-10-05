@@ -158,13 +158,15 @@ Zeitkorrektur und Fremdzugriff; Stunden-/CSV-Auswertung; interne Nachricht und L
 3. In einer Woche eine Nachtschicht erstellen, wiederholen, kopieren und Person zuweisen.
 4. Überlappende Schicht bzw. eine Person ohne Qualifikation zuweisen: verständliche Ablehnung erwarten.
 5. Entwurf mit Mitarbeiterkonto vergleichen, veröffentlichen, Nachrichteneingang prüfen.
-6. Zeit/Einsatzort ändern: neue Nachricht und erneute Bestätigung erforderlich.
+6. Zeit/Einsatzort ändern: neue Nachricht prüfen. Einteilung durch Planung bleibt verbindlich;
+   nur Altbestand ohne eindeutige Herkunft erfordert erneut die Mitarbeiterbestätigung.
 7. Urlaubs-, Tausch-, Übernahme- und Korrekturanträge prüfen und genehmigen/ablehnen.
 8. Auswertung samt Pausenabzug kontrollieren und CSV in Excel öffnen.
 
 ### Manuell als Mitarbeiter
 1. Einladung aktivieren, anmelden. Keine Personal-/Einstellungsverwaltung in der Navigation.
-2. Eigene nächste Schicht samt Treffpunkt sehen und bestätigen.
+2. Eigene nächste Schicht samt Treffpunkt sehen. Einteilung durch Planung ist „fest eingeteilt“;
+   nur unbestätigten Altbestand ohne eindeutige Herkunft selbst bestätigen.
 3. Offene passende Schicht anfragen und eine eigene Schicht zum Tausch anbieten.
 4. Verfügbarkeit eintragen; Abwesenheit beantragen und Entscheidung im Postfach prüfen.
 5. Stoppuhr starten, pausieren, Seite neu laden, fortsetzen und beenden.

@@ -170,6 +170,18 @@ mehrere passende Organisationen, wählt `LOAD_ORG_NAME` eine aus.
 | `LOAD_SPIKE_USERS` | `40` | Nutzer in der Lastspitze |
 | `LOAD_ALLOW_WRITES` | `false` | Schreibvorgänge nur in einer erkennbaren Testorganisation |
 
+Mit Schreibvorgängen bestätigt jede Person ihre eigene unbestätigte Altzuweisung und
+bietet eine eigene zukünftige Schicht höchstens einmal zur Übernahme an. Bereits
+begonnene Schichten und doppelte Angebote werden nicht absichtlich erzeugt. Alle
+Nicht-2xx-Antworten zählen weiterhin als Fehler; fachlich abgewiesene Doppelanträge
+werden separat in den Workflow- und PostgreSQL-Paralleltests geprüft.
+
+Für einen neuen Schreiblastlauf einen frischen synthetischen Bestand verwenden.
+Das Anlegen setzt bei bereits vorhandenen Testzuweisungen die Bestätigung zurück,
+entfernt aber keine vorherigen Anträge. `LOAD_ORG_NAME` gezielt angeben und den
+Kontenpräfix vorab auf Eindeutigkeit prüfen. Für 100 Nutzer `LOAD_USERS` und
+`LOAD_SPIKE_USERS` sowohl beim Anlegen als auch beim Lastlauf auf `100` setzen.
+
 **Start:**
 
 ```

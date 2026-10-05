@@ -62,6 +62,6 @@ export async function GET(request: Request) {
         schedule: { id: "", organizationId: a.orgId, branchId: null, weekNumber, year, isPublic: shifts.every(s => s.schedule.isPublic), settingsLayout: "LAYOUT_1", showTitle: true, showPauses: true, shifts: shifts.map(s => shiftView(s, a, ineffective)) },
         merged: true,
       };
-    });
+    }, { retry: true });
   });
 }

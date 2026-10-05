@@ -32,7 +32,7 @@ export async function PUT(request: Request, context: Context) {
     const sites = await serial(async (tx) => {
       await setSites(tx, a, target, branchIds);
       return sitesOf(tx, a, target);
-    });
+    }, { retry: true });
     await refreshRealtime([target.userId]);
     return { sites };
   });

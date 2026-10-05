@@ -125,7 +125,7 @@ export async function POST(request: Request) {
         await notify(tx, a.orgId, a.userId, await branchHolders(tx, a.orgId, branchId, ["HANDLE_REQUESTS"]), "Neuer Schichtantrag", data.kind === "SWAP" ? "Eine Schicht wurde zur Übernahme angeboten." : "Eine offene Schicht wurde angefragt.", shift.id);
       }
       return { record, branches: [branchId, target?.schedule.branchId ?? null] };
-    });
+    }, { retry: true });
     for (const branchId of new Set(result.branches)) emitToBranch(a.orgId, branchId, "booking:changed", [a.userId, ...(data.targetUserId ? [data.targetUserId] : [])]);
     return { request: { id: result.record.id, kind: result.record.kind, state: result.record.state, shiftId: result.record.shiftId } };
   });

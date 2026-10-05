@@ -5,5 +5,7 @@
 node_modules
 .next
 .git
+.claude
+backups
 docs
 *.md

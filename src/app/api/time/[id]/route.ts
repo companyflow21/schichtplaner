@@ -21,7 +21,7 @@ export async function PATCH(request: Request, context: Context) {
       const correction = await tx.timeCorrection.create({ data: { organizationId: a.orgId, recordId: id, requesterId: a.userId, reason, before: snapshot(record), proposed: data } });
       await notify(tx, a.orgId, a.userId, await timeReviewers(tx, a.orgId, record), "Zeitkorrektur zur Freigabe", reason);
       return { record, correction, pending: true };
-    });
+    }, { retry: true });
   });
 }
 

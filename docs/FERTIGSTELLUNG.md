@@ -1,5 +1,61 @@
 # Fertigstellung – Arbeitsliste
 
+## Aktueller Abschlussauftrag (05.10.2026)
+
+Ziel: den vorhandenen Funktionsumfang abschließen, ohne neue Funktionen oder Rechte
+hinzuzufügen. Basis ist `aa07282`; die nachfolgenden älteren Abschnitte sind historische
+Nachweise. Dieser Abschnitt bestimmt den aktuellen Stand. Betriebsdaten und die laufende
+Betriebsinstallation werden in diesem Auftrag nicht verändert.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P0 | `.dockerignore`, Docker-Build | Lokale Sicherungen und Agenteneinstellungen gelangen nicht in Build-Kontext oder Image | bestanden (lokal) | `backups` und `.claude` ausdrücklich ausgeschlossen; im neu gebauten Builder-Image beide Pfade mit `test ! -e` geprüft, Exit 0. Die zwei Sicherungsdateien wurden nicht verändert |
+| P2 | `docker-compose.test.yml` | Test-App ausschließlich über localhost erreichbar | bestanden (lokal) | Standard-Portbindung `127.0.0.1:18080:3000`; Compose-Konfiguration gültig. Neue Test-App ebenfalls nur an localhost gestartet |
+| P1 | Gleichzeitige Änderungen: `src/lib/api.ts`, 19 API-Routen | Zurückgerollte Schreibkonflikte begrenzt wiederholen; keine HTTP 500 bei 40001/P2034; fachliche Sperren bleiben bestehen | bestanden (lokal) | Alle 34 direkten `serial()`-Aufrufe der API geprüft; 20 bisher ohne Wiederholung ergänzt. Regression 15/15, alte Fassung scheitert am neuen Fall P2034 ohne Adaptermetadaten. Benachrichtigungen in der Transaktion, Echtzeitversand danach |
+| P1 | `tests/serial-retry.ts`, `tests/postgres-concurrency.ts` | Doppelantrag, doppelte Genehmigung und Stoppuhr aus zwei Sitzungen erzeugen genau einen korrekten Datensatz und keine doppelten Mitteilungen | bestanden (lokal) | PostgreSQL 16.15: 202/202 in zehn Runden, bis zu zwölf App-Verbindungen. Letzter Platz, Sub-Überschneidung, Doppelantrag/-genehmigung, START/PAUSE/RESUME jeweils genau ein Erfolg; Endzustände und einmalige Mitteilungen per SQL geprüft |
+| P1 | `tests/load-pilot.ts` | 100 Nutzer mit gültigen Schreibvorgängen; unveränderte Fehler- und Antwortzeitgrenzen | bestanden (lokal) | 6,3 min, 4227/4227 Anfragen erfolgreich, 0 Fehler; Lese-p95 höchstens 149 ms, Schreib-p95 höchstens 228 ms, Login-p95 1655 ms. 100/100 Sockets, 0 Abbrüche. 174 Schreibvorgänge entsprechen per SQL genau 100 bestätigten Buchungen und 74 eindeutigen offenen Angeboten, keine Doppelanträge |
+| P1 | Gesamtabnahme | Typprüfung, Lint, Migrationen, Workflow/Rechte und Produktions-Build bestehen | bestanden (lokal) | Workflow/Rechte 2491/2491; Migration 61/61, Historie 29/29, Subunternehmer 21/21, Mitarbeiterlöschung DB 26/26; Typprüfung 0 Fehler, Lint 0 Fehler/25 bestehende Warnungen; Host- und Docker-Produktions-Build erfolgreich |
+| P2 | `docs/AKRO-ERWEITERUNG.md`, `ANLEITUNG.md`, `docs/UEBERGABE-BETRIEB.md` | Anleitung entspricht verbindlicher Planer-Einteilung und tatsächlich geprüftem Betrieb | bestanden | Bestätigung nur für Altbestand ohne eindeutige Herkunft; gültige Schreiblast beschrieben; Docker-Verfügbarkeit, localhost-Bindung und aktuelles Kopievergleichsskript berichtigt. Aktueller Status hier, ältere Ergebnisse als Historie |
+| P2 | Desktop/mobile Oberfläche, echte Geräte | Hauptabläufe bedienbar; GPS und Push auf echten Geräten nachweisen | teilweise bestanden (historisch), heute nicht erneut geprüft | Browsernachweise 71/71 + 16/16 sowie Manager-Kopie bei 375 px vom 01.–02.10.; heute keine UI-Änderungen. Echte GPS-/Push-Geräteprüfungen stehen weiterhin aus |
+| P1 | Einspielen auf Netcup | Aktuelle Betriebssicherung, Restore/Kopiemigration, Rückfallversion, Einspielen und Anmeldung nachweisen | nicht geprüft | Ausdrücklicher Auftrag und Zugang für die Betriebsinstallation erforderlich; lokale synthetische Nachweise ersetzen dies nicht |
+
+Prüfumgebung: eigenes Docker-Netz und eigenes Volume `schichtplaner-test_postgres_test_data`,
+PostgreSQL 16.15, Port ausschließlich `127.0.0.1:15432`; zehn vollständig angewandte
+Migrationen. Vorhandene Organisationen ausschließlich synthetische Pilot-/Testdaten.
+Keine Tests gegen die Betriebsdatenbank, keine Datenbank-Resets und keine Volumes gelöscht.
+
+Lastumgebung: neues Produktionsimage `schichtplaner-final:20261005`, KI aus,
+App auf vier CPUs begrenzt; PostgreSQL auf CPUs 0–3 gebunden, Docker-Engine mit
+16 CPUs. Dies ist ein lokaler Funktions-/Lastnachweis, kein Kapazitätsnachweis
+für einen bestimmten Netcup-Server. CPU-/RAM-Spitzen dieses Laufs wurden nicht
+als dauerhafter Messbericht gespeichert. Der Rechner wurde während der Prüfung
+vorübergehend wach gehalten; die verwendeten Testcontainer danach gestoppt.
+
+Die zusätzliche SQL-Nachkontrolle brach zunächst wegen einer falschen Abfrage im
+temporären Prüfhelfer ab (`mod_requests` hat keine eigene `organizationId`).
+Korrigiert wurde nur diese lesende Kontrolle: Organisation über Schicht/Plan
+verknüpfen. Sie bestand danach mit 100/100 Bestätigungen, 74/74 Anträgen und null
+Doppelanträgen; App-Code, Testkriterien und Lastlauf wurden dabei nicht verändert.
+
+**Freigabestand:** lokal geprüft, Funktionsumfang eingefroren. Keine offenen bestätigten
+P0/P1-Codefehler aus diesem Abschlussauftrag. Noch keine Betriebsfreigabe des neuen
+Standes. Nächster konkreter Schritt: nach ausdrücklichem Auftrag auf Netcup den
+tatsächlichen Ausgangsstand prüfen, Betriebssicherung und Restore/Kopiemigration
+nachweisen, Rückfallversion sichern, ausrollen und Anmeldung/Rollen/Subbesetzung/
+Echtzeit nachprüfen. Echte Geräte und Zielhardware bleiben gesonderte Nachweise.
+
+Fachlicher Umfang eingefroren: Verwaltung, Planung einschließlich Sub-Platzhaltern,
+Freigaben, Zeit, Monatsauswertung/CSV und Nachrichten nach den bestehenden Regeln.
+Neue Manager-/Mitarbeiterrechte bleiben ausdrücklich zu vergeben; Selbstgenehmigung
+eigener Zeitkorrekturen durch Admins bleibt wie dokumentiert. KI bleibt optional und
+im aktuellen Testbetrieb ausgeschaltet. Offene GPS-Vorgaben werden nicht stillschweigend
+entschieden; eine GPS-Pflicht erst nach gesonderter Entscheidung und Gerätetest aktivieren.
+
+Aufteilung dieses Abschlusses: API-Prüfung/-Korrektur und gezielte Regressionstests
+getrennt delegiert, Integration und vollständige gemeinsame Abnahme beim Hauptagenten.
+Keine erneute Gesamtanalyse je Agent und keine parallelen Workflow-/Build-Läufe.
+Genaue Token-/Kostenmessung liegt für diesen Auftrag nicht vor.
+
 ## Subunternehmer mit Planungsplatzhaltern (01.10.2026)
 
 Auftrag: Unternehmen mit beliebig vielen benannten Platzhaltern ohne Zugang anlegen,
@@ -108,7 +164,7 @@ Diese Ergebnisse sind jetzt ausgeführt; frühere Einträge oben bleiben histori
 | Last 100 Nutzer, mit Schreiben | fehlgeschlagen (Testkriterium) | 4294 Anfragen, Lesen 0 Fehler (p95 ≤ 413 ms), 187 Schreibvorgänge (100/100 Bestätigungen); 119 Antragsversuche fachlich korrekt mit 409 abgewiesen (zweiter Antrag je Schicht, begonnene Schicht) – der Lasttest zählt sie als Fehler; **1 echter Fehler: Serialisierungskonflikt (40001) als HTTP 500** |
 
 Befunde:
-- **P1 offen – Serialisierungskonflikte:** 20 Transaktionen in API-Routen wiederholen bei 40001 nicht und antworten mit 500,
+- **P1 damals offen, am 05.10. behoben – Serialisierungskonflikte:** 20 Transaktionen in API-Routen wiederholen bei 40001 nicht und antworten mit 500,
   u. a. `POST /api/mod-requests` (im Lasttest aufgetreten), `POST /api/time/watch`, Zeitkorrekturen, Schicht-/Planbearbeitung,
   Freigaben. Lösungsvorschlag: je Route prüfen, ob die Arbeit außer `tx` nebenwirkungsfrei ist, dann `{ retry: true }` setzen
   und mit einem Parallelfall in `tests/postgres-concurrency.ts` absichern. Nicht umgesetzt (Auftrag: nur Betriebsnachweise).
@@ -189,7 +245,7 @@ Nicht übernommen: Paket 03 (Postfach seitenweise, passt nicht zum aktuellen Sta
 - **Zu klären:** Eine manuelle Freigabe startet die Zeit rückwirkend ab dem Antrag, auch wenn die Einteilung inzwischen entfernt wurde oder die Schicht vorbei ist.
 - Vorhandene offene Punkte aus `docs/AKRO-ERWEITERUNG.md` Abschnitt 5 bleiben unverändert offen.
 
-## Nächste Schritte
+## Nächste Schritte (historischer Stand 28.09.2026)
 
 1. Gerätetest mit einem echten Smartphone am Dienstort (HTTPS) und Ergebnis hier eintragen.
 2. Entscheidungen oben klären.

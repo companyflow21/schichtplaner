@@ -28,7 +28,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
       }
       await tx.schedule.deleteMany({ where: { branchId: id } });
       await tx.branch.delete({ where: { id } });
-    });
+    }, { retry: true });
     return { success: true };
   });
 }

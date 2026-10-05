@@ -11,6 +11,6 @@ export async function GET(request: Request) {
   return api(async () => {
     const a = await requireAccess();
     const q = parseExportQuery(new URL(request.url).searchParams);
-    return serial(tx => scheduleExport(tx, a, q));
+    return serial(tx => scheduleExport(tx, a, q), { retry: true });
   });
 }

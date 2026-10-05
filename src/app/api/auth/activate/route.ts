@@ -14,6 +14,6 @@ export async function POST(request: Request) {
       await tx.user.update({ where: { id: m.userId }, data: { passwordHash: hash } });
       await tx.organizationMember.update({ where: { id: m.id }, data: { isActivated: true, activationToken: null, activationExpiresAt: null } });
       return { success: true };
-    });
+    }, { retry: true });
   });
 }

@@ -36,7 +36,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         await notify(tx, a.orgId, a.userId, audience, schedule.isPublic ? "Dienstplan veröffentlicht" : "Dienstplan zurückgezogen", where + "KW " + schedule.weekNumber + "/" + schedule.year + (schedule.isPublic ? " ist jetzt verfügbar." : " wird überarbeitet."));
       }
       return { schedule, booked };
-    });
+    }, { retry: true });
     emitToBranch(a.orgId, result.schedule.branchId, "schedule:updated", result.booked);
     const s = result.schedule;
     return { schedule: { id: s.id, isPublic: s.isPublic, settingsLayout: s.settingsLayout, showTitle: s.showTitle, showPauses: s.showPauses } };

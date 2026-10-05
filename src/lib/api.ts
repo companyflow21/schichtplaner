@@ -23,18 +23,20 @@ export async function api(work: () => Promise<unknown>) {
   } catch (error) {
     if (error instanceof ApiError) return NextResponse.json({ ...error.details, error: error.message }, { status: error.status });
     if (error instanceof z.ZodError) return NextResponse.json({ error: error.issues.map(i => i.message).join("; ") }, { status: 400 });
-    if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2002", "P2034"].includes(error.code)) return NextResponse.json({ error: "Der Eintrag wurde inzwischen geändert oder existiert bereits. Bitte neu laden." }, { status: 409 });
+    if (isSerializationFailure(error)) return NextResponse.json({ error: "Gleichzeitige Änderung, bitte erneut versuchen." }, { status: 409 });
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return NextResponse.json({ error: "Der Eintrag wurde inzwischen geändert oder existiert bereits. Bitte neu laden." }, { status: 409 });
     console.error("API error", error);
     return NextResponse.json({ error: "Speichern oder Laden fehlgeschlagen. Bitte erneut versuchen." }, { status: 500 });
   }
 }
 /**
- * Vorübergehender Serialisierungskonflikt (SQLSTATE 40001): PostgreSQL hat
- * die ganze Transaktion zurückgerollt, ein neuer Versuch ist daher sicher.
- * Prisma meldet ihn als P2034 oder, beim COMMIT, als rohen Adapterfehler.
- * Deadlocks, fachliche Sperren (ApiError) und alle anderen Fehler zählen nicht.
+ * Vorübergehender Schreibkonflikt: SQLSTATE 40001 oder Prisma P2034
+ * (Schreibkonflikt/Deadlock). Die Transaktion wurde vollständig zurückgerollt.
+ * Beim COMMIT kann stattdessen ein roher Adapterfehler auftreten.
+ * Fachliche Sperren (ApiError) und alle anderen Fehler zählen nicht.
  */
 function isSerializationFailure(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return true;
   const adapter = error instanceof Prisma.PrismaClientKnownRequestError ? error.meta?.driverAdapterError : error;
   const e = adapter as { name?: unknown; cause?: { originalCode?: unknown } } | null | undefined;
   return e?.name === "DriverAdapterError" && e.cause?.originalCode === "40001";

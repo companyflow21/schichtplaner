@@ -115,7 +115,7 @@ export async function DELETE(_request: Request, context: Context) {
       await tx.modRequest.delete({ where: { id } });
       if (r.targetUserId && r.targetUserId !== a.userId) await notify(tx, a.orgId, a.userId, [r.targetUserId], "Antrag zurückgezogen", "Ein Antrag zu deiner Schicht wurde zurückgezogen.", r.targetShiftId ?? r.shiftId);
       return { branches, affected: [r.userId, ...(r.targetUserId ? [r.targetUserId] : [])] };
-    });
+    }, { retry: true });
     for (const branchId of new Set(result.branches)) emitToBranch(a.orgId, branchId, "booking:changed", result.affected);
     return { success: true };
   });

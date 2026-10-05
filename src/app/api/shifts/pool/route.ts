@@ -33,6 +33,6 @@ export async function GET(request: NextRequest) {
       // Stabil: Gruppe, innerhalb der Gruppe bleibt die Namensreihenfolge.
       list.sort((x, y) => rank[x.group] - rank[y.group]);
       return { site: branch.name, customer: branch.customer?.name ?? null, admin: a.isAdmin, people: list };
-    });
+    }, { retry: true });
   });
 }

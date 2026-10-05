@@ -17,6 +17,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       if (!shift) throw new ApiError("Schicht nicht gefunden.", 404);
       assertCan(a, "EDIT_SHIFTS", shift.schedule.branchId);
       return shiftCandidates(tx, a, shift);
-    });
+    }, { retry: true });
   });
 }

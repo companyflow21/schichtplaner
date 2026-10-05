@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   return api(async () => {
     const a = await requireAccess();
     const data = await body(request, shiftInput);
-    if (data.preview) return serial(tx => createShifts(tx, a, data)).catch(previewResult);
+    if (data.preview) return serial(tx => createShifts(tx, a, data), { retry: true }).catch(previewResult);
     const shifts = await serial(tx => createShifts(tx, a, data), { retry: true });
     // Mit Einteilungen erfahren es auch die eingeteilten Personen.
     emitToBranch(a.orgId, shifts[0]?.schedule.branchId ?? null, data.assignees.length ? "booking:changed" : "schedule:updated", data.assignees);

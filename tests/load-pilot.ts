@@ -7,7 +7,7 @@
  * werden nie angelegt - es werden nur vorhandene Testkonten verwendet.
  */
 import { io, type Socket } from "socket.io-client";
-import { berlinDate, isoWeek } from "../src/lib/berlin";
+import { berlinDate, berlinTime, isoWeek } from "../src/lib/berlin";
 
 // ---------------------------------------------------------------------------
 // Konfiguration - ausschliesslich ueber Umgebungsvariablen
@@ -52,7 +52,6 @@ const LESEN = [
 const SCHREIBEN = [
   "/api/bookings (PATCH)",
   "/api/mod-requests (POST)",
-  "/api/messages (POST)",
 ];
 
 const GRENZE_FEHLERQUOTE = 1; // Prozent
@@ -149,7 +148,7 @@ function ms(wert: number): string {
 // ---------------------------------------------------------------------------
 
 type Buchung = { userId: string; confirmedAt: string | null };
-type Schicht = { id: string; bookings: Buchung[] };
+type Schicht = { id: string; date: string; shiftFrom: string; bookings: Buchung[] };
 type Plan = { schedule?: { id: string; shifts?: Schicht[] } };
 type Konto = { organizationId?: string; organizationName?: string; user?: { id: string } };
 
@@ -161,6 +160,7 @@ class Nutzer {
   private wecker: (() => void) | null = null;
   private schleife: Promise<void> | null = null;
   private geschrieben = 0;
+  private beantragteSchichten = new Set<string>();
   private zustand = "inaktiv";
   orgId = "";
   orgName = "";
@@ -338,7 +338,7 @@ class Nutzer {
 
   /**
    * Genau ein kontrollierter Schreibvorgang: eigene Schicht bestaetigen,
-   * eigenen Antrag stellen oder eine Nachricht an ein anderes Testkonto.
+   * eine eigene kuenftige Schicht einmal zur Uebernahme anbieten.
    * Fremde Schichten, Einstellungen und Stammdaten bleiben unberuehrt.
    */
   private async schreibe(plan: Plan | null): Promise<void> {
@@ -355,22 +355,19 @@ class Nutzer {
       if (ok !== null) this.zaehleSchreiben();
       return;
     }
-    if (eigene.length > 0) {
+    const heute = berlinDate(), jetzt = berlinTime();
+    const angebot = eigene.find(s => !this.beantragteSchichten.has(s.id) && (s.date > heute || (s.date === heute && s.shiftFrom > jetzt)));
+    if (angebot) {
+      // Ein Angebot je Person/Schicht: Doppelantraege prueft der separate
+      // Paralleltest. Hier bleiben alle Nicht-2xx-Antworten echte Fehler.
+      this.beantragteSchichten.add(angebot.id);
       const ok = await this.anfrage("/api/mod-requests (POST)", "/api/mod-requests", "POST", {
-        shiftId: eigene[0].id,
+        shiftId: angebot.id,
         kind: "SWAP",
       });
       if (ok !== null) this.zaehleSchreiben();
       return;
     }
-    const empfaenger = anderesTestkonto(this.userId);
-    if (!empfaenger) return;
-    const ok = await this.anfrage("/api/messages (POST)", "/api/messages", "POST", {
-      subject: "Lasttest",
-      body: "Automatisch erzeugte Testnachricht des Pilot-Lasttests.",
-      recipientIds: [empfaenger],
-    });
-    if (ok !== null) this.zaehleSchreiben();
   }
 
   private zaehleSchreiben(): void {
@@ -446,11 +443,6 @@ let schreibgrund = "";
 
 function darfSchreiben(): boolean {
   return SCHREIBEN_ERLAUBT && testumgebung;
-}
-
-function anderesTestkonto(eigeneId: string): string | null {
-  const andere = nutzer.find((n) => n.userId && n.userId !== eigeneId);
-  return andere?.userId ?? null;
 }
 
 /**
@@ -672,7 +664,7 @@ async function main(): Promise<void> {
   if (SCHREIBEN_ERLAUBT && !testumgebung) {
     console.log(`Schreibtests abgelehnt: ${schreibgrund}.`);
   } else if (SCHREIBEN_ERLAUBT) {
-    console.log("Schreibtests aktiv: nur eigene Schicht, eigener Antrag, Testnachricht.");
+    console.log("Schreibtests aktiv: eigene Schicht bestaetigen und kuenftige Schicht einmal anbieten.");
   } else {
     console.log("Schreibtests aus (LOAD_ALLOW_WRITES=false).");
   }

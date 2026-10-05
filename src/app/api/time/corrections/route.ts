@@ -54,6 +54,6 @@ export async function PATCH(request: Request) {
       const correction = await tx.timeCorrection.update({ where: { id }, data: { status, reviewedBy: a.userId, reviewedAt: new Date() } });
       await notify(tx, a.orgId, a.userId, [userId], status === "APPROVED" ? "Zeitkorrektur genehmigt" : "Zeitkorrektur abgelehnt", c.reason);
       return { correction };
-    });
+    }, { retry: true });
   });
 }

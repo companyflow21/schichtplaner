@@ -34,6 +34,6 @@ export async function POST(request: Request) {
       // sofern der Check-in ihn nicht schon festgelegt hat.
       const branchId = data.action === "STOP" ? running.branchId ?? await branchForTime(tx, m.organizationId, m.userId, { date: running.date.toISOString().slice(0, 10), timeFrom: running.timeFrom, timeTo: berlinTime(now) }) : undefined;
       return { record: await tx.timeRecord.update({ where: { id: running.id }, data: { breakSeconds, pauseStartedAt: null, ...(data.action === "STOP" ? { endedAt: now, timeTo: berlinTime(now), branchId, categoryId: data.categoryId || running.categoryId, comment: data.comment ?? running.comment } : {}) } }) };
-    });
+    }, { retry: true });
   });
 }
