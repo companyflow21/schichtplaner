@@ -17,7 +17,7 @@ Betriebsinstallation werden in diesem Auftrag nicht verändert.
 | P1 | Gesamtabnahme | Typprüfung, Lint, Migrationen, Workflow/Rechte und Produktions-Build bestehen | bestanden (lokal) | Workflow/Rechte 2491/2491; Migration 61/61, Historie 29/29, Subunternehmer 21/21, Mitarbeiterlöschung DB 26/26; Typprüfung 0 Fehler, Lint 0 Fehler/25 bestehende Warnungen; Host- und Docker-Produktions-Build erfolgreich |
 | P2 | `docs/AKRO-ERWEITERUNG.md`, `ANLEITUNG.md`, `docs/UEBERGABE-BETRIEB.md` | Anleitung entspricht verbindlicher Planer-Einteilung und tatsächlich geprüftem Betrieb | bestanden | Bestätigung nur für Altbestand ohne eindeutige Herkunft; gültige Schreiblast beschrieben; Docker-Verfügbarkeit, localhost-Bindung und aktuelles Kopievergleichsskript berichtigt. Aktueller Status hier, ältere Ergebnisse als Historie |
 | P2 | Desktop/mobile Oberfläche, echte Geräte | Hauptabläufe bedienbar; GPS und Push auf echten Geräten nachweisen | teilweise bestanden (historisch), heute nicht erneut geprüft | Browsernachweise 71/71 + 16/16 sowie Manager-Kopie bei 375 px vom 01.–02.10.; heute keine UI-Änderungen. Echte GPS-/Push-Geräteprüfungen stehen weiterhin aus |
-| P1 | Einspielen auf Netcup | Aktuelle Betriebssicherung, Restore/Kopiemigration, Rückfallversion, Einspielen und Anmeldung nachweisen | nicht geprüft | Ausdrücklicher Auftrag und Zugang für die Betriebsinstallation erforderlich; lokale synthetische Nachweise ersetzen dies nicht |
+| P1 | Einspielen auf Netcup | Aktuelle Betriebssicherung, Restore/Kopiemigration, Rückfallversion, Einspielen und Anmeldung nachweisen | bestanden (06.10.2026, ausdrücklicher Auftrag) bis auf Anmeldung mit echtem Konto | Ausgangsstand `a9f5b9d`: 335/335 Dateien gleich, 8/8 Migrationen. Drei `pg_dump -Fc`-Sicherungen (40 Tabellendaten, lesbar) und Code-Archiv ohne `.env` unter `/root/schichtplaner-backups`, Rückfall-Images `:rollback-a9f5b9d`. Betriebsdaten in Wegwerf-PostgreSQL im internen Docker-Netz: Restore 40/40 gleich, Betrieb während Sicherung unverändert; Kopiemigration 51/51 (3 Einteilungen → PLANNER). Neue und alte App starten auf den Kopien (Health ok, Login 200). Ausgerollt 15:12, rund 10 s Unterbrechung: Migrationen 10/10, Live-Ordner 382/382 Dateien gleich `1d2046d`. Konten, Mitgliedschaften, Pläne, Schichten, Einteilungen und Freigaben per Hash unverändert. HTTPS Health/Login 200, Echtzeit `/api/ws` 200, Anmeldeseite ohne Konsolenfehler. Kopie danach entfernt. Anmeldung mit echtem Konto durch AKRO offen |
 
 Prüfumgebung: eigenes Docker-Netz und eigenes Volume `schichtplaner-test_postgres_test_data`,
 PostgreSQL 16.15, Port ausschließlich `127.0.0.1:15432`; zehn vollständig angewandte
@@ -37,12 +37,13 @@ Korrigiert wurde nur diese lesende Kontrolle: Organisation über Schicht/Plan
 verknüpfen. Sie bestand danach mit 100/100 Bestätigungen, 74/74 Anträgen und null
 Doppelanträgen; App-Code, Testkriterien und Lastlauf wurden dabei nicht verändert.
 
-**Freigabestand:** lokal geprüft, Funktionsumfang eingefroren. Keine offenen bestätigten
-P0/P1-Codefehler aus diesem Abschlussauftrag. Noch keine Betriebsfreigabe des neuen
-Standes. Nächster konkreter Schritt: nach ausdrücklichem Auftrag auf Netcup den
-tatsächlichen Ausgangsstand prüfen, Betriebssicherung und Restore/Kopiemigration
-nachweisen, Rückfallversion sichern, ausrollen und Anmeldung/Rollen/Subbesetzung/
-Echtzeit nachprüfen. Echte Geräte und Zielhardware bleiben gesonderte Nachweise.
+**Freigabestand (06.10.2026):** `1d2046d` läuft auf Netcup (dienstplan.akro-group.com),
+Funktionsumfang eingefroren. Keine offenen bestätigten P0/P1-Codefehler aus diesem
+Abschlussauftrag. Ausgelegt für vorerst höchstens zehn gleichzeitige Nutzer; der lokale
+100-Nutzer-Lauf deckt das ab. Offen: Anmeldung mit echten Admin-/Mitarbeiterkonten durch
+AKRO, echte GPS-/Push-Gerätetests. Rückweg bei Bedarf: Images `:rollback-a9f5b9d` und
+Code-Archiv zusammen mit der Sicherung `db-a9f5b9d-*-c.dump` in eine neue Datenbank
+wiederherstellen, nicht nur den Code zurücksetzen.
 
 Fachlicher Umfang eingefroren: Verwaltung, Planung einschließlich Sub-Platzhaltern,
 Freigaben, Zeit, Monatsauswertung/CSV und Nachrichten nach den bestehenden Regeln.
