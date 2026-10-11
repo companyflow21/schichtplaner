@@ -71,6 +71,17 @@ Sicherung und Wiederherstellung vorbereiten und die Migration auf einer verifizi
   beide Schichten gemeinsam oder gar nicht. Offene eigene Anträge lassen sich zurückziehen.
 
 **Planen: besetzen, wechseln, kopieren, löschen** (Dienstplan → Wochenansicht eines Standorts)
+- **Für Mitarbeitende veröffentlichen:** Standort und Kalenderwoche öffnen, bei Bedarf von
+  „Monat“ auf „Woche“ wechseln, „Veröffentlichen“ anklicken und bestätigen. Erst der Status
+  „Veröffentlicht“ gibt diese Standortwoche für Mitarbeitende frei. Gespeicherte Schichten
+  und Einteilungen bleiben im Status „Entwurf“ unsichtbar, auch wenn die App online erreichbar ist.
+  Andere Wochen und Standorte müssen jeweils separat veröffentlicht werden.
+- **Welche Pläne sehen Mitarbeitende?** Eigene Einteilungen erscheinen nach Veröffentlichung
+  unter „Mein Dienstplan“. Die einfache Standortzuordnung erlaubt zusätzlich offene Schichten.
+  Den vollständigen Plan mit den Namen anderer sehen Mitarbeitende erst mit der ausdrücklichen
+  Freigabe „Dienstplan ansehen“ (Mitarbeiter → Person → Freigaben → Standort → Rechte ändern);
+  danach ist der Einstieg „Standortpläne“ verfügbar. Keine zusätzlichen Rechte allein zur Anzeige
+  der eigenen Einteilungen vergeben.
 - Zuweisungen durch Planung oder Administration gelten sofort als fest eingeteilt; Mitarbeitende müssen nichts
   bestätigen und bekommen nur eine Information. Spätere Änderungen an Zeit, Tag, Standort, Pause oder Tätigkeit
   werden ebenfalls nur mitgeteilt.

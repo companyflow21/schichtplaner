@@ -1,5 +1,26 @@
 # Fertigstellung – Arbeitsliste
 
+## Diagnose: Mitarbeiter sehen keine Pläne (11.10.2026)
+
+Auftrag: Ursache der fehlenden Mitarbeitersicht feststellen. Die laufende Netcup-App
+und ihre tatsächlich konfigurierte Datenbank wurden ausschließlich lesend geprüft;
+die Datenbankabfragen liefen in einer ausdrücklich schreibgeschützten Transaktion.
+Keine Konten, Freigaben, Planstatus oder Betriebsdateien verändert.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P1 | Veröffentlichung / Mitarbeitersicht | Tatsächlichen Planstatus mit den Sichtbarkeitsregeln abgleichen | bestanden (Diagnose); Veröffentlichung ausstehend | In der Betriebsdatenbank sind alle 223 nicht gelöschten Wochenpläne Entwürfe, kein Plan ist veröffentlicht. Die laufende App verwendet diese Datenbank. `src/lib/schedule-visibility.ts` zeigt Mitarbeitern nur veröffentlichte Schichten; vorhandene Einteilungen umgehen den Entwurfsschutz nicht |
+| P1 | Standortfreigaben / Navigation | Eigene Einteilungen von vollständigen Standortplänen unterscheiden | bestanden (Diagnose) | Kein aktives, aktiviertes Mitarbeiterkonto besitzt `VIEW_SCHEDULE`. Vorhandene Mitarbeiterfreigaben enthalten ausschließlich `REQUEST_SHIFTS`. Eigene veröffentlichte Einteilungen benötigen keine zusätzliche Planfreigabe; der vollständige Standortplan benötigt ausdrücklich „Dienstplan ansehen“ |
+| P1 | `tests/workflows.ts`, `tests/permissions.ts`, `tests/staff-sites.ts` | Entwurfsschutz, veröffentlichte eigene Schichten und Standortfreigaben mit getrennten Testkonten nachweisen | bestanden (lokal) | 650/650 Prüfungen mit `TEST_ONLY=permissions,staff-sites` in flüchtiger PGlite-Datenbank, alle Migrationen angewandt; keine Betriebsdaten. Eigene veröffentlichte Schichten sichtbar, Entwürfe verborgen, vollständige Pläne nur mit zusätzlicher Freigabe. Erster Versuch durch lokale Netzwerksperre mit `EACCES` abgebrochen, anschließender Lauf außerhalb dieser Sperre erfolgreich |
+| P2 | `ANLEITUNG.md` | Veröffentlichung je Standort und Woche sowie zusätzliche Planfreigabe verständlich erklären | bestanden | Bedienweg und Unterschied zwischen gespeichertem Entwurf, eigenen Einteilungen und vollständigem Standortplan ergänzt |
+
+Nächster Schritt im Betrieb: die fachlich fertigen Standort-/Wochenpläne über
+„Woche“ → „Veröffentlichen“ freigeben. Eine Veröffentlichung und weitergehende
+Standortrechte waren mit der Diagnose nicht beauftragt. Es wurde kein Codefehler
+als Ursache bestätigt. Keine erneute Gesamtabnahme; Anmeldung und Mitarbeitersicht
+mit echten Konten wurden nicht im Browser geprüft. UI-Pfad unabhängig durch einen
+Agenten gelesen, Serverdiagnose und Testlauf zentral; keine genaue Kostenmessung verfügbar.
+
 ## Aktueller Abschlussauftrag (05.10.2026)
 
 Ziel: den vorhandenen Funktionsumfang abschließen, ohne neue Funktionen oder Rechte
