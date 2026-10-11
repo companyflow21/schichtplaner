@@ -21,6 +21,9 @@ Der erste Start dauert einige Minuten. Danach im Browser: **https://localhost**
 ## Kunden, Standorte und Freigaben
 Als Admin angemeldet:
 1. **Einsatzorte** → „Kunde anlegen“, danach „Einsatzort anlegen“. Jeder Einsatzort gehört zu einem Kunden.
+   Dort auch das **Bundesland** wählen: Es bestimmt die gesetzlichen Feiertage im Plan dieses Standorts
+   (z. B. 31.10. Reformationstag nur in Thüringen, 1.11. Allerheiligen nur in NRW). Ohne Bundesland
+   zeigt der Plan einen Hinweis und nur bundesweite Feiertage.
 2. **Mitarbeiter** → Person öffnen → Abschnitt **Freigaben**: Standorte freigeben und bei Managern
    Mitarbeitende zuordnen. „Entziehen“ bzw. „Zuordnung entfernen“ wirkt sofort.
 3. **Mitarbeiter** → „Neue Mitarbeiter anlegen“: je Person die Standorte wählen. Danach erscheinen die
@@ -99,6 +102,12 @@ Sicherung und Wiederherstellung vorbereiten und die Migration auf einer verifizi
   Betroffene informiert.
 - *Als PDF exportieren* (Wochen- und Monatsansicht): Zeitraum bis 62 Tage, Kunde, Standort und Mitarbeiter
   wählbar; DIN A4 quer, offene Plätze markiert. Enthält nur, was man im Plan sehen darf, und entsteht im Browser.
+- *Arbeitszeithinweise* (Ansicht „Mitarbeiter“ einer Standortwoche, nur Planung): Hinweise nach den
+  Grundregeln des Arbeitszeitgesetzes (über 8/10 h am Tag, Pause, 11 h Ruhezeit, Sonn- und Feiertagsarbeit,
+  7 Tage am Stück, rechnerisch über 48 h) und zur betrieblichen Vorgabe aus Einstellungen → Zeiterfassung.
+  Sie sperren nichts; Tarifverträge und Ausgleichszeiträume prüft die App nicht.
+- *Stunden*: Planstunden sind immer netto (nach Pause). Die Auswertung zählt als „Plan (veröffentlicht)“ nur
+  veröffentlichte Wochen; Entwurfsstunden sieht nur die Planung zusätzlich.
 
 **Mitarbeiter löschen** (Mitarbeiter → Person → Aktionen → „Mitarbeiter löschen“)
 - Admins sowie Manager mit dem ausdrücklich vergebenen Recht „Mitarbeiter löschen“ für die Person

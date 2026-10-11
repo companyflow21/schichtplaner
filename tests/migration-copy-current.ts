@@ -14,7 +14,11 @@
  *   (prisma migrate deploy gegen dieselbe Kopie)
  *   DATABASE_URL=… npx tsx tests/migration-copy-current.ts nachher <datei.json>
  *
- * "snapshot" darf auch die Quelle lesen (nur lesend); vorher/nachher nur Kopien.
+ *   Rein ergaenzende Migration (neue Spalten): vor dem Einspielen "snapshot" der Kopie, danach
+ *   DATABASE_URL=… npx tsx tests/migration-copy-current.ts additiv <snapshot.json> branches.holidayState …
+ *   (alle Bestandsspalten unveraendert, genannte neue Spalten ueberall NULL).
+ *
+ * "snapshot" darf auch die Quelle lesen (nur lesend); vorher/nachher/additiv nur Kopien.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { Client } from "pg";
@@ -120,8 +124,25 @@ async function main() {
     check(Number(orphans) === 0, "keine verwaisten Schicht- oder Personenbezuege");
     await db.end();
     console.log(failures ? "ERGEBNIS: " + failures + " Fehler." : "ERGEBNIS: Kopiemigration bestanden.");
+  } else if (mode === "additiv") {
+    const db = await connect(true);
+    const before: Snapshot = JSON.parse(readFileSync(fileA, "utf8"));
+    const applied = (await db.query(`SELECT migration_name, finished_at IS NOT NULL AS done, rolled_back_at IS NOT NULL AS back FROM _prisma_migrations`)).rows;
+    check(applied.length > 0 && !applied.some((r) => !r.done || r.back), "alle Migrationen abgeschlossen, keine offen oder zurueckgerollt (" + applied.length + ")");
+    check(Object.keys(before.tables).join() === (await tables(db)).filter((t) => before.tables[t]).join(), "keine Tabelle entfernt");
+    for (const [t, st] of Object.entries(before.tables)) {
+      const now = await tableState(db, t, st.columns);
+      check(now.rows === st.rows && now.hash === st.hash, t + ": " + st.rows + " Zeilen, Bestandsspalten unveraendert");
+    }
+    for (const spec of process.argv.slice(4)) {
+      const [t, c] = spec.split(".");
+      const n = (await db.query(`SELECT count(*)::int AS n FROM "${t.replace(/"/g, "")}" WHERE "${c.replace(/"/g, "")}" IS NOT NULL`)).rows[0].n;
+      check(n === 0, spec + ": neu und ueberall leer");
+    }
+    await db.end();
+    console.log(failures ? "ERGEBNIS: " + failures + " Fehler." : "ERGEBNIS: ergaenzende Migration auf der Kopie bestanden.");
   } else {
-    throw new Error("Unbekannter Modus. Erlaubt: snapshot, vergleich, vorher, nachher.");
+    throw new Error("Unbekannter Modus. Erlaubt: snapshot, vergleich, vorher, nachher, additiv.");
   }
   if (failures) process.exitCode = 1;
 }

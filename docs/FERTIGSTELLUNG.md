@@ -1,5 +1,71 @@
 # Fertigstellung – Arbeitsliste
 
+## Mitarbeiterbetrieb: gemeldete Probleme (11.–12.10.2026)
+
+Ausgangsstand live: `1d2046d` (06.10.). Lokal ab `87834b0` bearbeitet, nicht eingespielt.
+Betriebsdaten nur lesend in schreibgeschützten Transaktionen geprüft. Es wurden nur
+Kennzahlen ausgegeben, keine Personendaten. Nichts veröffentlicht, keine Rechte und
+keine Stammdaten verändert.
+
+| Nr./Prio | Problem und Abnahmekriterium | Ursache | Änderung | Nachweis | Status / Einschränkung |
+|---|---|---|---|---|---|
+| 2 / P1 | Einsatzort springt beim Bearbeiten auf „Apolda“. Bearbeiten zeigt immer den tatsächlichen Ort. Titel-, Zeit- oder Pausenänderung erhält Ort und Plan. Langsames Laden, erneutes Öffnen und Wechsel verschieben nichts. Bewusster Wechsel wird serverseitig geprüft | **Bestätigt:** Das Auswahlfeld setzte seinen Wert nur beim Öffnen. Lädt die Standortliste später, wählt der Browser den ersten Eintrag (alphabetisch Apolda). Seit `0471e31` (19.09.). Trifft genauso den Arbeitsbereich | Ort und Arbeitsbereich sind feste Formularwerte und behalten den bisherigen Wert, solange die Liste lädt (`87834b0`). Ein bewusster Wechsel prüft serverseitig das Recht an altem und neuem Standort sowie die Konflikte aller Eingeteilten (`updateShift`, vorhanden) | `tests/ui-shift-location.mjs`: vorher 5 Fehler, nachher bestanden; erweitert um Titel/Pause, erneutes Öffnen, Schichtwechsel und 375 px (Ergebnis siehe Gesamtabnahme). Betrieb lesend: einziger Fall am 11.10. 18:52 (Bonn KW 40 → leerer Apolda-Plan KW 40), bereits zurückgestellt. Apolda-Schichten zeigen dasselbe Muster wie Arnstadt; kein Standort mischt Schichten mit und ohne Arbeitsbereich | Behoben, lokal. Ein leerer Apolda-Plan KW 40 bleibt als Spur; er stört nicht |
+| 3 / P1 | Mitarbeitende sehen keine Pläne. Eigene veröffentlichte Einteilung sichtbar ohne Zusatzrechte. Vollständiger Standortplan nur mit Freigabe. Speichern ist erkennbar keine Veröffentlichung | **Bestätigt (Betrieb, 12.10.):** alle 223 Wochenpläne sind Entwürfe. Kein Mitarbeiterkonto hat „Dienstplan ansehen“, 8 haben nur „Schichten anfragen“. Kein Codefehler | Hinweis „Entwurf: gespeichert, aber für Mitarbeitende unsichtbar … erst ‚Veröffentlichen‘ gibt frei“ im Wochenplan. Statusanzeige je Standort (siehe 11). Veröffentlichungsdialog nennt Benachrichtigung (vorhanden) | Workflow-/Rechtetests: Entwürfe verborgen, eigene veröffentlichte Schichten sichtbar, Planansicht nur mit Freigabe (Gesamtabnahme); Echtzeit 1,9 s (05.10.) | **Betriebsschritt offen:** Wochen veröffentlichen (je Standort/Woche, nicht pauschal). Keine Rechte automatisch erweitert |
+| 4 / P1 | Auswertung zeigt „0 h Plan“. Plan ist eindeutig benannt. Entwürfe ergeben keine kommentarlose 0 | **Bestätigt:** Die dokumentierte Vorgabe zählt nur veröffentlichte Pläne (`AKRO-ERWEITERUNG.md` Z. 53). Laith hat im Oktober 26 Einteilungen (nicht 31), alle im Entwurf. Die Anzeige erklärte das nicht | Spalte „Plan (veröffentlicht)“, Fußnote und zusätzlich „+ X h im Entwurf“, nur für Admins und Manager mit Planansicht am Standort. CSV-Spalte „Geplante Stunden (veröffentlicht)“. Berechnung unverändert | `tests/planned-hours.ts` 16/16: Entwurf, Veröffentlichung, Rücknahme, Nachtschicht am 31.10., Monatswechsel, Sichtbarkeit (Mitarbeitende sehen keine Entwurfsstunden) | Behoben, lokal |
+| 5 / P1 | Pausen fehlen (KW 42: 59,5 h statt 56 h). Pause genau einmal abgezogen, eine Grundlage für Woche, Monat, Auswertung und CSV | **Bestätigt (Daten):** 7 × 15:00–23:30 mit 30 Min. = 59,5 h brutto bzw. 56 h netto. Wochen- und Mitarbeiteransicht rechneten selbst brutto, die Auswertung mit eigener Formel | Zentrale `plannedMinutes()`: echte Minuten in Europe/Berlin (Zeitumstellung 7/9 h), Pause genau einmal. Server liefert sie je Schicht; Ansichten, Auswertung und CSV nutzen sie. Planstunden bleiben von erfasster Zeit getrennt | `tests/planned-hours.ts` (beide Zeitumstellungen, Pause pro Stunde, Pause länger als Schicht) | Behoben, lokal. Planzeit zählt in der Nacht der Zeitumstellung jetzt echte Stunden wie die Ist-Zeit |
+| 6 / P1 | Keine Arbeitszeitwarnungen. Grenzfälle lösen verständliche Hinweise aus; fehlende Angaben ergeben kein „rechtskonform“ | **Bestätigt:** Einstellung „Warnungen / Maximale Stunden pro Tag“ wurde gespeichert, aber nirgends ausgewertet; es gab keine Arbeitszeitprüfung | Hinweise ohne Sperre in der Ansicht „Mitarbeiter“ der Standortwoche: > 8 h und > 10 h je Werktag (§ 3), Pause (§ 4), Ruhezeit < 11 h (§ 5), Sonntagsarbeit nach § 10 Abs. 1 Nr. 13 mit Ersatzruhetag (§ 11), Feiertag am Einsatzort, 7 Tage am Stück, rechnerisch > 48 h/Woche, betriebliche Vorgabe. Nur für die Planung und nur aus einsehbaren Standorten; Fußnote zu nicht Geprüftem | `tests/worktime.ts` 18/18 (gemeldete Woche ergibt Sonntag, 7 Tage, 56 h), Rechtetest für `/api/schedules/worktime` | Behoben, lokal. Nicht geprüft: Tarif/Betriebsvereinbarung (§ 7), Ausgleichszeiträume, Nachtarbeitnehmer (§ 6), erfasste Ist-Zeiten |
+| 7 / P1 | Feiertage NRW und Thüringen gleichzeitig. 31.10. standortbezogen | **Bestätigt:** Feiertage nur einmal je Organisation (Betrieb: kein Bundesland, keine Feiertage gespeichert), nur im Abwesenheitskalender genutzt | Migration `20261012090000_branch_holiday_state`: Bundesland je Einsatzort (NULL für Bestand, keine Ableitung aus Namen). Auswahl unter Einsatzorte; Feiertag im Tageskopf des Wochenplans; Hinweis bei fehlendem Bundesland; Grundlage der Feiertagshinweise | `tests/branch-holidays.ts` 13/13 (31.10. TH ja/NRW nein, 1.11. NRW, Weltkindertag, Fronleichnam, Jahreswechsel), Migrationstest 62/62 | Behoben, lokal. **Betriebsschritt offen:** Bundesland je Standort festlegen (Liste unten). Fronleichnam in Thüringen gilt nur in bestimmten Gemeinden und wird nicht pauschal gesetzt. Keine Zuschläge |
+| 8 / P1 | Abwesenheitsarten fehlen. Einrichten → beantragen → entscheiden; leere Konfiguration verständlich | **Bestätigt (Betrieb):** 0 Arten. Der Antrag zeigte eine leere Auswahl und scheiterte ohne Erklärung | Antrag erklärt den Grund und führt Admins zu Einstellungen → Abwesenheiten (`/settings?bereich=absences`); Leerzustand der Einstellungen beschreibt die Einrichtung | Ablauf, Entscheidungsrechte, Sichtbarkeit und Sperre bei der Einteilung durch Workflow-/Rechtetests abgedeckt (Gesamtabnahme) | Behoben, lokal. **Betriebsschritt offen:** Arten anlegen (Name, bezahlt ja/nein entscheidet AKRO) |
+| 9 / P2 | Namensformat wird ignoriert. Format gilt einheitlich, auch nach Neuladen; gespeicherte Namen unverändert | **Bestätigt:** Einstellung gespeichert, aber nirgends gelesen (Betrieb: „Nachname, Vorname“) | Zentrale `formatName()`; Wochen-, Klassik-, Monats- und Mitarbeiteransicht, Auswahllisten, Wunsch-/Live-Liste, PDF und Vorschau. Platzhalter bleiben „Firma · Name“ | `tests/names.ts` 12/12 | Behoben, lokal. Nach dem Einspielen erscheinen Namen als „Nachname, Vorname“ |
+| 10 / P2 | Texte und Platzhalter. Deutsche Texte, keine internen Platzhalter | **Bestätigt:** rund 130 sichtbare Ersatzschreibweisen, Platzhalter „E-Dash“, englische API-Fehler in Meldungen | Texte in 66 Dateien korrigiert; Statuscodes unverändert; Vergleiche mit Fehlertexten mitgeändert | Typprüfung, Lint ohne Fehler; `tests/ui-quality.mjs` auf neue Texte angepasst (Gesamtabnahme) | Behoben, lokal. KI-Prompts bewusst unverändert; „Self-Booking“ im Live-Modus offen |
+| 11 / P2 | Standortstatus im Dienstplan: besetzt / offen oder Konflikt / keine Schichten; Veröffentlichung getrennt | **Bestätigt:** Standortauswahl zeigte nur Namen | Status für die Planung mit Symbol und Text für 4 Wochen nach den Regeln der Startseite (`planningOverview`), getrennt „Entwurf“/„veröffentlicht“, Link zu offenen Tagen, Hinweis „keine Aussage zu Arbeitszeitregeln“ | Rechtetest `/api/branches/status` (keine Entwürfe für Mitarbeitende, keine fremden Standorte) | Behoben, lokal |
+| 12 / P2 | Schicht lässt sich nicht löschen. Künftige Schichten löschbar; Nachweise bleiben | **Kein Datumsfehler:** Beginn in Europe/Berlin korrekt erkannt (Grenze auf die Minute, Zeitumstellung, KW 53). Die Meldung ist die gewollte Schutzregel für begonnene/vergangene Schichten | Meldung nennt den vorhandenen Korrekturweg: Uhrzeit, Tätigkeit und Plätze über „Bearbeiten“ | Löschtests (29) vorhanden; Grenzfälle per Skript geprüft | Entscheidung offen (siehe unten) |
+| 13 / P1 | Weitere Fehler entlang der Abläufe | Neue Schnittstellen auf direkte Aufrufe geprüft; vorhandene Rechte-, Parallel- und Workflowtests | — | Gesamtabnahme unten | — |
+
+**Gesamtabnahme (12.10.2026, lokal, isolierte Testdatenbanken):**
+
+| Prüfung | Ergebnis |
+|---|---|
+| `prisma generate`, Typprüfung | bestanden, 0 Fehler |
+| Lint | 0 Fehler, 25 Warnungen (unverändert vorbestehend). Lint ohne `.claude/**` ausgeführt: dort liegt der Arbeitsordner der Hintergrundaufgabe mit eigenem Build (über 21.000 fremde Fundstellen); Regeln unverändert |
+| Migrationen | 62/62, Historie 29/29, Subunternehmer 21/21 |
+| Workflow- und Rechtetests (`test:workflows`) | 2.512/2.512, darunter direkte Aufrufe der neuen Schnittstellen |
+| Neue Einzeltests | Planstunden 16/16, Arbeitszeit 18/18, Feiertage 13/13, Namensformat 12/12, `serial()` 15/15 |
+| Produktions-Build | bestanden |
+| Browser (Admin, Manager, Mitarbeiter; 1440 und 375 px) | Abnahme 71/71, Bedienqualität 16/16, Einsatzort-Regression 10/10 |
+| Sichtprüfung neue Anzeigen | Standortstatus, Entwurfshinweis, „Feiertag: Reformationstag“ (Thüringen), 56,0 h netto mit 4 Arbeitszeithinweisen, „Plan (veröffentlicht)“ |
+| Kopieprüfung für ergänzende Migration (`migration-copy-current.ts additiv`) | Probe bestanden; Gegenprobe mit geändertem Ortsnamen erkannt |
+
+Testanpassungen: `ui-quality.mjs` erwartet die korrigierten Postfachtexte; `ui-design.mjs` erwartet
+Namen im Format der Organisation (vorher fest „Vorname Nachname“); `permissions.ts`: ein Manager
+mit „Dienstplan ansehen“ gilt wie in `overview.ts` als Planung. Keine Prüfung entfernt.
+
+**Rechtsgrundlagen (abgerufen 11.10.2026, amtliche Quellen):** ArbZG §§ 2–7, 9–11, 16
+(gesetze-im-internet.de, zuletzt geändert 23.10.2024); Feiertagsgesetz NW § 2 Abs. 1
+(recht.nrw.de); Thüringer Feier- und Gedenktagsgesetz § 2 Abs. 1, § 3, § 10
+(landesrecht.thueringen.de). Das ArbZG kennt keine Höchstzahl von Arbeitstagen am Stück
+und keine allgemeine Wochenhöchstgrenze; 48 h ergibt sich rechnerisch aus § 3.
+
+**Offene fachliche Entscheidungen (gebündelt):**
+1. Vergangene Schichten: (a) wie bisher vollständig geschützt; (b) Admins dürfen vergangene
+   Schichten ohne Einteilung, Check-in und Zeiten löschen – Nachteil: Beleg für einen
+   unbesetzten Posten geht verloren; (c) Status „storniert“ (bleibt erhalten, zählt nicht als
+   offen und nicht in Planstunden) – braucht Migration.
+2. Abwesenheitsarten: welche Arten (z. B. Urlaub, Krank) und jeweils bezahlt ja/nein.
+3. Standardfreigaben für Mitarbeitende: Soll jemand „Dienstplan ansehen“ (vollständiger
+   Standortplan mit Namen) bekommen? Eigene Schichten sind ohne diese Freigabe sichtbar.
+4. Betriebliche Höchststunden pro Tag (Einstellungen → Zeiterfassung) einschalten und Wert.
+5. Fronleichnam in Thüringen: für welche Standorte (nur Gemeinden mit 1994 geltender Regelung).
+
+**Vorbereitete Betriebsschritte (nicht ausgeführt, nur mit ausdrücklichem Auftrag):**
+- Einspielen des lokalen Stands mit Sicherung, Kopie-Migration der neuen Migration,
+  Rückfallversion und Nachprüfung (Verfahren wie am 06.10.).
+- Bundesland je Einsatzort (Vorschlag aus den Ortsnamen, bitte bestätigen): Nordrhein-Westfalen
+  für Bonn, Frechen, Köln, Leverkusen, Mönchengladbach; Thüringen für Apolda, Arnstadt,
+  Bad Salzungen, Eisenach, Gotha, Greiz, Hildburghausen, Jena, Saalfeld, Schleiz,
+  Schmalkalden, Sömmerda, Suhl, Weimar; Bayern für München; „N“ (inaktiv) offen.
+- Abwesenheitsarten anlegen; Wochen je Standort veröffentlichen (Admin in der App).
+
 ## Diagnose: Mitarbeiter sehen keine Pläne (11.10.2026)
 
 Auftrag: Ursache der fehlenden Mitarbeitersicht feststellen. Die laufende Netcup-App
