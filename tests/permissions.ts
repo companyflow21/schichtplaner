@@ -94,6 +94,17 @@ export async function permissionTests(t: TestContext) {
   const planA = (await mA.request(plan(b1))).schedule;
   await mA.request(plan(b2), "GET", undefined, 404);
   const planB = (await mB.request(plan(b2))).schedule;
+  // Arbeitszeithinweise und Standortstatus: nur fuer die Planung und nur an einsehbaren Standorten.
+  const worktime = (b: { id: string }) => "/api/schedules/worktime?kw=" + week.weekNumber + "&year=" + week.year + "&standort=" + b.id;
+  check(Array.isArray((await mA.request(worktime(b1))).hints), "planning manager gets working time hints for the own site");
+  await mA.request(worktime(b2), "GET", undefined, 404);
+  // Manager mit "Dienstplan ansehen" gilt als Planung (sieht Entwuerfe, Namen und Zeiten) - wie in overview.ts.
+  check(Array.isArray((await viewer.request(worktime(b1))).hints), "plan-viewing manager gets the same hints as the plan shows");
+  await sA.request(worktime(b1), "GET", undefined, 404);
+  check(true, "working time hints stay hidden from foreign sites and employees (404)");
+  check((await sA.request("/api/branches/status")).branches.every((b: any) => b.draftWeeks === null), "site status reveals no draft weeks to employees");
+  const statusA = (await mA.request("/api/branches/status")).branches;
+  check(statusA.some((b: any) => b.id === b1.id && b.draftWeeks !== null) && !statusA.some((b: any) => b.id === b2.id), "site status: manager sees the own site with drafts, never foreign sites");
   const shiftA = (await mA.request("/api/shifts", "POST", { scheduleId: planA.id, dayOfWeek: dow, shiftFrom: "08:00", shiftTo: "16:00", maxEmployees: 2, title: "Tagdienst" })).shifts[0];
   const shiftB = (await mB.request("/api/shifts", "POST", { scheduleId: planB.id, dayOfWeek: dow, shiftFrom: "08:00", shiftTo: "16:00", maxEmployees: 1, title: "Tagdienst" })).shifts[0];
   // Fremder Standort: weder ueber IDs noch ueber den Anfragekoerper erreichbar.
