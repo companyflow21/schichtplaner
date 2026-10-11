@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ShieldAlert, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -53,16 +54,23 @@ type SettingsResponse = {
 
 // ---------- Component ----------
 
+const SECTIONS: SettingsSection[] = ["schedule", "time", "wishplan", "employees", "qualifications", "absences", "account"];
+
 export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="h-32 animate-pulse rounded bg-muted" />}>
+      <SettingsContent />
+    </Suspense>
+  );
+}
+
+function SettingsContent() {
+  // Direkter Einstieg aus Hinweisen, z. B. /settings?bereich=absences.
+  const bereich = useSearchParams().get("bereich") as SettingsSection | null;
   const queryClient = useQueryClient();
   const { data: currentMember, isLoading: memberLoading } = useCurrentMember();
   const [activeSection, setActiveSection] =
-    useState<SettingsSection>("schedule");
-  // Direkter Einstieg aus Hinweisen, z. B. /settings?bereich=absences.
-  useEffect(() => {
-    const bereich = new URLSearchParams(window.location.search).get("bereich");
-    if (bereich && ["schedule", "time", "wishplan", "employees", "qualifications", "absences", "account"].includes(bereich)) setActiveSection(bereich as SettingsSection);
-  }, []);
+    useState<SettingsSection>(bereich && SECTIONS.includes(bereich) ? bereich : "schedule");
 
   const isAdmin =
     currentMember?.role === "OWNER" || currentMember?.role === "ADMIN";
