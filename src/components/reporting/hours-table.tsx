@@ -52,6 +52,8 @@ type EmployeeReport = {
   profileImage: string | null;
   totalMinutes: number;
   plannedMinutes: number;
+  /** Stunden in noch nicht veroeffentlichten Plaenen; null, wenn die betrachtende Person Entwuerfe nicht sehen darf. */
+  draftMinutes: number | null;
   /** Sollstunden: nur eigene und - fuer Admins - alle; nicht in der Standortansicht. */
   targetMinutes: number | null;
   /** hidden: nicht sichtbar; unset: nicht festgelegt; set: Monatswert (auch 0). */
@@ -409,7 +411,7 @@ export function HoursTable({ month, year }: HoursTableProps) {
                       />
                     </button>
                   </TableHead>
-                  <TableHead className="text-right">Plan</TableHead>
+                  <TableHead className="text-right" title="Veröffentlichte Schichten nach Pausenabzug. Entwürfe zählen erst nach dem Veröffentlichen.">Plan (veröffentlicht)</TableHead>
                   <TableHead className="text-right">Soll (Monat)</TableHead>
                   <TableHead className="text-right">Ist − Plan</TableHead>
                 </TableRow>
@@ -443,7 +445,7 @@ export function HoursTable({ month, year }: HoursTableProps) {
                         ? formatMinutesCompact(emp.totalMinutes)
                         : "-"}
                     </TableCell>
-                    <TableCell className="tabular text-right">{stunden(emp.plannedMinutes)}</TableCell>
+                    <TableCell className="tabular text-right">{stunden(emp.plannedMinutes)}{emp.draftMinutes ? <span className="block text-xs font-normal text-muted-foreground">+ {stunden(emp.draftMinutes)} im Entwurf</span> : null}</TableCell>
                     <TableCell className="tabular text-right">{emp.targetStatus === "unset" ? <span className="text-muted-foreground">Nicht festgelegt</span> : stunden(emp.targetMinutes)}</TableCell>
                     <TableCell className="tabular text-right">{stunden(emp.deviationMinutes)}</TableCell>
                   </TableRow>
@@ -472,6 +474,7 @@ export function HoursTable({ month, year }: HoursTableProps) {
               </TableBody>
             </Table>
           </div>
+          <p className="border-t px-4 py-2 text-xs text-muted-foreground">Plan: veröffentlichte Schichten nach Pausenabzug. Entwürfe sind für Mitarbeitende unsichtbar und zählen erst nach dem Veröffentlichen.</p>
         </Card>
       )}
 

@@ -12,7 +12,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { rangeMinutes } from "@/lib/berlin";
 import type { ShiftData } from "@/types/schedule";
 
 type OrgEmployee = {
@@ -37,12 +36,9 @@ function getInitials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 }
 
-/**
- * Calculate total shift hours for an employee from booked shifts.
- * Handles HH:MM format; a night shift (22:00–06:00) ends the next day.
- */
-function calcShiftHours(from: string, to: string): number {
-  return rangeMinutes(from, to) / 60;
+/** Geplante Nettostunden einer Schicht (nach Pause, Zeitumstellung beachtet) - berechnet der Server. */
+function calcShiftHours(shift: ShiftData): number {
+  return (shift.plannedMinutes ?? 0) / 60;
 }
 
 export function EmployeeNav({
@@ -70,7 +66,7 @@ export function EmployeeNav({
   const employeeHours = useMemo(() => {
     const hours: Record<string, number> = {};
     for (const shift of shifts) {
-      const shiftDuration = calcShiftHours(shift.shiftFrom, shift.shiftTo);
+      const shiftDuration = calcShiftHours(shift);
       for (const booking of shift.bookings) {
         if (!booking.userId) continue;
         hours[booking.userId] = (hours[booking.userId] ?? 0) + shiftDuration;

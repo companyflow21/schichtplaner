@@ -28,22 +28,9 @@ function getInitials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 }
 
-/**
- * Parse a time string "HH:mm" to minutes since midnight.
- */
-function timeToMinutes(t: string): number {
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + m;
-}
-
-/**
- * Calculate shift duration in hours.
- */
+/** Geplante Nettostunden (nach Pause, Zeitumstellung beachtet) - berechnet der Server. */
 function shiftDurationHours(shift: ShiftData): number {
-  const from = timeToMinutes(shift.shiftFrom);
-  let to = timeToMinutes(shift.shiftTo);
-  if (to <= from) to += 24 * 60; // overnight
-  return (to - from) / 60;
+  return (shift.plannedMinutes ?? 0) / 60;
 }
 
 /**

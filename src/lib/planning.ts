@@ -298,6 +298,18 @@ export async function assign(tx: Tx, a: Access, shiftId: string, userId: string,
   return { booking, shift };
 }
 
+/**
+ * Geplante Nettozeit einer Schicht in echten Minuten: Dauer zwischen Beginn
+ * und Ende in Europe/Berlin (Nacht der Zeitumstellung 7 bzw. 9 Stunden),
+ * abzueglich der Pausenregel genau einmal ("pro Stunde": je volle Stunde).
+ * Grundlage fuer Planstunden in Dienstplan, Auswertung und CSV.
+ */
+export function plannedMinutes(shift: Parameters<typeof shiftRange>[0] & { pauseOption: string; pauseValue: number }): number {
+  const range = shiftRange(shift);
+  const gross = wallToUtcMinutes(range.end) - wallToUtcMinutes(range.start);
+  return Math.max(0, gross - (shift.pauseOption === "PER_HOUR" ? Math.floor(gross / 60) * shift.pauseValue : shift.pauseValue));
+}
+
 /** Schicht ist vorbei (echtes Ende in Europe/Berlin). */
 export function shiftEnded(shift: Parameters<typeof shiftRange>[0], now = new Date()): boolean {
   return wallToUtcMinutes(shiftRange(shift).end) <= now.getTime() / 60000;
@@ -360,6 +372,7 @@ export function shiftView(shift: ShiftWithRelations, a: Access, ineffective: Set
     pauseOption: shift.pauseOption, pauseValue: shift.pauseValue, title: shift.title, description: shift.description,
     requiredQualifications: shift.requiredQualifications, createdAt: shift.createdAt, deletedAt: shift.deletedAt,
     date: range.date, endsAt: new Date(wallToUtcMinutes(range.end) * 60000).toISOString(), endsNextDay: rangeMinutes(shift.shiftFrom, shift.shiftTo) + Number(shift.shiftFrom.slice(0, 2)) * 60 + Number(shift.shiftFrom.slice(3)) > 1440,
+    plannedMinutes: plannedMinutes(shift),
     isPublic: shift.schedule.isPublic,
     branchId,
     branch: branch ? { id: branch.id, name: branch.name, address: branch.address, meetingPoint: branch.meetingPoint, notes: branch.notes, customer: branch.customer } : null,

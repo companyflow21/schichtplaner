@@ -1,8 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { ApiError } from "./errors";
-import { berlinDate, recordMinutes, weekDate, rangeMinutes, isoWeek, addDate } from "./berlin";
+import { berlinDate, recordMinutes, weekDate, isoWeek, addDate } from "./berlin";
 import { branchIds, can, staffIds, type Access } from "./access";
+import { plannedMinutes as netMinutes } from "./planning";
 
 /**
  * Monatsauswertung. Eigene Werte sieht jede Person; fremde Werte nur, wer
@@ -42,7 +43,7 @@ export async function monthlyReport(a: Access, month: number, year: number, opti
   const [records, bookings] = await Promise.all([
     db.timeRecord.findMany({ where: { AND: [{ organizationId: a.orgId, userId: { in: people.map((p) => p.userId) }, date: { gte: new Date(first), lte: new Date(last) } }, recordScope] } }),
     db.booking.findMany({
-      where: { AND: [{ userId: { in: people.map((p) => p.userId) }, shift: { deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null, isPublic: true, year: { gte: year - 1, lte: year + 1 } } } }, bookingScope] },
+      where: { AND: [{ userId: { in: people.map((p) => p.userId) }, shift: { deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null, year: { gte: year - 1, lte: year + 1 } } } }, bookingScope] },
       include: { shift: { include: { schedule: true } } },
     }),
   ]);
@@ -51,13 +52,20 @@ export async function monthlyReport(a: Access, month: number, year: number, opti
     const week = isoWeek(d);
     weeks.set(week.weekNumber, { weekNumber: week.weekNumber, label: "KW " + week.weekNumber });
   }
-  // Plan- und Iststunden einer Person aus ihren Zeitbuchungen und Zuweisungen des Monats.
+  // Plan = veroeffentlichte Schichten (dokumentierte Vorgabe). Entwurfsstunden nur fuer die
+  // Planung (Admins; Manager mit "Dienstplan ansehen" am Standort), sonst null - Entwuerfe
+  // bleiben fuer Mitarbeitende unsichtbar, auch als Zahl.
+  const seesDrafts = a.isAdmin || a.role === "MANAGER";
+  const draftVisible = (b: { shift: { schedule: { branchId: string | null } } }) => a.isAdmin || (a.role === "MANAGER" && can(a, "VIEW_SCHEDULE", b.shift.schedule.branchId));
+  // Plan- und Iststunden einer Person aus ihren Zeitbuchungen und Zuweisungen des Monats (Monat nach Schichtbeginn).
   const hours = (own: typeof records, assigned: typeof bookings) => {
-    const shifts = assigned.filter((b) => { const d = weekDate(b.shift.schedule.year, b.shift.schedule.weekNumber, b.shift.dayOfWeek); return d >= first && d <= last; });
+    const inMonth = assigned.filter((b) => { const d = weekDate(b.shift.schedule.year, b.shift.schedule.weekNumber, b.shift.dayOfWeek); return d >= first && d <= last; });
+    const shifts = inMonth.filter((b) => b.shift.schedule.isPublic);
     const totalMinutes = own.reduce((sum, r) => sum + recordMinutes(r), 0);
-    const plannedMinutes = shifts.reduce((sum, b) => { const s = b.shift, gross = rangeMinutes(s.shiftFrom, s.shiftTo); return sum + Math.max(0, gross - (s.pauseOption === "PER_HOUR" ? Math.floor(gross / 60) * s.pauseValue : s.pauseValue)); }, 0);
+    const plannedMinutes = shifts.reduce((sum, b) => sum + netMinutes(b.shift), 0);
+    const draftMinutes = seesDrafts ? inMonth.filter((b) => !b.shift.schedule.isPublic && draftVisible(b)).reduce((sum, b) => sum + netMinutes(b.shift), 0) : null;
     return {
-      totalMinutes, plannedMinutes, deviationMinutes: totalMinutes - plannedMinutes, shiftCount: shifts.length,
+      totalMinutes, plannedMinutes, draftMinutes, deviationMinutes: totalMinutes - plannedMinutes, shiftCount: shifts.length,
       kwBreakdown: [...weeks.values()].map((w) => ({ weekNumber: w.weekNumber, totalMinutes: own.filter((r) => isoWeek(r.date.toISOString().slice(0, 10)).weekNumber === w.weekNumber).reduce((sum, r) => sum + recordMinutes(r), 0), shiftCount: shifts.filter((b) => b.shift.schedule.weekNumber === w.weekNumber).length })),
     };
   };
@@ -76,7 +84,7 @@ export async function monthlyReport(a: Access, month: number, year: number, opti
     const [formerRecords, formerBookings] = await Promise.all([
       db.timeRecord.findMany({ where: { organizationId: a.orgId, formerEmployeeId: { not: null }, date: { gte: new Date(first), lte: new Date(last) }, ...(branch ? { branchId: branch } : {}) }, include: { formerEmployee: true } }),
       db.booking.findMany({
-        where: { formerEmployeeId: { not: null }, shift: { deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null, isPublic: true, year: { gte: year - 1, lte: year + 1 }, ...(branch ? { branchId: branch } : {}) } } },
+        where: { formerEmployeeId: { not: null }, shift: { deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null, year: { gte: year - 1, lte: year + 1 }, ...(branch ? { branchId: branch } : {}) } } },
         include: { shift: { include: { schedule: true } }, formerEmployee: true },
       }),
     ]);

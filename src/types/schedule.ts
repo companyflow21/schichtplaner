@@ -58,6 +58,8 @@ export type ShiftData = {
   /** Echtes Schichtende (UTC), berechnet mit derselben Berlin-Regel wie die Serversperre. */
   endsAt?: string;
   endsNextDay?: boolean;
+  /** Geplante Nettozeit in echten Minuten (nach Pausenregel), vom Server berechnet. */
+  plannedMinutes?: number;
   isPublic?: boolean;
   can?: { edit: boolean; handle: boolean; request: boolean; manageContractors?: boolean };
   id: string;

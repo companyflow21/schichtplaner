@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     const { month, year, branchId } = reportPeriod(request);
     if (!Number.isInteger(month) || month < 1 || month > 12 || !Number.isInteger(year) || year < 2000 || year > 2100) throw new ApiError("Ungültiger Monat.");
     const report = await monthlyReport(a, month, year, { branchId, includeFormer: true });
-    const headers = ["Nachname", "Vorname", "Sollstunden (Monat)", "Geplante Stunden", "Iststunden", "Abweichung Ist/Plan", "Schichten"];
+    const headers = ["Nachname", "Vorname", "Sollstunden (Monat)", "Geplante Stunden (veröffentlicht)", "Iststunden", "Abweichung Ist/Plan", "Schichten"];
     const hours = (minutes: number | null) => minutes === null ? "–" : (minutes / 60).toFixed(2).replace(".", ",");
     // Soll: festgelegt -> Wert (auch 0), nicht festgelegt -> leer, nicht sichtbar -> "–".
     const target = (e: (typeof report.employees)[number]) => e.targetStatus === "set" ? hours(e.targetMinutes) : e.targetStatus === "unset" ? "" : "–";
