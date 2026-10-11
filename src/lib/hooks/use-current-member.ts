@@ -6,6 +6,8 @@ export type CurrentMember = {
   role: "OWNER" | "ADMIN" | "MANAGER" | "EMPLOYEE";
   organizationId: string;
   organizationName: string;
+  /** Namensformat der Organisation fuer den Schichtplan (siehe formatName). */
+  nameFormat: string;
   user: {
     id: string;
     firstName: string;
@@ -17,6 +19,11 @@ export type CurrentMember = {
   /** Aktuelle Rechte - nur fuer Navigation und Schaltflaechen, geprueft wird serverseitig. */
   access: AccessSummary;
 };
+
+/** Namensformat fuer Planansichten; undefined bis /api/me geladen ist. */
+export function useNameFormat(): string | undefined {
+  return useCurrentMember().data?.nameFormat;
+}
 
 export function useCurrentMember() {
   return useQuery<CurrentMember>({

@@ -8,6 +8,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { dayNames, formatDateShort } from "@/lib/utils/calendar";
 import { cn } from "@/lib/utils";
 import type { ScheduleData, ShiftData, BookingUser } from "@/types/schedule";
+import { formatName } from "@/lib/names";
+import { useNameFormat } from "@/lib/hooks/use-current-member";
 
 interface EmployeeGridProps {
   weekNumber: number;
@@ -39,6 +41,7 @@ function shiftDurationHours(shift: ShiftData): number {
  * Each cell shows the employee's shift(s) for that day.
  */
 export function EmployeeGrid({ weekNumber, year, weekDates, standort }: EmployeeGridProps) {
+  const nameFormat = useNameFormat();
   const { data, isLoading } = useQuery<{ schedule: ScheduleData }>({
     queryKey: ["schedule", weekNumber, year, standort ?? "alle"],
     queryFn: async () => {
@@ -134,7 +137,7 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
                       </AvatarFallback>
                     </Avatar>
                     <div className="text-xs font-medium truncate max-w-[120px]">
-                      {emp.user.firstName} {emp.user.lastName}
+                      {formatName(emp.user, nameFormat, { contractor: emp.key.startsWith("contractor:") })}
                     </div>
                   </div>
                 </td>
@@ -181,7 +184,7 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
       {/* Handy: je Person eine Karte mit ihren Schichten der Woche */}
       <div className="space-y-3 md:hidden">
         {employees.map((emp) => (
-          <section key={emp.key} className="akro-panel overflow-hidden" aria-label={`${emp.user.firstName} ${emp.user.lastName}`}>
+          <section key={emp.key} className="akro-panel overflow-hidden" aria-label={formatName(emp.user, nameFormat, { contractor: emp.key.startsWith("contractor:") })}>
             <div className="akro-panel-kopf flex items-center gap-2 border-b px-4 py-2.5">
               <Avatar size="sm">
                 <AvatarFallback className="text-[9px]">
@@ -189,7 +192,7 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
                 </AvatarFallback>
               </Avatar>
               <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">
-                {emp.user.firstName} {emp.user.lastName}
+                {formatName(emp.user, nameFormat, { contractor: emp.key.startsWith("contractor:") })}
               </span>
               <span className="tabular text-[13px] text-muted-foreground">{emp.totalHours.toFixed(1)} h</span>
             </div>

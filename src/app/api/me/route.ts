@@ -10,6 +10,7 @@ export async function GET() {
       role: m.role,
       organizationId: m.organizationId,
       organizationName: m.organization.name,
+      nameFormat: m.organization.nameFormat,
       user: { id: m.user.id, firstName: m.user.firstName, lastName: m.user.lastName, email: m.user.email, profileImage: m.user.profileImage, locale: m.user.locale },
       access: summary(a),
     };

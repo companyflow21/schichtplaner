@@ -13,6 +13,8 @@ import { CopyShiftDialog } from "./copy-shift-dialog";
 import { WishRequestButton, WishCountBadge } from "./wish-plan";
 import type { ShiftData, ScheduleLayout } from "@/types/schedule";
 import type { WishRequest } from "./wish-plan";
+import { formatName } from "@/lib/names";
+import { useNameFormat } from "@/lib/hooks/use-current-member";
 
 interface ShiftCardProps {
   shift: ShiftData;
@@ -63,6 +65,7 @@ export function ShiftCard({
   zeigeStandort = true,
 }: ShiftCardProps) {
   const queryClient = useQueryClient();
+  const nameFormat = useNameFormat();
   const endsAt = Date.parse(shift.endsAt ?? "");
   const [now, setNow] = useState(() => Date.now());
   const ended = endsAt <= now;
@@ -217,6 +220,7 @@ export function ShiftCard({
     // Historie geloeschter Personen ist nicht bearbeitbar.
     const canUnbook = canEdit && !ended && !!booking.userId;
     const canUnbookContractor = !!shift.can?.manageContractors && !ended && !!booking.contractorWorkerId;
+    const name = formatName(booking.user, nameFormat, { contractor: !!booking.contractorWorkerId });
     return (
       <div key={booking.id} className={cn("-mx-1 flex min-h-9 flex-wrap items-center gap-x-1.5 rounded-md px-1", highlightUserId && booking.userId === highlightUserId && "bg-primary/10")}>
         <Avatar size="sm" className="shrink-0">
@@ -224,7 +228,7 @@ export function ShiftCard({
         </Avatar>
         {/* Schmale Tagesspalten: die Aktionen rutschen unter den Namen statt ihn zu quetschen. */}
         <span className="min-w-20 flex-1 text-[12px] leading-4">
-          {booking.user.firstName} {booking.user.lastName}
+          {name}
           {booking.unavailable && <span className="block text-[11px] font-medium text-warn">Nicht verfügbar</span>}
         </span>
         {(canUnbook || canUnbookContractor) && (
@@ -232,7 +236,7 @@ export function ShiftCard({
             {canUnbook && (
               <EmployeePicker
                 mode="replace"
-                heading={`${booking.user.firstName} ${booking.user.lastName} ersetzen durch …`}
+                heading={`${name} ersetzen durch …`}
                 bookedUserIds={bookedUserIds}
                 shiftId={shift.id}
                 onSelect={(replacementUserId, confirm) => booking.userId && replaceMutation.mutate({ userId: booking.userId, replacementUserId, confirm })}
@@ -242,7 +246,7 @@ export function ShiftCard({
                   disabled={isPending}
                   className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground max-md:size-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-colors hover:bg-muted hover:text-foreground"
                   title="Mitarbeiter wechseln"
-                  aria-label={`${booking.user.firstName} ${booking.user.lastName} durch andere Person ersetzen`}
+                  aria-label={`${name} durch andere Person ersetzen`}
                 >
                   {replaceMutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowLeftRight className="size-3.5" />}
                 </button>
@@ -251,7 +255,7 @@ export function ShiftCard({
             {canUnbook && (
               <ConfirmDialog
                 title="Zuweisung aufheben"
-                description={`${booking.user.firstName} ${booking.user.lastName} wird aus dieser Schicht entfernt. Der Platz ist danach wieder offen.`}
+                description={`${name} wird aus dieser Schicht entfernt. Der Platz ist danach wieder offen.`}
                 confirmLabel="Entfernen"
                 onConfirm={() => booking.userId && unbookMutation.mutate(booking.userId)}
                 disabled={isPending}
@@ -261,7 +265,7 @@ export function ShiftCard({
                   disabled={isPending}
                   className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground max-md:size-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-colors hover:bg-destructive/10 hover:text-destructive"
                   title="Zuweisung aufheben"
-                  aria-label={`${booking.user.firstName} ${booking.user.lastName} aus der Schicht entfernen`}
+                  aria-label={`${name} aus der Schicht entfernen`}
                 >
                   {unbookMutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
                 </button>
@@ -270,7 +274,7 @@ export function ShiftCard({
             {canUnbookContractor && (
               <ConfirmDialog
                 title="Subunternehmer-Zuweisung aufheben"
-                description={`${booking.user.firstName} ${booking.user.lastName} wird aus dieser Schicht entfernt. Der Platz ist danach wieder offen.`}
+                description={`${name} wird aus dieser Schicht entfernt. Der Platz ist danach wieder offen.`}
                 confirmLabel="Entfernen"
                 onConfirm={() => booking.contractorWorkerId && contractorMutation.mutate({ method: "DELETE", contractorWorkerId: booking.contractorWorkerId })}
                 disabled={isPending}
@@ -280,7 +284,7 @@ export function ShiftCard({
                   disabled={isPending}
                   className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground max-md:size-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-colors hover:bg-destructive/10 hover:text-destructive"
                   title="Zuweisung aufheben"
-                  aria-label={`${booking.user.firstName} ${booking.user.lastName} aus der Schicht entfernen`}
+                  aria-label={`${name} aus der Schicht entfernen`}
                 >
                   <X className="size-3.5" />
                 </button>

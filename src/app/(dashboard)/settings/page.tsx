@@ -90,6 +90,8 @@ export default function SettingsPage() {
     onSuccess: () => {
       toast.success("Einstellungen gespeichert");
       queryClient.invalidateQueries({ queryKey: ["settings"] });
+      // Namensformat gilt sofort in allen Planansichten (kommt ueber /api/me).
+      queryClient.invalidateQueries({ queryKey: ["current-member"] });
     },
     onError: (err: Error) => {
       toast.error(err.message);

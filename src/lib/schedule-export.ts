@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { formatName } from "./names";
 import { z } from "zod";
 import type { Access } from "./access";
 import { ApiError } from "./errors";
@@ -33,7 +34,6 @@ export function parseExportQuery(params: URLSearchParams): ExportQuery {
   return q;
 }
 
-const fullName = (u: { firstName: string; lastName: string }) => (u.firstName + " " + u.lastName).trim();
 const byName = (x: { firstName: string; lastName: string }, y: { firstName: string; lastName: string }) =>
   x.lastName.localeCompare(y.lastName, "de") || x.firstName.localeCompare(y.firstName, "de");
 
@@ -58,6 +58,8 @@ function weekWindows(from: string, to: string) {
  */
 export async function scheduleExport(tx: Tx, a: Access, q: ExportQuery): Promise<ScheduleExport> {
   const notFound = () => new ApiError("Nicht gefunden.", 404);
+  // Namen wie im Schichtplan (Einstellung "Namensformat"); Platzhalter bleiben "Firma · Name".
+  const fullName = (u: { firstName: string; lastName: string }, contractor = false) => formatName(u, a.member.organization.nameFormat, { contractor });
   const branch = q.branchId ? await tx.branch.findFirst({ where: { id: q.branchId, organizationId: a.orgId }, select: { id: true, name: true } }) : null;
   if (q.branchId && !branch) throw notFound();
   const customer = q.customerId ? await tx.customer.findFirst({ where: { id: q.customerId, organizationId: a.orgId }, select: { id: true, name: true, branches: { select: { id: true } } } }) : null;
@@ -109,7 +111,7 @@ export async function scheduleExport(tx: Tx, a: Access, q: ExportQuery): Promise
     title: v.title?.trim() || v.division?.title || "",
     branch: v.branch?.name ?? "Ohne Standort",
     customer: v.branch?.customer?.name ?? "",
-    assigned: [...v.bookings].sort((x, y) => byName(x.user, y.user)).map(b => fullName(b.user) + (b.former ? " (gelöscht)" : "")),
+    assigned: [...v.bookings].sort((x, y) => byName(x.user, y.user)).map(b => fullName(b.user, !!b.contractorWorkerId) + (b.former ? " (gelöscht)" : "")),
     open: v.missing,
     places: v.maxEmployees,
     occupied: v.occupiedCount,

@@ -8,6 +8,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { dayNames, formatDateShort } from "@/lib/utils/calendar";
 import { cn } from "@/lib/utils";
 import type { ScheduleData, ShiftData } from "@/types/schedule";
+import { formatName } from "@/lib/names";
+import { useNameFormat } from "@/lib/hooks/use-current-member";
 
 interface ClassicGridProps {
   weekNumber: number;
@@ -23,6 +25,7 @@ interface ClassicGridProps {
  * Each cell shows booked employees for that shift on that day.
  */
 export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGridProps) {
+  const nameFormat = useNameFormat();
   const { data, isLoading } = useQuery<{ schedule: ScheduleData }>({
     queryKey: ["schedule", weekNumber, year, standort ?? "alle"],
     queryFn: async () => {
@@ -171,7 +174,7 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
                                 key={booking.id}
                                 className="text-[11px] truncate"
                               >
-                                {booking.user.firstName} {booking.user.lastName}
+                                {formatName(booking.user, nameFormat, { contractor: !!booking.contractorWorkerId })}
                               </div>
                             )),
                             ...(offen > 0

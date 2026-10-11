@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { formatName } from "./names";
 import type { Branch, Prisma, Schedule } from "@prisma/client";
 import { ApiError } from "./errors";
 import { timeSchema } from "./api";
@@ -111,7 +112,7 @@ async function placeShifts(tx: Tx, a: Access, branch: Branch, base: ShiftBase, t
     if (assignees.some(id => !pool.has(id))) throw new ApiError("Diese Person kannst du für diesen Standort nicht einplanen.", 403);
   }
   const members = assignees.length ? await tx.organizationMember.findMany({ where: { organizationId: a.orgId, userId: { in: assignees } }, select: { userId: true, user: { select: { firstName: true, lastName: true } } } }) : [];
-  const names = new Map(members.map(m => [m.userId, m.user.firstName + " " + m.user.lastName]));
+  const names = new Map(members.map(m => [m.userId, formatName(m.user, a.member.organization.nameFormat)]));
   const start = (t: Target) => shiftRange({ ...base, dayOfWeek: t.dayOfWeek, schedule: t.schedule }).start;
   const occurrences: ShiftPreview["occurrences"] = [];
   const conflicts: Issue[] = [], warnings: Issue[] = [];

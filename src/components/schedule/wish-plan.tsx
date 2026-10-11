@@ -31,6 +31,8 @@ import {
 } from "@/components/ui/popover";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { formatName } from "@/lib/names";
+import { useNameFormat } from "@/lib/hooks/use-current-member";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -315,6 +317,7 @@ interface WishRequestsListProps {
 
 function WishRequestsList({ requests, scheduleId }: WishRequestsListProps) {
   const queryClient = useQueryClient();
+  const nameFormat = useNameFormat();
 
   const acceptMutation = useMutation({
     mutationFn: async (requestId: string) => {
@@ -438,7 +441,7 @@ function WishRequestsList({ requests, scheduleId }: WishRequestsListProps) {
             </Avatar>
             <div className="flex-1 min-w-0">
               <div className="text-xs font-medium truncate">
-                {req.user ? `${req.user.firstName} ${req.user.lastName}` : "Antrag"}
+                {req.user ? formatName(req.user, nameFormat) : "Antrag"}
                 {req.kind === "SWAP" && <span className="font-normal text-muted-foreground"> · Abgabe</span>}
                 {req.kind === "EXCHANGE" && <span className="font-normal text-muted-foreground"> · Tausch</span>}
               </div>

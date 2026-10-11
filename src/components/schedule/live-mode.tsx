@@ -20,6 +20,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useSocket, useSocketEvent } from "@/lib/socket";
 import { dayNames } from "@/lib/utils/calendar";
+import { formatName } from "@/lib/names";
+import { useNameFormat } from "@/lib/hooks/use-current-member";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -418,6 +420,7 @@ function DayToggles({
 // ---------------------------------------------------------------------------
 
 function LiveLogFeed({ logs }: { logs: LiveLogData[] }) {
+  const nameFormat = useNameFormat();
   if (logs.length === 0) {
     return (
       <div className="text-xs text-muted-foreground text-center py-2">
@@ -440,7 +443,7 @@ function LiveLogFeed({ logs }: { logs: LiveLogData[] }) {
             <UserMinus className="size-3 text-destructive shrink-0" />
           )}
           <span className="font-medium">
-            {log.user.firstName} {log.user.lastName}
+            {formatName(log.user, nameFormat)}
           </span>
           <span className="text-muted-foreground">
             {log.action === "BOOK" ? "eingetragen" : "ausgetragen"}

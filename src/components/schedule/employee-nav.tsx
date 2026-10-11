@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { ShiftData } from "@/types/schedule";
+import { formatName } from "@/lib/names";
+import { useNameFormat } from "@/lib/hooks/use-current-member";
 
 type OrgEmployee = {
   id: string;
@@ -48,6 +50,7 @@ export function EmployeeNav({
 }: EmployeeNavProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const nameFormat = useNameFormat();
 
   // Nur Personen, die im Plan ohnehin sichtbar sind - keine Personalliste.
   const employees = useMemo(() => {
@@ -117,7 +120,7 @@ export function EmployeeNav({
             <Users className="size-3.5" />
             {selectedEmployee ? (
               <>
-                {selectedEmployee.user.firstName} {selectedEmployee.user.lastName}
+                {formatName(selectedEmployee.user, nameFormat)}
                 <Badge variant="secondary" className="tabular ml-1 px-1.5 py-0 text-[10px]">
                   {(employeeHours[selectedEmployee.user.id] ?? 0).toFixed(1)} h
                 </Badge>
@@ -196,7 +199,7 @@ export function EmployeeNav({
                     </AvatarFallback>
                   </Avatar>
                   <span className="flex-1 text-left truncate">
-                    {emp.user.firstName} {emp.user.lastName}
+                    {formatName(emp.user, nameFormat)}
                   </span>
                   {hours > 0 && (
                     <Badge

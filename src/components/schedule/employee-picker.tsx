@@ -19,6 +19,8 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
+import { formatName } from "@/lib/names";
+import { useNameFormat } from "@/lib/hooks/use-current-member";
 
 /** Reihenfolge, Gruppen und Gründe kommen vom Server (src/lib/planning.ts, shiftCandidates). */
 type Candidate = {
@@ -91,6 +93,7 @@ export function EmployeePicker({
 }: EmployeePickerProps) {
   const replace = mode === "replace";
   const [open, setOpen] = useState(false);
+  const nameFormat = useNameFormat();
   const [pending, setPending] = useState<Candidate | null>(null);
   const [pendingContractor, setPendingContractor] = useState<ContractorCandidate | null>(null);
 
@@ -155,7 +158,7 @@ export function EmployeePicker({
                               </AvatarFallback>
                             </Avatar>
                             <span className="truncate text-sm">
-                              {c.firstName} {c.lastName}
+                              {formatName(c, nameFormat)}
                             </span>
                           </div>
                           <span className="flex items-start gap-1 pl-8 text-[11.5px] leading-snug text-muted-foreground">
@@ -228,7 +231,7 @@ export function EmployeePicker({
         title={replace ? "Trotz Hinweis wechseln?" : "Trotz Hinweis einteilen?"}
         description={
           pending
-            ? `${pending.firstName} ${pending.lastName}: ${pending.hints.join(" ")} ${replace ? "Der Wechsel" : "Die Einteilung"} wird trotzdem gespeichert.`
+            ? `${formatName(pending, nameFormat)}: ${pending.hints.join(" ")} ${replace ? "Der Wechsel" : "Die Einteilung"} wird trotzdem gespeichert.`
             : ""
         }
         confirmLabel={replace ? "Trotzdem wechseln" : "Trotzdem einteilen"}

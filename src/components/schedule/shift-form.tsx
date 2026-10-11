@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils";
 import { CopyShiftDialog, PreviewSummary, ShiftPreviewList } from "./copy-shift-dialog";
 import { DeleteShiftButton } from "./delete-shift-button";
 import type { ShiftData, DivisionOption, PoolData, ShiftPreview } from "@/types/schedule";
+import { formatName } from "@/lib/names";
+import { useNameFormat } from "@/lib/hooks/use-current-member";
 
 type Props = { open: boolean; onOpenChange: (value: boolean) => void; scheduleId: string; branchId: string | null; defaultDayOfWeek?: number; shift?: ShiftData | null };
 type BranchOption = { id: string; name: string; isActive: boolean; positions: string[]; customerId: string | null; customer: { name: string } | null };
@@ -28,13 +30,14 @@ export function ShiftForm(props: Props) { return props.open ? <Editor key={props
  */
 function AssigneeSelect({ branchId, value, onChange, limit }: { branchId: string | null; value: string[]; onChange: (value: string[]) => void; limit: number }) {
   const [open, setOpen] = useState(false);
+  const nameFormat = useNameFormat();
   const pool = useQuery({ queryKey: ["shift-pool", branchId], queryFn: () => json<PoolData>("/api/shifts/pool?branchId=" + branchId), enabled: !!branchId });
   const people = pool.data?.people ?? [];
   const chosen = value.flatMap(id => people.filter(p => p.userId === id));
   const full = value.length >= limit;
   const headings = { site: pool.data?.site ?? "Dieser Standort", customer: pool.data?.customer ? "Weitere Standorte von " + pool.data.customer : "Weitere Standorte desselben Kunden", rest: pool.data?.admin ? "Weitere Mitarbeitende" : "Dir persönlich zugeordnet" };
   return <div className="space-y-2">
-    {chosen.length > 0 && <ul className="flex flex-wrap gap-1.5">{chosen.map(p => <li key={p.userId} className="inline-flex items-center gap-1 rounded-full border bg-muted px-2 py-0.5 text-[12.5px]">{p.firstName} {p.lastName}<button type="button" className="text-muted-foreground hover:text-foreground" aria-label={p.firstName + " " + p.lastName + " entfernen"} onClick={() => onChange(value.filter(id => id !== p.userId))}><X className="size-3" /></button></li>)}</ul>}
+    {chosen.length > 0 && <ul className="flex flex-wrap gap-1.5">{chosen.map(p => <li key={p.userId} className="inline-flex items-center gap-1 rounded-full border bg-muted px-2 py-0.5 text-[12.5px]">{formatName(p, nameFormat)}<button type="button" className="text-muted-foreground hover:text-foreground" aria-label={formatName(p, nameFormat) + " entfernen"} onClick={() => onChange(value.filter(id => id !== p.userId))}><X className="size-3" /></button></li>)}</ul>}
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild><Button type="button" variant="outline" size="sm" disabled={!branchId}><UserPlus className="size-4" />{value.length ? "Auswahl ändern" : "Mitarbeiter auswählen"}</Button></PopoverTrigger>
       <PopoverContent data-keep-preview className="w-80 p-0" align="start" sideOffset={4}>
@@ -47,7 +50,7 @@ function AssigneeSelect({ branchId, value, onChange, limit }: { branchId: string
               return list.length ? <CommandGroup key={group} heading={headings[group]}>{list.map(p => {
                 const selected = value.includes(p.userId);
                 return <CommandItem key={p.userId} value={p.firstName + " " + p.lastName + " " + p.userId} disabled={!selected && full} onSelect={() => onChange(selected ? value.filter(id => id !== p.userId) : [...value, p.userId])}>
-                  <Check className={cn("size-4", selected ? "opacity-100" : "opacity-0")} aria-hidden="true" /><span className="min-w-0 flex-1 truncate">{p.firstName} {p.lastName}</span>{group === "customer" && <span className="truncate text-[11px] text-muted-foreground">{p.sites.join(", ")}</span>}
+                  <Check className={cn("size-4", selected ? "opacity-100" : "opacity-0")} aria-hidden="true" /><span className="min-w-0 flex-1 truncate">{formatName(p, nameFormat)}</span>{group === "customer" && <span className="truncate text-[11px] text-muted-foreground">{p.sites.join(", ")}</span>}
                 </CommandItem>;
               })}</CommandGroup> : null;
             })}

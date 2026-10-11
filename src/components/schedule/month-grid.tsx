@@ -15,6 +15,8 @@ import type { ShiftData } from "@/types/schedule";
 import { BranchIssues } from "./branch-issues";
 import { PdfExportDialog } from "./pdf-export-dialog";
 import { ViewSwitcher } from "./view-switcher";
+import { formatName } from "@/lib/names";
+import { useNameFormat } from "@/lib/hooks/use-current-member";
 
 type MonthDay = { date: string; weekday: number; isToday: boolean; shifts: ShiftData[]; continuations: ShiftData[]; missing: number };
 type MonthPlan = {
@@ -47,8 +49,8 @@ function weekHref(date: string, standort: string) {
   const w = isoWeek(date);
   return `/schedule/flexible/${formatKW(w.weekNumber, w.year)}?standort=${standort}`;
 }
-function names(shift: ShiftData) {
-  return shift.bookings.map((b) => b.user.firstName + " " + (b.contractorWorkerId ? b.user.lastName : b.user.lastName.charAt(0) + ".")).join(", ");
+function names(shift: ShiftData, nameFormat: string | undefined) {
+  return shift.bookings.map((b) => formatName(b.user, nameFormat, { contractor: !!b.contractorWorkerId, short: true })).join(", ");
 }
 
 /**
@@ -203,6 +205,7 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
 }
 
 function DayCell({ day, plan, standort, sichtbar }: { day: MonthDay; plan: MonthPlan; standort: string; sichtbar: (s: ShiftData) => boolean }) {
+  const nameFormat = useNameFormat();
   const shifts = day.shifts.filter(sichtbar);
   return (
     <div className={cn("min-h-[7.5rem] border-l p-1.5", day.isToday ? "bg-[var(--flaeche-heute)]" : "bg-card")}>
@@ -226,7 +229,7 @@ function DayCell({ day, plan, standort, sichtbar }: { day: MonthDay; plan: Month
                 fehlt > 0 ? "border-warn/50 bg-warn/[0.06]" : "bg-[var(--flaeche-vertieft)]",
                 s.isPublic === false && "border-dashed"
               )}
-              title={[s.shiftFrom + "–" + s.shiftTo + (s.endsNextDay ? " (endet am Folgetag)" : ""), s.title, names(s)].filter(Boolean).join(" · ")}
+              title={[s.shiftFrom + "–" + s.shiftTo + (s.endsNextDay ? " (endet am Folgetag)" : ""), s.title, names(s, nameFormat)].filter(Boolean).join(" · ")}
             >
               <div className="flex items-baseline justify-between gap-1">
                 <span className="tabular font-semibold">{s.shiftFrom}–{s.shiftTo}{s.endsNextDay && <span className="font-normal text-muted-foreground"> +1</span>}</span>
@@ -235,7 +238,7 @@ function DayCell({ day, plan, standort, sichtbar }: { day: MonthDay; plan: Month
                 </span>
               </div>
               {s.title && <div className="truncate text-muted-foreground">{s.title}</div>}
-              {s.bookings.length > 0 && <div className="truncate">{names(s)}</div>}
+              {s.bookings.length > 0 && <div className="truncate">{names(s, nameFormat)}</div>}
               {fehlt > 0 && <div className="font-medium text-warn">{fehlt} {fehlt === 1 ? "Platz fehlt" : "Plätze fehlen"}</div>}
               {plan.access.planner && s.isPublic === false && <div className="text-muted-foreground">Entwurf</div>}
             </div>
@@ -247,6 +250,7 @@ function DayCell({ day, plan, standort, sichtbar }: { day: MonthDay; plan: Month
 }
 
 function ShiftLine({ shift, planner = false, fortsetzung = false }: { shift: ShiftData; planner?: boolean; fortsetzung?: boolean }) {
+  const nameFormat = useNameFormat();
   const fehlt = shift.missing ?? 0;
   return (
     <li className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-4 py-2 text-[13px]">
@@ -255,7 +259,7 @@ function ShiftLine({ shift, planner = false, fortsetzung = false }: { shift: Shi
         {!fortsetzung && shift.endsNextDay && <span className="font-normal text-muted-foreground"> (+1)</span>}
       </span>
       <span className="min-w-0 flex-1 truncate text-muted-foreground">
-        {fortsetzung ? "Fortsetzung vom Vortag · " : ""}{shift.title || "Schicht"}{shift.bookings.length ? " · " + names(shift) : ""}
+        {fortsetzung ? "Fortsetzung vom Vortag · " : ""}{shift.title || "Schicht"}{shift.bookings.length ? " · " + names(shift, nameFormat) : ""}
       </span>
       {!fortsetzung && (
         <span className={cn("tabular text-[12px]", fehlt > 0 ? "font-medium text-warn" : "text-muted-foreground")}>
