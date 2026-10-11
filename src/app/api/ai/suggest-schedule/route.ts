@@ -19,12 +19,12 @@ const requestSchema = z.object({
 export async function POST(request: NextRequest) {
   const member = await getCurrentMember();
   if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
   }
 
   if (!isAdminOrAbove(member.role)) {
     return NextResponse.json(
-      { error: "Nur die Administration kann KI-Vorschlaege anfordern" },
+      { error: "Nur die Administration kann KI-Vorschläge anfordern" },
       { status: 403 }
     );
   }
@@ -33,13 +33,13 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: "Ungültige Anfrage." }, { status: 400 });
   }
 
   const parsed = requestSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Validation failed", details: parsed.error.issues },
+      { error: "Ungültige Eingabe.", details: parsed.error.issues },
       { status: 400 }
     );
   }
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
   );
   if (!aiEnabled) {
     return NextResponse.json(
-      { error: "KI Auto-Planner ist fuer diese Organisation deaktiviert" },
+      { error: "KI Auto-Planner ist für diese Organisation deaktiviert" },
       { status: 403 }
     );
   }

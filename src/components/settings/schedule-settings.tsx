@@ -27,7 +27,7 @@ export function ScheduleSettings({
       <div>
         <h2 className="text-xl font-semibold">Schichtplan</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Einstellungen fuer den Schichtplan
+          Einstellungen für den Schichtplan
         </p>
       </div>
 

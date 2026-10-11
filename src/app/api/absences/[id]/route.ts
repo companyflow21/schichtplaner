@@ -14,11 +14,11 @@ const include = {
 /** Eigene Abwesenheit oder eine, die die angemeldete Person entscheiden darf - sonst 404. */
 async function absenceFor(a: Access, id: string) {
   const absence = await db.absence.findFirst({ where: { id, category: { organizationId: a.orgId } } });
-  if (!absence) throw new ApiError("Not found", 404);
+  if (!absence) throw new ApiError("Nicht gefunden.", 404);
   const self = absence.userId === a.userId;
   const manages = canStaff(a, "MANAGE_ABSENCES", absence.userId) && (a.isAdmin || !self);
-  if (!self && !manages) throw new ApiError("Not found", 404);
-  if (!await db.organizationMember.findFirst({ where: { organizationId: a.orgId, userId: absence.userId, isActive: true } })) throw new ApiError("Not found", 404);
+  if (!self && !manages) throw new ApiError("Nicht gefunden.", 404);
+  if (!await db.organizationMember.findFirst({ where: { organizationId: a.orgId, userId: absence.userId, isActive: true } })) throw new ApiError("Nicht gefunden.", 404);
   return { absence, manages };
 }
 
@@ -36,9 +36,9 @@ export async function PATCH(request: Request, context: Context) {
     const { absence, manages } = await absenceFor(a, (await context.params).id);
     const data = await body(request, updateAbsenceSchema);
     if ((data.dateFrom || absence.dateFrom.toISOString().slice(0, 10)) > (data.dateTo || absence.dateTo.toISOString().slice(0, 10))) throw new ApiError("Enddatum liegt vor dem Beginn.");
-    if ((data.status === "APPROVED" || data.status === "DECLINED") && !manages) throw new ApiError("Only admins can approve or decline absences", 403);
-    if (!manages && absence.status !== "PENDING") throw new ApiError("Can only edit pending absences");
-    if (data.categoryId && !await db.absenceCategory.findFirst({ where: { id: data.categoryId, organizationId: a.orgId } })) throw new ApiError("Category not found", 404);
+    if ((data.status === "APPROVED" || data.status === "DECLINED") && !manages) throw new ApiError("Keine Berechtigung, Abwesenheiten zu genehmigen oder abzulehnen.", 403);
+    if (!manages && absence.status !== "PENDING") throw new ApiError("Nur noch nicht entschiedene Anträge können bearbeitet werden.");
+    if (data.categoryId && !await db.absenceCategory.findFirst({ where: { id: data.categoryId, organizationId: a.orgId } })) throw new ApiError("Kategorie nicht gefunden.", 404);
     const updated = await db.$transaction(async (tx) => {
       const result = await tx.absence.update({
         where: { id: absence.id },
@@ -62,7 +62,7 @@ export async function DELETE(_request: Request, context: Context) {
   return api(async () => {
     const a = await requireAccess();
     const { absence, manages } = await absenceFor(a, (await context.params).id);
-    if (!manages && absence.status !== "PENDING") throw new ApiError("Can only delete pending absences");
+    if (!manages && absence.status !== "PENDING") throw new ApiError("Nur noch nicht entschiedene Anträge können gelöscht werden.");
     await db.absence.delete({ where: { id: absence.id } });
     return { success: true };
   });

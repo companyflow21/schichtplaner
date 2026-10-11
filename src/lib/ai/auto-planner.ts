@@ -71,7 +71,7 @@ async function gatherContext(
     },
   });
 
-  if (!schedule) throw new Error("Schedule nicht gefunden");
+  if (!schedule) throw new Error("Schichtplan nicht gefunden");
 
   // 2. Get all active employees in the org with their divisions
   const members = await db.organizationMember.findMany({

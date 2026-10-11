@@ -85,11 +85,11 @@ export function AISuggestButton({ scheduleId }: AISuggestButtonProps) {
       setDeclinedIds(new Set());
 
       if (data.suggestions.length === 0) {
-        toast.info("Keine Vorschlaege: Alle Schichten sind bereits besetzt.");
+        toast.info("Keine Vorschläge: Alle Schichten sind bereits besetzt.");
       } else {
         setSheetOpen(true);
         toast.success(
-          `${data.suggestions.length} KI-Vorschlaege generiert`
+          `${data.suggestions.length} KI-Vorschläge generiert`
         );
       }
     },
@@ -163,10 +163,10 @@ export function AISuggestButton({ scheduleId }: AISuggestButtonProps) {
       }
       setAcceptedIds(newAccepted);
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
-      toast.success(`${accepted.length} Vorschlaege uebernommen`);
+      toast.success(`${accepted.length} Vorschläge übernommen`);
     },
     onError: () => {
-      toast.error("Fehler beim Uebernehmen der Vorschlaege");
+      toast.error("Fehler beim Übernehmen der Vorschläge");
     },
   });
 
@@ -217,10 +217,10 @@ export function AISuggestButton({ scheduleId }: AISuggestButtonProps) {
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <Sparkles className="size-4 text-primary" />
-              KI-Vorschlaege
+              KI-Vorschläge
             </SheetTitle>
             <SheetDescription>
-              {suggestions.length} Vorschlaege generiert.{" "}
+              {suggestions.length} Vorschläge generiert.{" "}
               {pendingCount > 0
                 ? `${pendingCount} ausstehend.`
                 : "Alle bearbeitet."}
@@ -232,7 +232,7 @@ export function AISuggestButton({ scheduleId }: AISuggestButtonProps) {
             {suggestions.length === 0 && (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                 <AlertTriangle className="size-8 mb-2" />
-                <p className="text-sm">Keine Vorschlaege verfuegbar.</p>
+                <p className="text-sm">Keine Vorschläge verfügbar.</p>
               </div>
             )}
 
@@ -293,7 +293,7 @@ export function AISuggestButton({ scheduleId }: AISuggestButtonProps) {
                   {isAccepted ? (
                     <div className="flex items-center gap-1.5 text-xs text-ok">
                       <Check className="size-3.5" />
-                      Uebernommen
+                      Übernommen
                     </div>
                   ) : isDeclined ? (
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -353,7 +353,7 @@ export function AISuggestButton({ scheduleId }: AISuggestButtonProps) {
               onClick={() => setSheetOpen(false)}
               className="ml-auto"
             >
-              Schliessen
+              Schließen
             </Button>
           </SheetFooter>
         </SheetContent>

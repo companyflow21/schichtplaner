@@ -127,9 +127,9 @@ async function fits(page, label) {
     assert.equal(await row.getByRole('checkbox').getAttribute('data-state'), 'checked');
     assert.equal((await api(employee, 'GET', '/api/messages?folder=inbox')).messages.find(m => m.id === message.id).recipients[0].isRead, false);
     passed('Fehlgeschlagenes Gelesen-Markieren: Auswahl bleibt, Daten unverändert');
-    await e.getByRole('button', { name: 'Loeschen', exact: true }).click();
+    await e.getByRole('button', { name: 'Löschen', exact: true }).click();
     await visible(e.getByText('1 Nachricht(en) konnten nicht geändert werden. Bitte erneut versuchen.', { exact: true }).first());
-    assert.equal(await e.getByText('Nachrichten geloescht', { exact: true }).count(), 0);
+    assert.equal(await e.getByText('Nachrichten gelöscht', { exact: true }).count(), 0);
     assert.ok((await api(employee, 'GET', '/api/messages?folder=inbox')).messages.some(m => m.id === message.id));
     passed('Fehlgeschlagenes Papierkorb-Verschieben: Nachricht bleibt vorhanden');
     await e.unroute('**/api/messages/' + message.id, failChange);
@@ -138,9 +138,9 @@ async function fits(page, label) {
     await visible(e.getByText(subject, { exact: true }));
     await e.locator('div.cursor-pointer').filter({ hasText: subject }).getByRole('checkbox').click();
     await e.route('**/api/messages/' + message.id, failChange);
-    await e.getByRole('button', { name: 'Endgueltig loeschen', exact: true }).click();
+    await e.getByRole('button', { name: 'Endgültig löschen', exact: true }).click();
     await visible(e.getByText('1 Nachricht(en) konnten nicht geändert werden. Bitte erneut versuchen.', { exact: true }).first());
-    assert.equal(await e.getByText('Nachrichten geloescht', { exact: true }).count(), 0);
+    assert.equal(await e.getByText('Nachrichten gelöscht', { exact: true }).count(), 0);
     assert.ok((await api(employee, 'GET', '/api/messages?folder=trash')).messages.some(m => m.id === message.id));
     passed('DELETE-Fehler: keine Erfolgsmeldung und keine verlorene Nachricht');
     await e.screenshot({ path: path.join(output, 'ui-postfach-papierkorb-mobil.png'), fullPage: true, animations: 'disabled' });

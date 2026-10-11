@@ -79,7 +79,7 @@ type ReportingResponse = {
 const MONTH_NAMES = [
   "JANUAR",
   "FEBRUAR",
-  "MAERZ",
+  "MÄRZ",
   "APRIL",
   "MAI",
   "JUNI",
@@ -94,7 +94,7 @@ const MONTH_NAMES = [
 const MONTH_NAMES_DISPLAY = [
   "Januar",
   "Februar",
-  "Maerz",
+  "März",
   "April",
   "Mai",
   "Juni",
@@ -357,7 +357,7 @@ export function HoursTable({ month, year }: HoursTableProps) {
           <BarChart3 className="size-12 text-muted-foreground/50 mb-3" />
           <p className="text-lg font-medium">Keine Daten</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Fuer diesen Monat sind noch keine Zeiterfassungen vorhanden.
+            Für diesen Monat sind noch keine Zeiterfassungen vorhanden.
           </p>
         </Card>
       )}
@@ -484,7 +484,7 @@ export function HoursTable({ month, year }: HoursTableProps) {
         employees.length > 0 &&
         filteredEmployees.length === 0 && (
           <p className="text-center text-sm text-muted-foreground py-8">
-            Keine Mitarbeiter gefunden fuer &quot;{search}&quot;
+            Keine Mitarbeiter gefunden für &quot;{search}&quot;
           </p>
         )}
 

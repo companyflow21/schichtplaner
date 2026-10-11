@@ -128,7 +128,7 @@ export function EmployeeForm({ admin }: { admin: boolean }) {
       (r) => r.firstName.trim() && r.lastName.trim() && r.email.trim()
     );
     if (!valid) {
-      toast.error("Bitte alle Pflichtfelder ausfuellen");
+      toast.error("Bitte alle Pflichtfelder ausfüllen");
       return;
     }
     // Standortpflicht, sobald es Standorte zur Auswahl gibt; für Manager immer.
@@ -296,7 +296,7 @@ export function EmployeeForm({ admin }: { admin: boolean }) {
               onClick={addRow}
             >
               <Plus className="size-4" />
-              Weiteren hinzufuegen
+              Weiteren hinzufügen
             </Button>
 
             <DialogFooter className="mt-6">

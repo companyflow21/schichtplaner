@@ -23,7 +23,7 @@ export async function GET(_request: Request, context: Context) {
         ...referenceInclude,
       },
     });
-    if (!message) throw new ApiError("Not found", 404);
+    if (!message) throw new ApiError("Nicht gefunden.", 404);
     // Gelesen ist, was im Verlauf angezeigt wird: die Nachricht und ihre Antworten.
     await db.messageRecipient.updateMany({ where: { messageId: { in: [id, ...message.replies.map((r) => r.id)] }, userId: a.userId }, data: { isRead: true } });
     return { message: { ...message, ...recipientsFor(message.recipients, await visiblePeople(a), a.userId), reference: messageReference(message) } };
@@ -39,7 +39,7 @@ export async function PATCH(request: Request, context: Context) {
     const { id } = await context.params;
     const data = await body(request, patchSchema);
     const updated = await db.messageRecipient.updateMany({ where: { messageId: id, userId: a.userId, message: { organizationId: a.orgId } }, data });
-    if (!updated.count) throw new ApiError("Not found", 404);
+    if (!updated.count) throw new ApiError("Nicht gefunden.", 404);
     return { success: true };
   });
 }
@@ -50,7 +50,7 @@ export async function DELETE(_request: Request, context: Context) {
     const a = await requireAccess();
     const { id } = await context.params;
     const message = await db.message.findFirst({ where: { id, organizationId: a.orgId, OR: [{ senderId: a.userId }, { recipients: { some: { userId: a.userId } } }] } });
-    if (!message) throw new ApiError("Not found", 404);
+    if (!message) throw new ApiError("Nicht gefunden.", 404);
     if (message.senderId === a.userId) await db.message.delete({ where: { id } });
     else await db.messageRecipient.deleteMany({ where: { messageId: id, userId: a.userId } });
     return { success: true };

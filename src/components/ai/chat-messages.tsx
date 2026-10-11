@@ -58,7 +58,7 @@ export function ChatMessages({ messages }: ChatMessagesProps) {
             Hallo! Ich bin dein KI-Assistent.
           </p>
           <p className="text-xs text-muted-foreground max-w-[260px]">
-            Frag mich nach Schichtplaenen, Mitarbeitern, Stunden oder
+            Frag mich nach Schichtplänen, Mitarbeitern, Stunden oder
             Abwesenheiten. Ich kann auch Schichten erstellen oder Mitarbeiter
             einbuchen.
           </p>
@@ -158,7 +158,7 @@ function ToolResultCard({ tool }: { tool: ToolResultInfo }) {
         <span className="font-medium">{label}</span>
         {tool.requiresConfirmation && (
           <span className="text-warn dark:text-warn text-[10px]">
-            (Aktion ausgefuehrt)
+            (Aktion ausgeführt)
           </span>
         )}
       </div>

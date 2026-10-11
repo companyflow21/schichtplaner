@@ -16,7 +16,7 @@ import { generateForecast } from "@/lib/ai/forecast";
 export async function GET(request: NextRequest) {
   const member = await getCurrentMember();
   if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
   }
 
   if (!isAdminOrAbove(member.role)) {
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
   );
   if (!enabled) {
     return NextResponse.json(
-      { error: "Prognose-Feature ist fuer diese Organisation deaktiviert" },
+      { error: "Prognose-Feature ist für diese Organisation deaktiviert" },
       { status: 403 }
     );
   }

@@ -144,7 +144,7 @@ export async function generateAIResponse(
   const enabled = await isAIFeatureEnabled(orgId, feature);
   if (!enabled) {
     throw new AIError(
-      `KI-Feature "${feature}" ist fuer diese Organisation deaktiviert`,
+      `KI-Feature "${feature}" ist für diese Organisation deaktiviert`,
       "AI_DISABLED"
     );
   }
@@ -174,7 +174,7 @@ export async function generateAIResponse(
     const textBlock = response.content.find((block) => block.type === "text");
     if (!textBlock || textBlock.type !== "text") {
       throw new AIError(
-        "Claude hat keine Textantwort zurueckgegeben",
+        "Claude hat keine Textantwort zurückgegeben",
         "INVALID_RESPONSE"
       );
     }

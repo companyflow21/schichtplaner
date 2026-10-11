@@ -97,8 +97,8 @@ export function AccountSettings({
 
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Das Loeschen des Accounts entfernt alle Daten unwiderruflich. Dieser
-            Vorgang kann nicht rueckgaengig gemacht werden.
+            Das Löschen des Accounts entfernt alle Daten unwiderruflich. Dieser
+            Vorgang kann nicht rückgängig gemacht werden.
           </p>
 
           {!showDeleteConfirm ? (
@@ -107,35 +107,35 @@ export function AccountSettings({
               size="sm"
               onClick={() => setShowDeleteConfirm(true)}
             >
-              Account loeschen anfragen
+              Account löschen anfragen
             </Button>
           ) : (
             <div className="space-y-3 max-w-md p-4 rounded-lg border border-destructive/30 bg-destructive/5">
               <p className="text-sm font-medium">
-                Gib &quot;LOESCHEN&quot; ein um fortzufahren:
+                Gib &quot;LÖSCHEN&quot; ein um fortzufahren:
               </p>
               <Input
                 value={deleteInput}
                 onChange={(e) => setDeleteInput(e.target.value)}
-                placeholder='Tippe "LOESCHEN"'
+                placeholder='Tippe "LÖSCHEN"'
                 className="border-destructive/30"
               />
               <div className="flex gap-2">
                 <Button
                   variant="destructive"
                   size="sm"
-                  disabled={deleteInput !== "LOESCHEN"}
+                  disabled={deleteInput !== "LÖSCHEN"}
                   onClick={() => {
                     // Noch nicht umgesetzt: ehrlich melden statt Erfolg
                     // vorzutaeuschen.
                     toast.info(
-                      "Loeschung ist noch nicht eingerichtet. Bitte wende dich an die Administration."
+                      "Löschung ist noch nicht eingerichtet. Bitte wende dich an die Administration."
                     );
                     setShowDeleteConfirm(false);
                     setDeleteInput("");
                   }}
                 >
-                  Unwiderruflich loeschen
+                  Unwiderruflich löschen
                 </Button>
                 <Button
                   variant="outline"

@@ -62,14 +62,14 @@ export function TopicDetail({ topicId }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
       });
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) throw new Error("Aktion fehlgeschlagen.");
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["topics", topicId] });
       queryClient.invalidateQueries({ queryKey: ["topics"] });
       setText("");
-      toast.success("Beitrag hinzugefuegt");
+      toast.success("Beitrag hinzugefügt");
     },
     onError: () => {
       toast.error("Fehler beim Erstellen");
@@ -81,16 +81,16 @@ export function TopicDetail({ topicId }: Props) {
       const res = await fetch(`/api/topics/${topicId}`, { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed");
+        throw new Error(data.error || "Aktion fehlgeschlagen.");
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["topics"] });
-      toast.success("Thema geloescht");
+      toast.success("Thema gelöscht");
       router.push("/portal/topics");
     },
     onError: (error: Error) => {
-      toast.error(error.message === "Forbidden" ? "Nur Admins koennen Themen loeschen" : "Fehler beim Loeschen");
+      toast.error(error.message === "Keine Berechtigung." ? "Nur Admins können Themen löschen" : "Fehler beim Löschen");
     },
   });
 
@@ -114,7 +114,7 @@ export function TopicDetail({ topicId }: Props) {
       <div className="flex-1">
         <Button variant="ghost" onClick={() => router.push("/portal/topics")} className="gap-2 mb-4">
           <ArrowLeft className="size-4" />
-          Zurueck
+          Zurück
         </Button>
         <p className="text-muted-foreground">Thema nicht gefunden.</p>
       </div>
@@ -126,7 +126,7 @@ export function TopicDetail({ topicId }: Props) {
       {/* Back button */}
       <Button variant="ghost" onClick={() => router.push("/portal/topics")} className="gap-2 mb-4">
         <ArrowLeft className="size-4" />
-        Zurueck zu Themen
+        Zurück zu Themen
       </Button>
 
       <div className="akro-panel">
@@ -160,7 +160,7 @@ export function TopicDetail({ topicId }: Props) {
           {topic.posts.length === 0 ? (
             <div className="flex flex-col items-center py-12 text-muted-foreground">
               <MessageCircle className="mb-2 size-8 text-muted-foreground" />
-              <p className="text-sm">Noch keine Beitraege. Schreibe den ersten!</p>
+              <p className="text-sm">Noch keine Beiträge. Schreibe den ersten!</p>
             </div>
           ) : (
             topic.posts.map((post) => (

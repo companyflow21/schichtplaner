@@ -9,7 +9,7 @@ export async function GET(
 ) {
   const member = await getCurrentMember();
   if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
   }
 
   const { id } = await params;
@@ -29,7 +29,7 @@ export async function GET(
   });
 
   if (!topic) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ error: "Nicht gefunden." }, { status: 404 });
   }
 
   // Get creator details
@@ -48,11 +48,11 @@ export async function DELETE(
 ) {
   const member = await getCurrentMember();
   if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
   }
 
   if (!isAdminOrAbove(member.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Keine Berechtigung." }, { status: 403 });
   }
 
   const { id } = await params;
@@ -62,7 +62,7 @@ export async function DELETE(
   });
 
   if (!topic) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ error: "Nicht gefunden." }, { status: 404 });
   }
 
   await db.topic.delete({ where: { id } });

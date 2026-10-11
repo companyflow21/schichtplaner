@@ -24,12 +24,12 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: "Ungültige Anfrage." }, { status: 400 });
   }
   const parsed = registerSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "Ungueltige Eingabe" },
+      { error: parsed.error.issues[0]?.message ?? "Ungültige Eingabe" },
       { status: 400 }
     );
   }
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
   const existing = await db.user.findUnique({ where: { email } });
   if (existing) {
     return NextResponse.json(
-      { error: "Email already exists" },
+      { error: "Diese E-Mail-Adresse wird bereits verwendet." },
       { status: 409 }
     );
   }

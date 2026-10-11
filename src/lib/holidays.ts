@@ -69,7 +69,7 @@ const DE_STATE_HOLIDAYS: {
   date: (year: number) => string;
 }[] = [
   {
-    name: "Heilige Drei Koenige",
+    name: "Heilige Drei Könige",
     states: ["BW", "BY", "ST"],
     date: (y) => toISODate(y, 1, 6),
   },
@@ -84,7 +84,7 @@ const DE_STATE_HOLIDAYS: {
     date: (y) => easterOffset(y, 60),
   },
   {
-    name: "Mariae Himmelfahrt",
+    name: "Mariä Himmelfahrt",
     states: ["SL"],
     date: (y) => toISODate(y, 8, 15),
   },
@@ -104,7 +104,7 @@ const DE_STATE_HOLIDAYS: {
     date: (y) => toISODate(y, 11, 1),
   },
   {
-    name: "Buss- und Bettag",
+    name: "Buß- und Bettag",
     states: ["SN"],
     date: bussUndBettag,
   },
@@ -139,16 +139,16 @@ function germanHolidays(year: number, state: string): ComputedHoliday[] {
 function austrianHolidays(year: number): ComputedHoliday[] {
   return [
     { name: "Neujahr", date: toISODate(year, 1, 1) },
-    { name: "Heilige Drei Koenige", date: toISODate(year, 1, 6) },
+    { name: "Heilige Drei Könige", date: toISODate(year, 1, 6) },
     { name: "Ostermontag", date: easterOffset(year, 1) },
     { name: "Staatsfeiertag", date: toISODate(year, 5, 1) },
     { name: "Christi Himmelfahrt", date: easterOffset(year, 39) },
     { name: "Pfingstmontag", date: easterOffset(year, 50) },
     { name: "Fronleichnam", date: easterOffset(year, 60) },
-    { name: "Mariae Himmelfahrt", date: toISODate(year, 8, 15) },
+    { name: "Mariä Himmelfahrt", date: toISODate(year, 8, 15) },
     { name: "Nationalfeiertag", date: toISODate(year, 10, 26) },
     { name: "Allerheiligen", date: toISODate(year, 11, 1) },
-    { name: "Mariae Empfaengnis", date: toISODate(year, 12, 8) },
+    { name: "Mariä Empfängnis", date: toISODate(year, 12, 8) },
     { name: "Christtag", date: toISODate(year, 12, 25) },
     { name: "Stefanitag", date: toISODate(year, 12, 26) },
   ];

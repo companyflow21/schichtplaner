@@ -70,7 +70,7 @@ export function MessageList({ folder }: Props) {
     if (failedIds.length > 0) {
       toast.error(`${failedIds.length} Nachricht(en) konnten nicht geändert werden. Bitte erneut versuchen.`);
     } else if (deleted) {
-      toast.success("Nachrichten geloescht");
+      toast.success("Nachrichten gelöscht");
     }
   }
 
@@ -137,7 +137,7 @@ export function MessageList({ folder }: Props) {
       {selected.size > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md bg-muted p-2">
           <span className="text-sm text-muted-foreground">
-            {selected.size} ausgewaehlt
+            {selected.size} ausgewählt
           </span>
           {folder === "inbox" && (
             <>
@@ -161,7 +161,7 @@ export function MessageList({ folder }: Props) {
                 }
               >
                 <Trash2 className="mr-1 size-4" />
-                Loeschen
+                Löschen
               </Button>
             </>
           )}
@@ -186,7 +186,7 @@ export function MessageList({ folder }: Props) {
                 onClick={() => deleteMutation.mutate(Array.from(selected))}
               >
                 <Trash2 className="mr-1 size-4" />
-                Endgueltig loeschen
+                Endgültig löschen
               </Button>
             </>
           )}

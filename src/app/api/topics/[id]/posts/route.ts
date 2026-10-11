@@ -14,7 +14,7 @@ export async function POST(
 ) {
   const member = await getCurrentMember();
   if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
   }
 
   const { id } = await params;
@@ -25,20 +25,20 @@ export async function POST(
   });
 
   if (!topic) {
-    return NextResponse.json({ error: "Topic not found" }, { status: 404 });
+    return NextResponse.json({ error: "Thema nicht gefunden." }, { status: 404 });
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: "Ungültige Anfrage." }, { status: 400 });
   }
 
   const parsed = postSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Validation failed", details: parsed.error.issues },
+      { error: "Ungültige Eingabe.", details: parsed.error.issues },
       { status: 400 }
     );
   }

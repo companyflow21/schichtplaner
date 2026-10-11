@@ -267,12 +267,12 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Fehler beim Aendern der Rolle");
+        throw new Error(err.error || "Fehler beim Ändern der Rolle");
       }
       return res.json();
     },
     onSuccess: () => {
-      toast.success("Rolle geaendert");
+      toast.success("Rolle geändert");
       queryClient.invalidateQueries({ queryKey: ["employee", memberId] });
       queryClient.invalidateQueries({ queryKey: ["access", memberId] });
       queryClient.invalidateQueries({ queryKey: ["employees"] });
@@ -342,7 +342,7 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
       <div className="space-y-4">
         <Button variant="ghost" onClick={() => router.push("/employees")}>
           <ArrowLeft className="size-4" />
-          Zurueck
+          Zurück
         </Button>
         <Card className="p-12 text-center">
           <p className="text-destructive">Mitarbeiter nicht gefunden.</p>
@@ -361,7 +361,7 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
       {/* Back button */}
       <Button variant="ghost" onClick={() => router.push("/employees")}>
         <ArrowLeft className="size-4" />
-        Zurueck zur Liste
+        Zurück zur Liste
       </Button>
 
       {/* Header */}
@@ -432,7 +432,7 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
                         key={r}
                         onClick={() => roleMutation.mutate(r)}
                       >
-                        Rolle zu {getRoleLabel(r)} aendern
+                        Rolle zu {getRoleLabel(r)} ändern
                       </DropdownMenuItem>
                     ))}
                 </>
@@ -548,7 +548,7 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
                 <Textarea
                   value={noteText}
                   onChange={(e) => setNoteText(e.target.value)}
-                  placeholder="Notiz hinzufuegen..."
+                  placeholder="Notiz hinzufügen..."
                   className="min-h-[60px]"
                 />
                 <Button
@@ -609,13 +609,13 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
         <div className="space-y-6">
           <Card className="p-5">
             <h2 className="text-sm font-semibold uppercase text-muted-foreground tracking-wide mb-4">
-              Monatsuebersicht
+              Monatsübersicht
             </h2>
             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
               <Clock className="size-10 opacity-30 mb-3" />
-              <p className="text-sm font-medium">E-Dash</p>
+              <p className="text-sm font-medium">Keine Monatswerte an dieser Stelle</p>
               <p className="text-xs mt-1">
-                Stundenauswertung wird mit dem Zeiterfassungsmodul verfuegbar.
+                Die Stunden dieser Person stehen unter Auswertung.
               </p>
             </div>
           </Card>
@@ -668,7 +668,7 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
             <DialogDescription>
               {employee.user.firstName} {employee.user.lastName} wird
               deaktiviert und hat keinen Zugriff mehr auf die Organisation. Diese
-              Aktion kann rueckgaengig gemacht werden.
+              Aktion kann rückgängig gemacht werden.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

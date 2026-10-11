@@ -132,8 +132,8 @@ export default function AiChatPage() {
 
   // Quick action suggestions
   const suggestions = [
-    "Zeig mir den Schichtplan fuer diese Woche",
-    "Welche Mitarbeiter sind naechste Woche abwesend?",
+    "Zeig mir den Schichtplan für diese Woche",
+    "Welche Mitarbeiter sind nächste Woche abwesend?",
     "Wer hat die meisten Stunden diesen Monat?",
     "Suche Mitarbeiter mit dem Namen...",
   ];
@@ -190,8 +190,8 @@ export default function AiChatPage() {
                 Wie kann ich dir helfen?
               </h2>
               <p className="text-sm text-muted-foreground text-center max-w-md mb-6">
-                Ich kann Schichtplaene anzeigen, Mitarbeiter suchen, Stunden
-                berechnen, Abwesenheiten pruefen und sogar Schichten erstellen
+                Ich kann Schichtpläne anzeigen, Mitarbeiter suchen, Stunden
+                berechnen, Abwesenheiten prüfen und sogar Schichten erstellen
                 oder Mitarbeiter einbuchen.
               </p>
 
@@ -221,7 +221,7 @@ export default function AiChatPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Nachricht eingeben... (Enter zum Senden, Shift+Enter fuer Zeilenumbruch)"
+              placeholder="Nachricht eingeben... (Enter zum Senden, Shift+Enter für Zeilenumbruch)"
               className={cn(
                 "flex-1 resize-none rounded-xl border bg-muted px-4 py-3 text-sm",
                 "placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring",

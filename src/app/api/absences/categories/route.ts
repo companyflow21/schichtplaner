@@ -7,7 +7,7 @@ import { getCurrentMember, isAdminOrAbove } from "@/lib/auth-helpers";
 export async function GET() {
   const member = await getCurrentMember();
   if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
   }
 
   const categories = await db.absenceCategory.findMany({
@@ -28,24 +28,24 @@ const createCategorySchema = z.object({
 export async function POST(request: NextRequest) {
   const member = await getCurrentMember();
   if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
   }
 
   if (!isAdminOrAbove(member.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Keine Berechtigung." }, { status: 403 });
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: "Ungültige Anfrage." }, { status: 400 });
   }
 
   const parsed = createCategorySchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Validation failed", details: parsed.error.issues },
+      { error: "Ungültige Eingabe.", details: parsed.error.issues },
       { status: 400 }
     );
   }
@@ -75,24 +75,24 @@ const updateCategorySchema = z.object({
 export async function PATCH(request: NextRequest) {
   const member = await getCurrentMember();
   if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
   }
 
   if (!isAdminOrAbove(member.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Keine Berechtigung." }, { status: 403 });
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: "Ungültige Anfrage." }, { status: 400 });
   }
 
   const parsed = updateCategorySchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Validation failed", details: parsed.error.issues },
+      { error: "Ungültige Eingabe.", details: parsed.error.issues },
       { status: 400 }
     );
   }
@@ -104,7 +104,7 @@ export async function PATCH(request: NextRequest) {
     where: { id, organizationId: member.organizationId },
   });
   if (!existing) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ error: "Nicht gefunden." }, { status: 404 });
   }
 
   const updated = await db.absenceCategory.update({
@@ -123,17 +123,17 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const member = await getCurrentMember();
   if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
   }
 
   if (!isAdminOrAbove(member.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Keine Berechtigung." }, { status: 403 });
   }
 
   const { searchParams } = request.nextUrl;
   const id = searchParams.get("id");
   if (!id) {
-    return NextResponse.json({ error: "Missing id parameter" }, { status: 400 });
+    return NextResponse.json({ error: "Kennung fehlt." }, { status: 400 });
   }
 
   // Verify category belongs to org
@@ -141,7 +141,7 @@ export async function DELETE(request: NextRequest) {
     where: { id, organizationId: member.organizationId },
   });
   if (!existing) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ error: "Nicht gefunden." }, { status: 404 });
   }
 
   // Check if category is used by any absence
@@ -151,7 +151,7 @@ export async function DELETE(request: NextRequest) {
   if (absenceCount > 0) {
     return NextResponse.json(
       {
-        error: `Kategorie wird von ${absenceCount} Abwesenheit${absenceCount > 1 ? "en" : ""} verwendet und kann nicht geloescht werden`,
+        error: `Kategorie wird von ${absenceCount} Abwesenheit${absenceCount > 1 ? "en" : ""} verwendet und kann nicht gelöscht werden`,
       },
       { status: 409 }
     );

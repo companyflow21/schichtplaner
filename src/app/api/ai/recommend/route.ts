@@ -12,7 +12,7 @@ import { getEmployeeScores } from "@/lib/ai/employee-recommender";
 export async function GET(request: NextRequest) {
   const member = await getCurrentMember();
   if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
   }
   // Die Bewertung vergleicht alle Mitglieder der Organisation und darf
   // deshalb nicht an Standortfreigaben vorbei laufen.
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
   if (!shiftId) {
     return NextResponse.json(
-      { error: "Missing shiftId parameter" },
+      { error: "Kennung der Schicht fehlt." },
       { status: 400 }
     );
   }

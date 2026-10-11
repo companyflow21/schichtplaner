@@ -141,7 +141,7 @@ export function ChatWidget() {
         <button
           onClick={() => setIsOpen(true)}
           className="fixed bottom-6 right-6 z-50 flex size-14 items-center justify-center rounded-full bg-primary text-white shadow-lg hover:bg-primary transition-all hover:scale-105 active:scale-95"
-          aria-label="KI-Chat oeffnen"
+          aria-label="KI-Chat öffnen"
         >
           <Sparkles className="size-6" />
         </button>
@@ -160,7 +160,7 @@ export function ChatWidget() {
               <Link
                 href="/ai/chat"
                 className="rounded-md p-1 hover:bg-primary transition-colors"
-                title="Vollbild oeffnen"
+                title="Vollbild öffnen"
               >
                 <Maximize2 className="size-4" />
               </Link>

@@ -30,7 +30,7 @@ export function useCurrentMember() {
     queryKey: ["current-member"],
     queryFn: async () => {
       const res = await fetch("/api/me");
-      if (!res.ok) throw new Error("Failed to fetch member");
+      if (!res.ok) throw new Error("Profil konnte nicht geladen werden.");
       return res.json();
     },
   });

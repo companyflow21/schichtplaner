@@ -6,7 +6,7 @@ import { getCurrentMember } from "@/lib/auth-helpers";
 export async function GET() {
   const member = await getCurrentMember();
   if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
   }
 
   const count = await db.messageRecipient.count({

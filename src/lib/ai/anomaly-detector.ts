@@ -186,7 +186,7 @@ export async function detectAnomalies(
             employeeId: userId,
             employeeName: userNameMap.get(userId) ?? "Unbekannt",
             date: dateStr,
-            details: `Ueberlappung: ${a.timeFrom}-${a.timeTo} und ${b.timeFrom}-${b.timeTo}`,
+            details: `Überlappung: ${a.timeFrom}-${a.timeTo} und ${b.timeFrom}-${b.timeTo}`,
             value: 0,
           });
         }

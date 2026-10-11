@@ -8,11 +8,11 @@ import { SUPPORTED_COUNTRIES, computeHolidaysForYears } from "@/lib/holidays";
 export async function GET() {
   const member = await getCurrentMember();
   if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
   }
 
   if (!isAdminOrAbove(member.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Keine Berechtigung." }, { status: 403 });
   }
 
   const org = await db.organization.findUnique({
@@ -30,7 +30,7 @@ export async function GET() {
   });
 
   if (!org) {
-    return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    return NextResponse.json({ error: "Organisation nicht gefunden." }, { status: 404 });
   }
 
   return NextResponse.json({
@@ -135,24 +135,24 @@ async function regenerateHolidays(
 export async function PATCH(request: NextRequest) {
   const member = await getCurrentMember();
   if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
   }
 
   if (!isAdminOrAbove(member.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Keine Berechtigung." }, { status: 403 });
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: "Ungültige Anfrage." }, { status: 400 });
   }
 
   const parsed = updateSettingsSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Validation failed", details: parsed.error.issues },
+      { error: "Ungültige Eingabe.", details: parsed.error.issues },
       { status: 400 }
     );
   }

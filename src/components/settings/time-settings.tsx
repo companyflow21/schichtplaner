@@ -45,7 +45,7 @@ export function TimeSettings({
       <div>
         <h2 className="text-xl font-semibold">Zeiterfassung</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Einstellungen fuer die Zeiterfassung
+          Einstellungen für die Zeiterfassung
         </p>
       </div>
 
@@ -65,7 +65,7 @@ export function TimeSettings({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">Alle Mitarbeiter</SelectItem>
-              <SelectItem value="CHOOSE">Auswaehlen</SelectItem>
+              <SelectItem value="CHOOSE">Auswählen</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -137,7 +137,7 @@ export function TimeSettings({
           <div className="space-y-0.5">
             <Label>Kategorien verwenden</Label>
             <p className="text-xs text-muted-foreground">
-              Zeiterfassungen koennen einer Kategorie zugewiesen werden
+              Zeiterfassungen können einer Kategorie zugewiesen werden
             </p>
           </div>
           <Switch

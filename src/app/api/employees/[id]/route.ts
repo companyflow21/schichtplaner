@@ -76,7 +76,7 @@ export async function PATCH(request: Request, context: Context) {
       if (!a.isAdmin) throw new ApiError("Nur die Administration aktiviert oder deaktiviert Konten.", 403);
       if (isActive === false && (self || target.role === "OWNER")) throw new ApiError("Eigenes Konto und Inhaber können nicht deaktiviert werden.", 400);
     }
-    if (data.email && await db.user.findFirst({ where: { email: data.email.toLowerCase(), NOT: { id: target.userId } } })) throw new ApiError("Email already in use", 409);
+    if (data.email && await db.user.findFirst({ where: { email: data.email.toLowerCase(), NOT: { id: target.userId } } })) throw new ApiError("Diese E-Mail-Adresse wird bereits verwendet.", 409);
     const updated = await db.$transaction(async (tx) => {
       const qualifications = data.qualifications === undefined ? undefined : await catalogQualifications(tx, a.orgId, data.qualifications);
       if (personnel || isActive !== undefined) await tx.organizationMember.update({ where: { id }, data: { position, employmentType, targetHoursPerWeek, targetHoursPerMonth, qualifications, isActive } });

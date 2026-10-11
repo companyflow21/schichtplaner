@@ -100,7 +100,7 @@ function TimeEditor({
     queryKey: ["time-categories"],
     queryFn: async () => {
       const res = await fetch("/api/time/categories");
-      if (!res.ok) throw new Error("Failed to fetch categories");
+      if (!res.ok) throw new Error("Kategorien konnten nicht geladen werden.");
       return res.json();
     },
   });
@@ -239,7 +239,7 @@ function TimeEditor({
                 <Label>Mitarbeiter</Label>
                 <Select value={userId} onValueChange={setUserId}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Mitarbeiter waehlen" />
+                    <SelectValue placeholder="Mitarbeiter wählen" />
                   </SelectTrigger>
                   <SelectContent>
                     {employees.map((emp) => (

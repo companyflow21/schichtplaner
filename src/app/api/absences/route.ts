@@ -76,8 +76,8 @@ export async function POST(request: NextRequest) {
     const status = manages && data.status === "APPROVED" ? "APPROVED" : "PENDING";
     if (!await db.organizationMember.findFirst({ where: { organizationId: a.orgId, userId: data.userId, isActive: true } })) throw new ApiError("Nicht gefunden.", 404);
     const category = await db.absenceCategory.findFirst({ where: { id: data.categoryId, organizationId: a.orgId } });
-    if (!category) throw new ApiError("Category not found", 404);
-    if (data.dateFrom > data.dateTo) throw new ApiError("dateFrom must be before or equal to dateTo");
+    if (!category) throw new ApiError("Kategorie nicht gefunden.", 404);
+    if (data.dateFrom > data.dateTo) throw new ApiError("Enddatum liegt vor dem Beginn.");
     const absence = await db.$transaction(async (tx) => {
       const created = await tx.absence.create({ data: { userId: data.userId, categoryId: data.categoryId, dateFrom: new Date(data.dateFrom), dateTo: new Date(data.dateTo), note: data.note || null, status }, include });
       const recipients = status === "PENDING" ? await staffHolders(tx, a.orgId, data.userId, "MANAGE_ABSENCES") : [data.userId];

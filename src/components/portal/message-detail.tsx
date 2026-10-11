@@ -76,7 +76,7 @@ export function MessageDetail() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ body: replyText }),
       });
-      if (!res.ok) throw new Error("Failed to reply");
+      if (!res.ok) throw new Error("Antwort konnte nicht gesendet werden.");
       return res.json();
     },
     onSuccess: () => {
@@ -94,7 +94,7 @@ export function MessageDetail() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isDeleted: true }),
       });
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) throw new Error("Aktion fehlgeschlagen.");
       return res.json();
     },
     onSuccess: () => {
@@ -121,7 +121,7 @@ export function MessageDetail() {
       <div className="flex-1">
         <Button variant="ghost" onClick={() => router.push("/portal/inbox")} className="gap-2 mb-4">
           <ArrowLeft className="size-4" />
-          Zurueck
+          Zurück
         </Button>
         <p className="text-muted-foreground">Nachricht nicht gefunden.</p>
       </div>
@@ -138,7 +138,7 @@ export function MessageDetail() {
       {/* Back button */}
       <Button variant="ghost" onClick={() => router.push("/portal/inbox")} className="gap-2 mb-4">
         <ArrowLeft className="size-4" />
-        Zurueck
+        Zurück
       </Button>
 
       <div className="akro-panel p-6">
@@ -221,7 +221,7 @@ export function MessageDetail() {
             onClick={() => trashMutation.mutate()}
           >
             <Trash2 className="size-4" />
-            Loeschen
+            Löschen
           </Button>
         </div>
 

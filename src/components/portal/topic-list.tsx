@@ -57,7 +57,7 @@ export function TopicList() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title }),
       });
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) throw new Error("Aktion fehlgeschlagen.");
       return res.json();
     },
     onSuccess: (data) => {
@@ -135,7 +135,7 @@ export function TopicList() {
                 </Badge>
                 <div className="text-right">
                   <div className="text-xs text-muted-foreground">
-                    Letzte Aktivitaet
+                    Letzte Aktivität
                   </div>
                   <div className="text-xs font-medium text-muted-foreground">
                     {format(new Date(topic.lastActivity), "dd. MMM yyyy, HH:mm", { locale: de })}

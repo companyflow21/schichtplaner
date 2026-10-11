@@ -12,7 +12,7 @@ import { detectAnomalies } from "@/lib/ai/anomaly-detector";
 export async function GET(request: NextRequest) {
   const member = await getCurrentMember();
   if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
   }
 
   if (!isAdminOrAbove(member.role)) {
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
   );
   if (!enabled) {
     return NextResponse.json(
-      { error: "Anomalie-Erkennung ist fuer diese Organisation deaktiviert" },
+      { error: "Anomalie-Erkennung ist für diese Organisation deaktiviert" },
       { status: 403 }
     );
   }
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
     return NextResponse.json(
-      { error: "Missing or invalid month parameter. Use yyyy-MM format." },
+      { error: "Ungültiger Monat (JJJJ-MM)." },
       { status: 400 }
     );
   }

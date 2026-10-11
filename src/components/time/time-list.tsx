@@ -394,8 +394,8 @@ export function TimeList() {
           <p className="text-lg font-medium">Keine Zeiterfassungen</p>
           <p className="text-sm text-muted-foreground mt-1">
             {search
-              ? "Keine Ergebnisse fuer die Suche."
-              : "Noch keine Zeiten fuer diesen Monat erfasst."}
+              ? "Keine Ergebnisse für die Suche."
+              : "Noch keine Zeiten für diesen Monat erfasst."}
           </p>
         </Card>
       )}

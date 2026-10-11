@@ -46,7 +46,7 @@ type AnomalyResponse = {
 const TYPE_LABELS: Record<AnomalyType, string> = {
   long_shift: "Lange Schicht",
   gap: "Fehlende Erfassung",
-  overlap: "Ueberlappung",
+  overlap: "Überlappung",
   deviation: "Soll/Ist-Abweichung",
 };
 
@@ -91,7 +91,7 @@ export function AnomalyBadge({ month, isManager }: AnomalyBadgeProps) {
     return (
       <Badge variant="outline" className="gap-1 text-xs text-muted-foreground">
         <Loader2 className="size-3 animate-spin" />
-        Pruefe...
+        Prüfe...
       </Badge>
     );
   }

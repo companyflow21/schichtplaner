@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 const PRESET_COLORS = [
   { name: "Indigo", hex: "#6366f1" },
   { name: "Rot", hex: "#ef4444" },
-  { name: "Gruen", hex: "#22c55e" },
+  { name: "Grün", hex: "#22c55e" },
   { name: "Blau", hex: "#3b82f6" },
   { name: "Gelb", hex: "#eab308" },
   { name: "Lila", hex: "#a855f7" },
@@ -134,7 +134,7 @@ export function DivisionForm({ division, trigger }: DivisionFormProps) {
             <DialogDescription>
               {isEdit
                 ? "Bearbeite die Details des Arbeitsbereichs."
-                : "Erstelle einen neuen Arbeitsbereich fuer dein Team."}
+                : "Erstelle einen neuen Arbeitsbereich für dein Team."}
             </DialogDescription>
           </DialogHeader>
 

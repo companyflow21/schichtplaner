@@ -30,7 +30,7 @@ export function ConnectionStatus() {
       title={
         reconnecting
           ? "Verbindung wird wiederhergestellt"
-          : "Keine Live-Verbindung - Aenderungen erscheinen verzoegert"
+          : "Keine Live-Verbindung – Änderungen erscheinen verzögert"
       }
     >
       <WifiOff className="size-3.5" />

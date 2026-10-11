@@ -214,7 +214,7 @@ export function DivisionList() {
                 onValueChange={setSelectedUserId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Mitarbeiter waehlen..." />
+                  <SelectValue placeholder="Mitarbeiter wählen..." />
                 </SelectTrigger>
                 <SelectContent>
                   {employeesData?.members?.map((emp) => (

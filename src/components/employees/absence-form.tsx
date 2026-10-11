@@ -140,7 +140,7 @@ function AbsenceEditor({
     queryKey: ["absence-categories"],
     queryFn: async () => {
       const res = await fetch("/api/absences/categories");
-      if (!res.ok) throw new Error("Failed to fetch categories");
+      if (!res.ok) throw new Error("Kategorien konnten nicht geladen werden.");
       return res.json();
     },
   });
@@ -208,11 +208,11 @@ function AbsenceEditor({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!categoryId) {
-      toast.error("Bitte eine Kategorie waehlen");
+      toast.error("Bitte eine Kategorie wählen");
       return;
     }
     if (days <= 0) {
-      toast.error("Ungueltige Datumsauswahl");
+      toast.error("Ungültige Datumsauswahl");
       return;
     }
     if (isEdit) {
@@ -272,7 +272,7 @@ function AbsenceEditor({
                 <Label>Mitarbeiter</Label>
                 <Select value={userId} onValueChange={setUserId}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Mitarbeiter waehlen" />
+                    <SelectValue placeholder="Mitarbeiter wählen" />
                   </SelectTrigger>
                   <SelectContent>
                     {employees.map((emp) => (
@@ -298,7 +298,7 @@ function AbsenceEditor({
               )}
               <Select value={categoryId} onValueChange={setCategoryId}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Kategorie waehlen" />
+                  <SelectValue placeholder="Kategorie wählen" />
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map((cat) => (

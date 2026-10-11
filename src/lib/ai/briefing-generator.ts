@@ -104,7 +104,7 @@ async function gatherBriefingContext(
   });
 
   if (!schedule) {
-    throw new Error("Schedule nicht gefunden");
+    throw new Error("Schichtplan nicht gefunden");
   }
 
   // 2. Aggregate per-day stats

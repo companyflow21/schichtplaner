@@ -91,7 +91,7 @@ export function ComposeMessage({ open, onOpenChange, defaultRecipientIds, defaul
     queryKey: ["message-references"],
     queryFn: async () => {
       const res = await fetch("/api/messages/references");
-      if (!res.ok) throw new Error("Bezuege konnten nicht geladen werden.");
+      if (!res.ok) throw new Error("Bezüge konnten nicht geladen werden.");
       return res.json();
     },
     enabled: open,
@@ -175,7 +175,7 @@ export function ComposeMessage({ open, onOpenChange, defaultRecipientIds, defaul
         <div className="space-y-4">
           {/* Recipients */}
           <div>
-            <Label>Empfaenger</Label>
+            <Label>Empfänger</Label>
             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
               {(zustaendig.length > 0 || noResponsible) && (
                 <Button type="button" size="sm" variant="ghost" onClick={selectResponsible}>An Zuständige</Button>
@@ -190,7 +190,7 @@ export function ComposeMessage({ open, onOpenChange, defaultRecipientIds, defaul
                 <PopoverTrigger asChild>
                   <div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border px-3 py-2 cursor-pointer hover:border-primary/40">
                     {selectedEmployees.length === 0 ? (
-                      <span className="text-sm text-muted-foreground">Empfaenger auswaehlen...</span>
+                      <span className="text-sm text-muted-foreground">Empfänger auswählen...</span>
                     ) : (
                       selectedEmployees.map((emp) => (
                         <Badge key={emp.id} variant="secondary" className="gap-1">

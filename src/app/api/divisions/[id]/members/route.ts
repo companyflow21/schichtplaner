@@ -9,7 +9,7 @@ type Context = { params: Promise<{ id: string }> };
 async function divisionFor(a: Access, id: string) {
   requireAdmin(a);
   const division = await db.division.findFirst({ where: { id, organizationId: a.orgId, deletedAt: null } });
-  if (!division) throw new ApiError("Not found", 404);
+  if (!division) throw new ApiError("Nicht gefunden.", 404);
   return division;
 }
 
@@ -49,7 +49,7 @@ export async function DELETE(request: Request, context: Context) {
     const division = await divisionFor(a, (await context.params).id);
     const { userId } = await body(request, assignSchema);
     const result = await db.divisionMember.deleteMany({ where: { divisionId: division.id, userId } });
-    if (!result.count) throw new ApiError("Not found", 404);
+    if (!result.count) throw new ApiError("Nicht gefunden.", 404);
     return { success: true };
   });
 }

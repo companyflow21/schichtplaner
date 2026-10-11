@@ -374,7 +374,7 @@ function DayToggles({
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Fehler beim Aendern");
+        throw new Error(data.error || "Fehler beim Ändern");
       }
       return res.json();
     },
@@ -389,7 +389,7 @@ function DayToggles({
   return (
     <div className="space-y-2">
       <p className="text-xs font-medium text-primary">
-        Tage fuer Self-Booking:
+        Tage für Self-Booking:
       </p>
       <div className="flex items-center gap-3 flex-wrap">
         {days.map((day) => (
@@ -424,14 +424,14 @@ function LiveLogFeed({ logs }: { logs: LiveLogData[] }) {
   if (logs.length === 0) {
     return (
       <div className="text-xs text-muted-foreground text-center py-2">
-        Noch keine Aktivitaet
+        Noch keine Aktivität
       </div>
     );
   }
 
   return (
     <div className="space-y-1.5 max-h-48 overflow-y-auto">
-      <p className="text-xs font-medium text-primary">Aktivitaet:</p>
+      <p className="text-xs font-medium text-primary">Aktivität:</p>
       {logs.map((log) => (
         <div
           key={log.id}

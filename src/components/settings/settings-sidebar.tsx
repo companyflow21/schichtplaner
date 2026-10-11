@@ -24,7 +24,7 @@ const sections = [
   },
   {
     key: "wishplan",
-    label: "Wunschplaene",
+    label: "Wunschpläne",
     icon: FileHeart,
   },
   {

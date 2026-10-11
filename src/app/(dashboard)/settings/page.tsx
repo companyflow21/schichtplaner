@@ -131,7 +131,7 @@ function SettingsContent() {
         <ShieldAlert className="size-12 text-muted-foreground/50" />
         <h2 className="text-xl font-semibold">Zugriff verweigert</h2>
         <p className="text-sm text-muted-foreground">
-          Nur Administratoren und Inhaber koennen die Einstellungen bearbeiten.
+          Nur Administratoren und Inhaber können die Einstellungen bearbeiten.
         </p>
       </div>
     );
@@ -205,7 +205,7 @@ function SettingsContent() {
           >
             <option value="schedule">Schichtplan</option>
             <option value="time">Zeiterfassung</option>
-            <option value="wishplan">Wunschplaene</option>
+            <option value="wishplan">Wunschpläne</option>
             <option value="employees">Mitarbeiter</option>
             <option value="qualifications">Qualifikationen</option>
             <option value="absences">Abwesenheiten</option>
@@ -234,16 +234,16 @@ function SettingsContent() {
           {activeSection === "wishplan" && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-xl font-semibold">Wunschplaene</h2>
+                <h2 className="text-xl font-semibold">Wunschpläne</h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Einstellungen fuer Wunschplaene
+                  Einstellungen für Wunschpläne
                 </p>
               </div>
               <Card className="flex flex-col items-center justify-center p-12 text-center">
-                <p className="text-lg font-medium">Bald verfuegbar</p>
+                <p className="text-lg font-medium">Bald verfügbar</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Die Einstellungen fuer Wunschplaene werden in einem zukuenftigen
-                  Update hinzugefuegt.
+                  Die Einstellungen für Wunschpläne werden in einem zukünftigen
+                  Update hinzugefügt.
                 </p>
               </Card>
             </div>
@@ -258,10 +258,10 @@ function SettingsContent() {
                 </p>
               </div>
               <Card className="flex flex-col items-center justify-center p-12 text-center">
-                <p className="text-lg font-medium">Bald verfuegbar</p>
+                <p className="text-lg font-medium">Bald verfügbar</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Weitere Mitarbeiter-Einstellungen werden in einem zukuenftigen
-                  Update hinzugefuegt.
+                  Weitere Mitarbeiter-Einstellungen werden in einem zukünftigen
+                  Update hinzugefügt.
                 </p>
               </Card>
             </div>

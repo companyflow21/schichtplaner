@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     const people = await visiblePeople(a);
     if (ids.some((id) => !canSee(people, id))) throw new ApiError("Du kannst diesen Personen nicht schreiben.", 403);
     const valid = await db.organizationMember.findMany({ where: { organizationId: a.orgId, userId: { in: ids }, isActive: true }, select: { userId: true } });
-    if (!valid.length) throw new ApiError("No valid recipients found");
+    if (!valid.length) throw new ApiError("Keine gültigen Empfänger gefunden.");
     const message = await db.message.create({
       data: {
         organizationId: a.orgId, senderId: a.userId, shiftId: ref.shiftId, branchId: ref.branchId, subject: data.subject, body: data.body,

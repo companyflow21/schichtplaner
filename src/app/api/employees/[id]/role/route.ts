@@ -15,8 +15,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const { role } = await body(request, z.object({ role: z.enum(["ADMIN", "MANAGER", "EMPLOYEE"]) }));
     const target = await db.organizationMember.findFirst({ where: { id, organizationId: a.orgId } });
     if (!target) throw new ApiError("Nicht gefunden.", 404);
-    if (target.role === "OWNER") throw new ApiError("Cannot change the owner's role");
-    if (target.userId === a.userId) throw new ApiError("Cannot change your own role");
+    if (target.role === "OWNER") throw new ApiError("Die Rolle der Inhaberin bzw. des Inhabers kann nicht geändert werden.");
+    if (target.userId === a.userId) throw new ApiError("Die eigene Rolle kann nicht geändert werden.");
     const updated = await db.$transaction(async (tx) => {
       const member = await tx.organizationMember.update({ where: { id }, data: { role } });
       for (const grant of await tx.branchAccess.findMany({ where: { memberId: id } })) {

@@ -208,7 +208,7 @@ export function WishRequestButton({
           <DialogHeader>
             <DialogTitle>Wunsch senden</DialogTitle>
             <DialogDescription>
-              Sende einen Wunsch fuer diese Schicht. Dein Manager wird
+              Sende einen Wunsch für diese Schicht. Dein Manager wird
               benachrichtigt.
             </DialogDescription>
           </DialogHeader>

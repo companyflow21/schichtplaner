@@ -17,7 +17,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       where: { id, organizationId: a.orgId, OR: [{ senderId: a.userId }, { recipients: { some: { userId: a.userId } } }] },
       include: { recipients: { select: { userId: true } } },
     });
-    if (!parent) throw new ApiError("Parent message not found", 404);
+    if (!parent) throw new ApiError("Die ursprüngliche Nachricht wurde nicht gefunden.", 404);
     const { body: text } = await body(request, z.object({ body: z.string().trim().min(1).max(10000) }));
     const people = parent.senderId === a.userId ? null : await visiblePeople(a);
     // Ohne Absender (Konto geloescht) gehen Antworten nur an die uebrigen Empfaenger.

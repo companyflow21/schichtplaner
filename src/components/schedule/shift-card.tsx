@@ -163,12 +163,12 @@ export function ShiftCard({
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Fehler beim Hinzufuegen");
+        throw new Error(data.error || "Fehler beim Hinzufügen");
       }
       return res.json();
     },
     onSuccess: () => {
-      toast.success("Platz hinzugefuegt");
+      toast.success("Platz hinzugefügt");
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
     },
     onError: (error: Error) => {

@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       const memberships = await db.organizationMember.findMany({ where: { organizationId: a.orgId, userId: { in: existingUsers.map((u) => u.id) } }, select: { userId: true } });
       const already = new Set(memberships.map((m) => m.userId));
       const duplicates = existingUsers.filter((u) => already.has(u.id)).map((u) => u.email);
-      if (duplicates.length) return NextResponse.json({ error: "Some employees are already members", emails: duplicates }, { status: 409 });
+      if (duplicates.length) return NextResponse.json({ error: "Einige Personen sind bereits Mitglied.", emails: duplicates }, { status: 409 });
     }
 
     const createdMembers = await db.$transaction(async (tx) => {

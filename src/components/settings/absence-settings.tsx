@@ -30,7 +30,7 @@ type AbsenceCategory = {
 // German states by country
 const STATES: Record<string, { value: string; label: string }[]> = {
   DE: [
-    { value: "BW", label: "Baden-Wuerttemberg" },
+    { value: "BW", label: "Baden-Württemberg" },
     { value: "BY", label: "Bayern" },
     { value: "BE", label: "Berlin" },
     { value: "BB", label: "Brandenburg" },
@@ -45,13 +45,13 @@ const STATES: Record<string, { value: string; label: string }[]> = {
     { value: "SN", label: "Sachsen" },
     { value: "ST", label: "Sachsen-Anhalt" },
     { value: "SH", label: "Schleswig-Holstein" },
-    { value: "TH", label: "Thueringen" },
+    { value: "TH", label: "Thüringen" },
   ],
   AT: [
     { value: "B", label: "Burgenland" },
-    { value: "K", label: "Kaernten" },
-    { value: "NO", label: "Niederoesterreich" },
-    { value: "OO", label: "Oberoesterreich" },
+    { value: "K", label: "Kärnten" },
+    { value: "NO", label: "Niederösterreich" },
+    { value: "OO", label: "Oberösterreich" },
     { value: "S", label: "Salzburg" },
     { value: "ST", label: "Steiermark" },
     { value: "T", label: "Tirol" },
@@ -59,14 +59,14 @@ const STATES: Record<string, { value: string; label: string }[]> = {
     { value: "W", label: "Wien" },
   ],
   CH: [
-    { value: "ZH", label: "Zuerich" },
+    { value: "ZH", label: "Zürich" },
     { value: "BE", label: "Bern" },
     { value: "LU", label: "Luzern" },
     { value: "SG", label: "St. Gallen" },
     { value: "AG", label: "Aargau" },
     { value: "BS", label: "Basel-Stadt" },
     { value: "BL", label: "Basel-Landschaft" },
-    { value: "GR", label: "Graubuenden" },
+    { value: "GR", label: "Graubünden" },
     { value: "TI", label: "Tessin" },
     { value: "VS", label: "Wallis" },
   ],
@@ -183,12 +183,12 @@ export function AbsenceSettings({
       });
       if (!res.ok) {
         const d = await res.json();
-        throw new Error(d.error || "Fehler beim Loeschen");
+        throw new Error(d.error || "Fehler beim Löschen");
       }
       return res.json();
     },
     onSuccess: () => {
-      toast.success("Kategorie geloescht");
+      toast.success("Kategorie gelöscht");
       queryClient.invalidateQueries({ queryKey: ["settings"] });
     },
     onError: (err: Error) => {
@@ -223,7 +223,7 @@ export function AbsenceSettings({
   }
 
   function handleDelete(id: string) {
-    if (confirm("Kategorie wirklich loeschen?")) {
+    if (confirm("Kategorie wirklich löschen?")) {
       deleteMutation.mutate(id);
     }
   }
@@ -413,7 +413,7 @@ export function AbsenceSettings({
       <Card className="p-6 space-y-4">
         <Label className="text-base font-semibold">Feiertage</Label>
         <p className="text-xs text-muted-foreground -mt-2">
-          Land und Bundesland fuer die automatische Feiertagserkennung
+          Land und Bundesland für die automatische Feiertagserkennung
         </p>
 
         <div className="grid grid-cols-2 gap-4 max-w-md">
@@ -433,7 +433,7 @@ export function AbsenceSettings({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="DE">Deutschland</SelectItem>
-                <SelectItem value="AT">Oesterreich</SelectItem>
+                <SelectItem value="AT">Österreich</SelectItem>
                 <SelectItem value="CH">Schweiz</SelectItem>
               </SelectContent>
             </Select>
@@ -450,7 +450,7 @@ export function AbsenceSettings({
               disabled={isSaving || states.length === 0}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Waehlen..." />
+                <SelectValue placeholder="Wählen..." />
               </SelectTrigger>
               <SelectContent>
                 {states.map((s) => (

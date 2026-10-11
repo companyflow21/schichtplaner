@@ -94,7 +94,7 @@ export function FileBrowser() {
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed");
+        throw new Error(data.error || "Aktion fehlgeschlagen.");
       }
       return res.json();
     },
@@ -105,7 +105,7 @@ export function FileBrowser() {
       setCreateFolderOpen(false);
     },
     onError: (error: Error) => {
-      toast.error(error.message === "Forbidden" ? "Keine Berechtigung" : "Fehler beim Erstellen");
+      toast.error(error.message === "Keine Berechtigung." ? "Keine Berechtigung" : "Fehler beim Erstellen");
     },
   });
 
@@ -117,7 +117,7 @@ export function FileBrowser() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: renameName }),
       });
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) throw new Error("Aktion fehlgeschlagen.");
       return res.json();
     },
     onSuccess: () => {
@@ -131,14 +131,14 @@ export function FileBrowser() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await fetch(`/api/files/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) throw new Error("Aktion fehlgeschlagen.");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["files"] });
-      toast.success("Geloescht");
+      toast.success("Gelöscht");
     },
     onError: () => {
-      toast.error("Fehler beim Loeschen");
+      toast.error("Fehler beim Löschen");
     },
   });
 
@@ -266,7 +266,7 @@ export function FileBrowser() {
                             }}
                           >
                             <Trash2 className="mr-2 size-4" />
-                            Loeschen
+                            Löschen
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -321,7 +321,7 @@ export function FileBrowser() {
                             onClick={() => deleteMutation.mutate(file.id)}
                           >
                             <Trash2 className="mr-2 size-4" />
-                            Loeschen
+                            Löschen
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

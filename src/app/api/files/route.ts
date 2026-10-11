@@ -7,7 +7,7 @@ import { getCurrentMember, isAdminOrAbove } from "@/lib/auth-helpers";
 export async function GET(request: NextRequest) {
   const member = await getCurrentMember();
   if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
   }
 
   const folderId = request.nextUrl.searchParams.get("folderId") || null;
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   let currentFolderId = folderId;
   while (currentFolderId) {
     if (visited.has(currentFolderId)) {
-      return NextResponse.json({ error: "Folder not found" }, { status: 404 });
+      return NextResponse.json({ error: "Ordner nicht gefunden." }, { status: 404 });
     }
     visited.add(currentFolderId);
 
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       select: { id: true, name: true, parentId: true },
     });
     if (!folder) {
-      return NextResponse.json({ error: "Folder not found" }, { status: 404 });
+      return NextResponse.json({ error: "Ordner nicht gefunden." }, { status: 404 });
     }
     breadcrumb.unshift({ id: folder.id, name: folder.name });
     currentFolderId = folder.parentId;
@@ -64,24 +64,24 @@ const createFolderSchema = z.object({
 export async function POST(request: NextRequest) {
   const member = await getCurrentMember();
   if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
   }
 
   if (!isAdminOrAbove(member.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Keine Berechtigung." }, { status: 403 });
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: "Ungültige Anfrage." }, { status: 400 });
   }
 
   const parsed = createFolderSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Validation failed", details: parsed.error.issues },
+      { error: "Ungültige Eingabe.", details: parsed.error.issues },
       { status: 400 }
     );
   }
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       where: { id: parentId, organizationId: member.organizationId },
     });
     if (!parent) {
-      return NextResponse.json({ error: "Parent folder not found" }, { status: 404 });
+      return NextResponse.json({ error: "Ordner nicht gefunden." }, { status: 404 });
     }
   }
 

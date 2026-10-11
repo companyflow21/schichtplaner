@@ -87,7 +87,7 @@ export function can(a: Access, right: BranchRightKey, branchId: string | null | 
 }
 
 /** Wirft 404, wenn der Standort gar nicht sichtbar ist, sonst 403. */
-export function assertCan(a: Access, right: BranchRightKey, branchId: string | null | undefined, message = "Keine Berechtigung fuer diesen Standort.") {
+export function assertCan(a: Access, right: BranchRightKey, branchId: string | null | undefined, message = "Keine Berechtigung für diesen Standort.") {
   if (can(a, right, branchId)) return;
   const visible = a.isAdmin || (!!branchId && a.branches.has(branchId));
   throw new ApiError(visible ? message : "Nicht gefunden.", visible ? 403 : 404);
