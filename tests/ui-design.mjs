@@ -109,8 +109,19 @@ async function main() {
     const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(new Date());
     const current = isoWeek(new Date(today + 'T12:00:00Z'));
     const seedSchedule = (await api(admin, 'GET', `/api/schedules?kw=${current.kw}&year=${current.year}&standort=${branch.id}`)).schedule;
+    // Lange Besetzung in der Folgewoche: Die Seed-Schichten der laufenden Woche sind je nach Wochentag und Uhrzeit
+    // schon beendet und zeigen dann bewusst keinen Entfernen-Knopf. 13 Personen wie eine Seed-Grundschicht.
+    const nextWeek = new Date(today + 'T12:00:00Z'); nextWeek.setUTCDate(nextWeek.getUTCDate() + 7);
+    const longWeek = isoWeek(nextWeek);
+    const longTitle = 'Lange Besetzung (Design-Abnahme)';
+    const longPlan = (await api(admin, 'GET', `/api/schedules?kw=${longWeek.kw}&year=${longWeek.year}&standort=${branch.id}`)).schedule;
+    if (!longPlan.shifts.some(shift => shift.title === longTitle && shift.bookings.length > 4)) {
+      const crew = members.filter(member => /^load-user-\d{3}@/.test(member.user.email) && member.id !== employeeMember.id && member.id !== managerMember.id).slice(0, 13);
+      assert.equal(crew.length, 13, 'Synthetic crew for long staffing');
+      await api(admin, 'POST', '/api/shifts', { scheduleId: longPlan.id, dayOfWeek: 1, shiftFrom: '06:00', shiftTo: '14:00', maxEmployees: crew.length, title: longTitle, assignees: crew.map(member => member.user.id), confirm: true });
+    }
     await a.setViewportSize({ width: 375, height: 812 });
-    await a.goto(config.base + '/schedule/flexible/' + String(current.kw).padStart(2, '0') + '-' + current.year + '?standort=' + branch.id);
+    await a.goto(config.base + '/schedule/flexible/' + String(longWeek.kw).padStart(2, '0') + '-' + longWeek.year + '?standort=' + branch.id);
     const longCard = a.locator('article').filter({ has: a.locator('details') }).filter({ visible: true }).first();
     await visible(longCard);
     const extraPeople = longCard.locator('details');
