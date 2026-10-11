@@ -3,6 +3,8 @@ import { can, requireAccess, type Access } from "@/lib/access";
 import { ineffectiveBookings, shiftInclude, shiftView } from "@/lib/planning";
 import { ineffectiveFor, mergedScope, visibleFor } from "@/lib/schedule-visibility";
 import { ensureSchedule } from "@/lib/shift-service";
+import { branchHolidays } from "@/lib/holidays";
+import { weekDate } from "@/lib/berlin";
 
 const LEGACY = "ohne";
 
@@ -34,7 +36,7 @@ export async function GET(request: Request) {
     return serial(async tx => {
       if (standort) {
         const legacy = standort === LEGACY;
-        const branch = legacy ? null : await tx.branch.findFirst({ where: { id: standort, organizationId: a.orgId }, select: { id: true, name: true, isActive: true, customerId: true, customer: { select: { id: true, name: true } } } });
+        const branch = legacy ? null : await tx.branch.findFirst({ where: { id: standort, organizationId: a.orgId }, select: { id: true, name: true, isActive: true, customerId: true, holidayState: true, customer: { select: { id: true, name: true } } } });
         if (legacy ? !a.isAdmin : !branch) throw new ApiError("Nicht gefunden.", 404);
         const branchId = branch?.id ?? null;
         const access = scheduleAccess(a, branchId);
@@ -47,7 +49,8 @@ export async function GET(request: Request) {
         const base = schedule && visible ? schedule : { id: "", isPublic: false, settingsLayout: "LAYOUT_1" as const, showTitle: true, showPauses: true };
         return {
           schedule: { id: base.id, organizationId: a.orgId, branchId, weekNumber, year, isPublic: base.isPublic, settingsLayout: base.settingsLayout, showTitle: base.showTitle, showPauses: base.showPauses, shifts: shifts.map(s => shiftView(s, a, ineffective)) },
-          branch: branch ? { id: branch.id, name: branch.name, isActive: branch.isActive, customer: branch.customer, plannable: branch.isActive && !!branch.customerId } : null,
+          // Feiertage nach Bundesland des Einsatzorts; ohne Bundesland nur bundeseinheitliche (holidayState null zeigt das an).
+          branch: branch ? { id: branch.id, name: branch.name, isActive: branch.isActive, customer: branch.customer, plannable: branch.isActive && !!branch.customerId, holidayState: branch.holidayState, holidays: branchHolidays(branch.holidayState, weekDate(year, weekNumber, 1), weekDate(year, weekNumber, 7)).map(h => ({ ...h, dayOfWeek: (new Date(h.date + "T12:00:00Z").getUTCDay() + 6) % 7 + 1 })) } : null,
           access,
         };
       }

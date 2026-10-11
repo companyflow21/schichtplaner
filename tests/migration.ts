@@ -254,6 +254,18 @@ async function main() {
   check(recipient.pushedAt !== null && recipient.isRead === false, "existing unread messages are marked as pushed, read state unchanged");
   await push.close();
 
+  // Bundesland je Einsatzort: rein additiv; bestehende Standorte bleiben ohne Angabe (keine Ableitung aus Name oder Adresse).
+  const HOLIDAY = "20261012090000_branch_holiday_state";
+  const hol = await database(HOLIDAY);
+  await hol.exec(`
+    INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('h1','Org Feiertag',${now});
+    INSERT INTO "branches" ("id","organizationId","name","address","latitude","longitude") VALUES ('hb','h1','Jena','Teststraße 1, 07743 Jena',50.9,11.6);
+  `);
+  await hol.exec(await readFile("prisma/migrations/" + HOLIDAY + "/migration.sql", "utf8"));
+  const holidaySite = (await rows<{ holidayState: string | null; name: string; address: string; latitude: number }>(hol, `SELECT "holidayState","name","address","latitude" FROM "branches" WHERE "id"='hb'`))[0];
+  check(holidaySite.holidayState === null && holidaySite.name === "Jena" && holidaySite.address === "Teststraße 1, 07743 Jena" && holidaySite.latitude === 50.9, "existing sites keep their data and get no derived federal state");
+  await hol.close();
+
   console.log("SUCCESS: " + checks + " migration checks passed.");
 }
 

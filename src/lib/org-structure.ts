@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DE_STATE_CODES } from "./holidays";
 
 export const customerInput = z.object({
   name: z.string().trim().min(1, "Name fehlt.").max(120),
@@ -12,6 +13,7 @@ const branchFields = {
   address: z.string().max(500),
   meetingPoint: z.string().max(500),
   notes: z.string().max(2000),
+  holidayState: z.enum(DE_STATE_CODES).nullable(),
   positions: z.array(z.string().trim().min(1).max(100)).max(30),
   isActive: z.boolean(),
   latitude: z.number().min(-90).max(90).nullable(),
@@ -31,6 +33,7 @@ export const branchInput = z.object({
   longitude: branchFields.longitude.default(null),
   checkinRadiusM: branchFields.checkinRadiusM.default(50),
   gpsCheckinRequired: branchFields.gpsCheckinRequired.default(false),
+  holidayState: branchFields.holidayState.default(null),
 }).refine(
   (data) => {
     // latitude and longitude must be set together or both null

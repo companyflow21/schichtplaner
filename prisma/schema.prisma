@@ -231,6 +231,8 @@ model Branch {
   checkinRadiusM Int     @default(50)
   /// Zeiterfassung fuer Schichten dieses Standorts nur nach Check-in.
   gpsCheckinRequired Boolean @default(false)
+  /// Bundesland des Einsatzorts fuer gesetzliche Feiertage (DE, z. B. NW, TH); NULL = nicht festgelegt.
+  holidayState   String?
 
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer     Customer?     @relation(fields: [customerId], references: [id], onDelete: Restrict)

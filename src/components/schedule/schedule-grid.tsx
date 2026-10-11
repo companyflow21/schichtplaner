@@ -174,6 +174,11 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
           {branch.isActive ? "Standort ohne Kunde: neue Schichten erst nach der Zuordnung unter Einsatzorte." : "Standort inaktiv: keine neuen Schichten möglich."}
         </p>
       )}
+      {canEdit && branch && !branch.holidayState && (
+        <p className="mb-4 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
+          Für diesen Einsatzort ist kein Bundesland festgelegt. Angezeigt werden nur bundesweite Feiertage; landesrechtliche (z. B. Reformationstag in Thüringen, Allerheiligen in NRW) fehlen. Festlegen unter Einsatzorte → Bearbeiten.
+        </p>
+      )}
       {standort === "ohne" && (
         <p className="mb-4 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
           Altbestand ohne Standort – nur für die Administration sichtbar. Beim Bearbeiten einen Standort wählen.
@@ -197,7 +202,7 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
               const heute = isToday(date);
               return (
                 <div key={dayOfWeek} className={cn("akro-panel flex min-h-[28rem] min-w-0 flex-col overflow-hidden", heute && "border-primary/40")}>
-                  <TagesKopf kuerzel={dayNames[index]} datum={formatDateShort(date)} anzahl={dayShifts.length} offen={offeneMenge(dayShifts)} heute={heute} />
+                  <TagesKopf kuerzel={dayNames[index]} datum={formatDateShort(date)} anzahl={dayShifts.length} offen={offeneMenge(dayShifts)} heute={heute} feiertag={branch?.holidays?.find((h) => h.dayOfWeek === dayOfWeek)?.name} />
                   <div className={cn("flex flex-1 flex-col gap-2 p-2", heute && "bg-[var(--flaeche-heute)]")}>
                     {dayShifts.length === 0 && <LeererTag />}
                     {dayShifts.map((shift) => (
@@ -233,7 +238,7 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
             const heute = isToday(date);
             return (
               <div key={dayOfWeek} className="akro-panel overflow-hidden">
-                <TagesKopf kuerzel={dayNames[index]} datum={formatDateShort(date)} anzahl={dayShifts.length} offen={offeneMenge(dayShifts)} heute={heute} breit />
+                <TagesKopf kuerzel={dayNames[index]} datum={formatDateShort(date)} anzahl={dayShifts.length} offen={offeneMenge(dayShifts)} heute={heute} feiertag={branch?.holidays?.find((h) => h.dayOfWeek === dayOfWeek)?.name} breit />
                 <div className={cn("space-y-3 p-3", heute && "bg-[var(--flaeche-heute)]")}>
                   {dayShifts.length === 0 && <p className="py-2 text-center text-[12px] text-muted-foreground">Keine Schichten</p>}
                   {dayShifts.map((shift) => (
@@ -273,13 +278,14 @@ function offeneMenge(shifts: ShiftData[]): number {
 }
 
 /** Tag und Datum bilden die ruhige Orientierung oberhalb der Schichten. */
-function TagesKopf({ kuerzel, datum, anzahl, offen, heute, breit = false }: { kuerzel: string; datum: string; anzahl: number; offen: number; heute: boolean; breit?: boolean }) {
+function TagesKopf({ kuerzel, datum, anzahl, offen, heute, feiertag, breit = false }: { kuerzel: string; datum: string; anzahl: number; offen: number; heute: boolean; feiertag?: string; breit?: boolean }) {
   return (
     <div className={cn("border-b px-3 py-3", heute ? "bg-[var(--flaeche-heute)] text-primary" : "bg-card", !breit && "text-center")}>
       <div className={cn("flex gap-2", breit ? "items-center justify-between" : "flex-col items-center gap-0.5")}>
         <span className="text-[14px] font-semibold">{kuerzel}{heute && <span className="ml-1.5 text-[11px] font-medium">heute</span>}</span>
         <span className={cn("tabular text-[12px]", !heute && "text-muted-foreground")}>{datum}</span>
       </div>
+      {feiertag && <p className="mt-1 text-[11px] font-medium text-warn">Feiertag: {feiertag}</p>}
       <div className={cn("mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground", !breit && "justify-center")}>
         <span>{anzahl} {anzahl === 1 ? "Schicht" : "Schichten"}</span>
         {offen > 0 && <span className="font-medium text-warn">{offen} offen</span>}

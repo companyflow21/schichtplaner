@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const branches = await db.branch.findMany({
       where: { organizationId: a.orgId, ...(ids ? { id: { in: ids } } : {}) },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, address: true, meetingPoint: true, notes: true, positions: true, isActive: true, customerId: true, customer: { select: { id: true, name: true } }, latitude: true, longitude: true, checkinRadiusM: true, gpsCheckinRequired: true },
+      select: { id: true, name: true, address: true, meetingPoint: true, notes: true, positions: true, isActive: true, customerId: true, customer: { select: { id: true, name: true } }, latitude: true, longitude: true, checkinRadiusM: true, gpsCheckinRequired: true, holidayState: true },
     });
     return { branches };
   });

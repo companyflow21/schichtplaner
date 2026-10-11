@@ -182,6 +182,23 @@ function swissHolidays(year: number, state: string): ComputedHoliday[] {
 
 export const SUPPORTED_COUNTRIES = ["DE", "AT", "CH"] as const;
 
+/** Bundeslaender fuer Feiertage je Einsatzort (Schluessel wie in DE_STATE_HOLIDAYS). */
+export const DE_STATES = [
+  { value: "BW", label: "Baden-Württemberg" }, { value: "BY", label: "Bayern" }, { value: "BE", label: "Berlin" },
+  { value: "BB", label: "Brandenburg" }, { value: "HB", label: "Bremen" }, { value: "HH", label: "Hamburg" },
+  { value: "HE", label: "Hessen" }, { value: "MV", label: "Mecklenburg-Vorpommern" }, { value: "NI", label: "Niedersachsen" },
+  { value: "NW", label: "Nordrhein-Westfalen" }, { value: "RP", label: "Rheinland-Pfalz" }, { value: "SL", label: "Saarland" },
+  { value: "SN", label: "Sachsen" }, { value: "ST", label: "Sachsen-Anhalt" }, { value: "SH", label: "Schleswig-Holstein" },
+  { value: "TH", label: "Thüringen" },
+] as const;
+export const DE_STATE_CODES = DE_STATES.map(s => s.value) as [string, ...string[]];
+
+/** Gesetzliche Feiertage eines Einsatzorts zwischen from und to (YYYY-MM-DD, inklusive); ohne Bundesland nur die bundeseinheitlichen. */
+export function branchHolidays(state: string | null, from: string, to: string): ComputedHoliday[] {
+  const years = Array.from({ length: Number(to.slice(0, 4)) - Number(from.slice(0, 4)) + 1 }, (_, i) => Number(from.slice(0, 4)) + i);
+  return years.flatMap(year => computeHolidays("DE", state, year)).filter(h => h.date >= from && h.date <= to).sort((a, b) => a.date.localeCompare(b.date));
+}
+
 /** Alle gesetzlichen Feiertage eines Jahres, nach Datum sortiert. */
 export function computeHolidays(
   country: string,
