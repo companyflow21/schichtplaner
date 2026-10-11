@@ -89,8 +89,54 @@ try {
   check(!!atTarget, 'Schicht liegt nach dem Speichern weiter am bisherigen Einsatzort');
   check(atTarget?.divisionId === division.id, 'Arbeitsbereich ist nach dem Speichern unverändert');
 
-  // Bewusste Aenderung funktioniert weiterhin.
+  // Nur Titel und Pause aendern: Standort und Planzuordnung bleiben.
   await page.unrouteAll({ behavior: 'ignoreErrors' });
+  await page.reload();
+  const branchOf = async () => editor.locator('select[name=branchId]').inputValue();
+  const openShift = async (from, to) => {
+    await page.getByRole('button', { name: `Schicht ${from}–${to} bearbeiten` }).filter({ visible: true }).first().click();
+    await editor.getByText('Schicht bearbeiten', { exact: true }).waitFor({ state: 'visible' });
+    await editor.locator(`select[name=branchId] option[value="${target.id}"]`).waitFor({ state: 'attached' });
+  };
+  await openShift('10:00', '12:00');
+  await editor.getByLabel('Tätigkeit / Titel', { exact: true }).fill(title + ' geändert');
+  await editor.getByLabel('Pause in Minuten', { exact: true }).fill('15');
+  await editor.getByRole('button', { name: 'Speichern', exact: true }).click();
+  await editor.waitFor({ state: 'hidden', timeout: 30000 });
+  const retitled = (await api(context, 'GET', `/api/schedules?kw=${week.kw}&year=${week.year}&standort=${target.id}`)).schedule.shifts.find(s => s.id === created.id);
+  check(retitled?.scheduleId === created.scheduleId && retitled?.pauseValue === 15 && retitled?.divisionId === division.id, 'Titel/Pause geändert: gleicher Plan, gleicher Einsatzort, Arbeitsbereich erhalten');
+
+  // Erneutes Oeffnen und Wechsel zu einer zweiten Schicht.
+  await api(context, 'POST', '/api/shifts', { scheduleId: plan.id, dayOfWeek: 2, repeatDays: [2], shiftFrom: '13:00', shiftTo: '15:00', maxEmployees: 1, title: 'Zweite ' + stamp });
+  await page.reload();
+  await openShift('10:00', '12:00');
+  const firstOpen = await branchOf();
+  await editor.getByRole('button', { name: 'Abbrechen', exact: true }).click();
+  await editor.waitFor({ state: 'hidden' });
+  await openShift('13:00', '15:00');
+  const secondOpen = await branchOf();
+  await editor.getByRole('button', { name: 'Abbrechen', exact: true }).click();
+  await editor.waitFor({ state: 'hidden' });
+  await openShift('10:00', '12:00');
+  const reopened = await branchOf();
+  await editor.getByRole('button', { name: 'Abbrechen', exact: true }).click();
+  await editor.waitFor({ state: 'hidden' });
+  check(firstOpen === target.id && secondOpen === target.id && reopened === target.id, 'Erneutes Öffnen und Wechsel zwischen Schichten zeigen immer den tatsächlichen Einsatzort');
+
+  // Smartphone-Breite mit verzoegerter Standortliste.
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.route(isBranches, delay);
+  await page.reload();
+  await openShift('13:00', '15:00');
+  const mobile = await branchOf();
+  await editor.getByRole('button', { name: 'Speichern', exact: true }).click();
+  await editor.waitFor({ state: 'hidden', timeout: 30000 });
+  const mobileSaved = (await api(context, 'GET', `/api/schedules?kw=${week.kw}&year=${week.year}&standort=${target.id}`)).schedule.shifts.some(s => s.title === 'Zweite ' + stamp);
+  check(mobile === target.id && mobileSaved, 'Smartphone (375 px): Einsatzort korrekt, unverändertes Speichern verschiebt nichts');
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  // Bewusste Aenderung funktioniert weiterhin.
   await page.reload();
   const again = page.getByRole('button', { name: 'Schicht 10:00–12:00 bearbeiten' }).filter({ visible: true }).first();
   if (atTarget) {
