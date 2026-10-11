@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ShieldAlert, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -58,6 +58,11 @@ export default function SettingsPage() {
   const { data: currentMember, isLoading: memberLoading } = useCurrentMember();
   const [activeSection, setActiveSection] =
     useState<SettingsSection>("schedule");
+  // Direkter Einstieg aus Hinweisen, z. B. /settings?bereich=absences.
+  useEffect(() => {
+    const bereich = new URLSearchParams(window.location.search).get("bereich");
+    if (bereich && ["schedule", "time", "wishplan", "employees", "qualifications", "absences", "account"].includes(bereich)) setActiveSection(bereich as SettingsSection);
+  }, []);
 
   const isAdmin =
     currentMember?.role === "OWNER" || currentMember?.role === "ADMIN";

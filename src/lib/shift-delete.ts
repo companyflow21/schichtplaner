@@ -35,7 +35,7 @@ export async function shiftDeletion(tx: Tx, orgId: string, shift: ShiftWithRelat
   const openRequests = await tx.modRequest.count({ where: { AND: [openRequestsOf(shift.id), { state: "OPEN", shift: { schedule: { organizationId: orgId } } }] } });
   const base = { assignments: shift.bookings.length, openRequests };
   const blocked = (reason: string): ShiftDeletion => ({ deletable: false, reason, ...base });
-  if (!isFuture(shift)) return blocked("Die Schicht hat bereits begonnen oder ist vorbei – sie bleibt als Nachweis erhalten.");
+  if (!isFuture(shift)) return blocked("Die Schicht hat bereits begonnen oder ist vorbei – sie bleibt als Nachweis erhalten. Uhrzeit, Tätigkeit und Plätze lassen sich weiterhin über „Bearbeiten“ korrigieren.");
   // Jeder Check-in zaehlt (auch abgelehnte und ersetzte): er belegt die Schicht.
   if (await tx.checkin.count({ where: { shiftId: shift.id } })) return blocked("Für diese Schicht gibt es bereits einen Check-in.");
   const linked = await tx.timeRecord.count({ where: { organizationId: orgId, checkin: { shiftId: shift.id } } });

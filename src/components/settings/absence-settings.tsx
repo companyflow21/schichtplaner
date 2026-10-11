@@ -349,7 +349,7 @@ export function AbsenceSettings({
 
           {categories.length === 0 && !isCreating && (
             <p className="text-sm text-muted-foreground text-center py-4">
-              Noch keine Kategorien erstellt
+              Noch keine Abwesenheitsarten. Lege die Arten an, die Mitarbeitende beantragen können sollen, zum Beispiel Urlaub und Krank. Ob eine Art bezahlt ist, legst du je Art fest. Ohne Arten kann niemand eine Abwesenheit beantragen.
             </p>
           )}
         </div>

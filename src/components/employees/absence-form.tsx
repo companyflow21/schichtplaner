@@ -288,6 +288,14 @@ function AbsenceEditor({
             {/* Category select */}
             <div className="space-y-1.5">
               <Label>Kategorie</Label>
+              {categoriesData && categories.length === 0 && (
+                <p className="rounded-md border border-warn/40 bg-warn/5 px-3 py-2 text-sm" role="status">
+                  Es sind noch keine Abwesenheitsarten eingerichtet, deshalb kann noch kein Antrag gestellt werden.{" "}
+                  {currentMember?.access.isAdmin
+                    ? <a className="font-medium text-primary underline" href="/settings?bereich=absences">Arten unter Einstellungen → Abwesenheiten anlegen</a>
+                    : "Bitte wende dich an die Administration."}
+                </p>
+              )}
               <Select value={categoryId} onValueChange={setCategoryId}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Kategorie waehlen" />
