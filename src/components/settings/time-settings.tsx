@@ -98,7 +98,7 @@ export function TimeSettings({
             <div className="space-y-0.5">
               <Label>Warnungen aktivieren</Label>
               <p className="text-xs text-muted-foreground">
-                Warnung anzeigen wenn Maximalstunden ueberschritten werden
+                Hinweis im Dienstplan (Ansicht „Mitarbeiter“), wenn die geplanten Stunden eines Tages diese betriebliche Vorgabe überschreiten. Sperrt keine Einteilung.
               </p>
             </div>
             <Switch

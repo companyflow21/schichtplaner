@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import type { ScheduleData, ShiftData, BookingUser } from "@/types/schedule";
 import { formatName } from "@/lib/names";
 import { useNameFormat } from "@/lib/hooks/use-current-member";
+import { useWorkTimeHints, WorkTimeHints } from "./worktime-hints";
 
 interface EmployeeGridProps {
   weekNumber: number;
@@ -42,6 +43,8 @@ function shiftDurationHours(shift: ShiftData): number {
  */
 export function EmployeeGrid({ weekNumber, year, weekDates, standort }: EmployeeGridProps) {
   const nameFormat = useNameFormat();
+  const worktime = useWorkTimeHints(weekNumber, year, standort);
+  const hintCount = (key: string) => worktime.data?.hints.filter((h) => h.userId === key).length ?? 0;
   const { data, isLoading } = useQuery<{ schedule: ScheduleData }>({
     queryKey: ["schedule", weekNumber, year, standort ?? "alle"],
     queryFn: async () => {
@@ -136,8 +139,11 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
                         {getInitials(emp.user.firstName, emp.user.lastName)}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="text-xs font-medium truncate max-w-[120px]">
-                      {formatName(emp.user, nameFormat, { contractor: emp.key.startsWith("contractor:") })}
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium truncate max-w-[120px]">
+                        {formatName(emp.user, nameFormat, { contractor: emp.key.startsWith("contractor:") })}
+                      </div>
+                      {hintCount(emp.key) > 0 && <a href="#arbeitszeithinweise" className="block text-[11px] font-medium text-warn">⚠ {hintCount(emp.key)} {hintCount(emp.key) === 1 ? "Hinweis" : "Hinweise"}</a>}
                     </div>
                   </div>
                 </td>
@@ -194,6 +200,7 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
               <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">
                 {formatName(emp.user, nameFormat, { contractor: emp.key.startsWith("contractor:") })}
               </span>
+              {hintCount(emp.key) > 0 && <a href="#arbeitszeithinweise" className="text-[12px] font-medium text-warn">⚠ {hintCount(emp.key)}</a>}
               <span className="tabular text-[13px] text-muted-foreground">{emp.totalHours.toFixed(1)} h</span>
             </div>
             <ul className="divide-y divide-[var(--linie-fein)]">
@@ -217,6 +224,7 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
           </section>
         ))}
       </div>
+      {worktime.data && <WorkTimeHints data={worktime.data} people={employees.map((e) => ({ userId: e.key.includes(":") ? null : e.key, firstName: e.user.firstName, lastName: e.user.lastName }))} />}
     </>
   );
 }
