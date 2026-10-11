@@ -62,6 +62,9 @@ function AssigneeSelect({ branchId, value, onChange, limit }: { branchId: string
 function Editor({ open, onOpenChange, scheduleId, branchId, defaultDayOfWeek = 1, shift }: Props) {
   const action = useAction(), [days, setDays] = useState([shift?.dayOfWeek || defaultDayOfWeek]);
   const [kopieren, setKopieren] = useState(false);
+  // Fest gehalten: Die Auswahllisten laden oft erst nach dem Oeffnen. Ein nur
+  // anfaenglich gesetzter Wert fiel dann auf den ersten Eintrag zurueck.
+  const [ort, setOrt] = useState(shift?.branchId || ""), [bereich, setBereich] = useState(shift?.divisionId || "");
   // Anlegen mit Einteilung: erst Vorschau (nichts gespeichert), dann anlegen.
   const [places, setPlaces] = useState(shift?.maxEmployees || 1);
   const [assignees, setAssignees] = useState<string[]>([]);
@@ -103,14 +106,15 @@ function Editor({ open, onOpenChange, scheduleId, branchId, defaultDayOfWeek = 1
     }}>
       <label>Beginn<TimeInput name="shiftFrom" defaultValue={shift?.shiftFrom || "08:00"} required /></label><label>Ende<TimeInput name="shiftTo" defaultValue={shift?.shiftTo || "17:00"} required /></label>
       {shift ? (
-        <label>Einsatzort<select name="branchId" defaultValue={shift.branchId || ""} className={selectClass} required={!shift.branchId}>
+        <label>Einsatzort<select name="branchId" value={ort} onChange={e => setOrt(e.target.value)} className={selectClass} required={!shift.branchId}>
           {!shift.branchId && <option value="">Bitte zuordnen</option>}
+          {shift.branchId && !plannable.some(b => b.id === shift.branchId) && <option value={shift.branchId}>{locations.isPending ? "Wird geladen …" : "Bisheriger Einsatzort"}</option>}
           {plannable.map(b => <option key={b.id} value={b.id}>{b.name}{b.customer ? " · " + b.customer.name : ""}</option>)}
         </select></label>
       ) : (
         <div className="text-sm"><span className="block">Einsatzort</span><span className="flex h-10 items-center text-muted-foreground">{currentBranch ? currentBranch.name + (currentBranch.customer ? " · " + currentBranch.customer.name : "") : "Standort des Plans"}</span></div>
       )}
-      <label>Arbeitsbereich<select name="divisionId" defaultValue={shift?.divisionId || ""} className={selectClass}><option value="">Kein Arbeitsbereich</option>{divisions.data?.divisions.map(d => <option key={d.id} value={d.id}>{d.title}</option>)}</select></label>
+      <label>Arbeitsbereich<select name="divisionId" value={bereich} onChange={e => setBereich(e.target.value)} className={selectClass}><option value="">Kein Arbeitsbereich</option>{shift?.divisionId && !divisions.data?.divisions.some(d => d.id === shift.divisionId) && <option value={shift.divisionId}>{divisions.isPending ? "Wird geladen …" : "Bisheriger Arbeitsbereich"}</option>}{divisions.data?.divisions.map(d => <option key={d.id} value={d.id}>{d.title}</option>)}</select></label>
       <label>Tätigkeit / Titel<Input name="title" list="shift-positions" defaultValue={shift?.title || ""} maxLength={100} /><datalist id="shift-positions">{[...new Set(currentBranch?.positions ?? [])].map(p => <option key={p} value={p} />)}</datalist></label>
       <label>Benötigte Mitarbeitende<Input name="maxEmployees" type="number" min={1} max={100} defaultValue={shift?.maxEmployees || 1} onChange={e => setPlaces(Math.max(1, Number(e.target.value) || 1))} required /></label>
       <label>Pause in Minuten<Input name="pauseValue" type="number" min={0} max={120} defaultValue={shift?.pauseValue || 0} required /></label><label>Pausenregel<select name="pauseOption" className={selectClass} defaultValue={shift?.pauseOption || "PER_SHIFT"}><option value="PER_SHIFT">Pro Schicht</option><option value="PER_HOUR">Pro Stunde</option></select></label>
