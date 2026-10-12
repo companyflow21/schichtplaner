@@ -65,14 +65,14 @@ export function PayrollView() {
       </div>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="icon-sm" aria-label="Vorheriger Monat" onClick={() => shiftMonth(-1)}><ChevronLeft className="size-4" /></Button>
-          <span className="min-w-[220px] text-center text-lg font-semibold">{wholeMonth ? monthTitle(from) : longDate(from) + " – " + longDate(to)}</span>
+          <span className="min-w-[150px] text-center text-lg font-semibold sm:min-w-[220px]">{wholeMonth ? monthTitle(from) : longDate(from) + " – " + longDate(to)}</span>
           <Button variant="outline" size="icon-sm" aria-label="Nächster Monat" onClick={() => shiftMonth(1)}><ChevronRight className="size-4" /></Button>
           <Button variant="ghost" size="sm" onClick={() => setCustom((v) => !v)}>Zeitraum wählen</Button>
         </div>
         {custom && (
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
             <Input type="date" aria-label="Von" value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} className="w-40" />
             <span>bis</span>
             <Input type="date" aria-label="Bis" value={to} min={from} onChange={(e) => e.target.value && setTo(e.target.value)} className="w-40" />
@@ -119,7 +119,7 @@ export function PayrollView() {
               <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 font-medium">Name</th>
-                  <th className="px-3 py-2 font-medium">Personalnr.</th>
+                  <th className="hidden px-3 py-2 font-medium sm:table-cell">Personalnr.</th>
                   <th className="hidden px-3 py-2 font-medium md:table-cell">Lohnart</th>
                   <th className="px-3 py-2 text-right font-medium">Stunden</th>
                   <th className="px-3 py-2 text-right font-medium">Lohn</th>
@@ -138,7 +138,7 @@ export function PayrollView() {
                             {p.minutes > 0 && p.warnings.length > 0 && <AlertTriangle className="size-4 text-warn" aria-label={p.warnings.join(" ")} />}
                           </span>
                         </td>
-                        <td className="px-3 py-2 tabular-nums">{p.personnelNumber ?? <span className="text-muted-foreground">–</span>}</td>
+                        <td className="hidden px-3 py-2 tabular-nums sm:table-cell">{p.personnelNumber ?? <span className="text-muted-foreground">–</span>}</td>
                         <td className="hidden px-3 py-2 md:table-cell">{p.payType ? p.payType.title + " (" + euro(p.payType.hourlyRateCents) + ")" : <span className="text-muted-foreground">keine</span>}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{hours(p.minutes)}</td>
                         <td className="px-3 py-2 text-right font-medium tabular-nums">{euro(p.totalCents)}</td>
@@ -167,6 +167,7 @@ export function PayrollView() {
 function PersonDetail({ person }: { person: Person }) {
   return (
     <div className="space-y-3">
+      <p className="text-sm sm:hidden">Personalnr. {person.personnelNumber ?? "–"} · {person.payType ? person.payType.title : "keine Lohnart"}</p>
       {person.warnings.length > 0 && (
         <ul className="space-y-1 text-sm text-warn">{person.warnings.map((w) => <li key={w} className="flex items-center gap-2"><AlertTriangle className="size-4 shrink-0" />{w}</li>)}</ul>
       )}

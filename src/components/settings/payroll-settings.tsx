@@ -49,7 +49,7 @@ export function surchargeSummary(s: Surcharge, divisions: Division[]): string {
     ...(s.holidays ? ["Feiertage"] : []),
     ...(s.dates.length ? [datesText(s.dates)] : []),
   ].join(" · ");
-  const time = s.timeFrom === "00:00" && s.timeTo === "00:00" ? "ganzer Tag" : s.timeFrom + "–" + s.timeTo + (s.timeTo <= s.timeFrom ? " (Folgetag)" : "");
+  const time = s.timeFrom === "00:00" && s.timeTo === "00:00" ? "ganzer Tag" : s.timeTo === "00:00" ? s.timeFrom + "–24:00" : s.timeFrom + "–" + s.timeTo + (s.timeTo <= s.timeFrom ? " (Folgetag)" : "");
   const who = s.allPeople ? "" : " · " + s.userIds.length + " " + (s.userIds.length === 1 ? "Person" : "Personen");
   const where = s.allDivisions ? "" : " · " + s.divisionIds.map((id) => divisions.find((d) => d.id === id)?.title ?? "gelöscht").join(", ");
   return days + " · " + time + " · " + rateLabel(s) + who + where;

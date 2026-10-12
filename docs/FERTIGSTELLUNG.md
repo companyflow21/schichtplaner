@@ -23,7 +23,8 @@ Noch nicht eingespielt.
 | P1 | Lohn je Buchung über echte Schicht – `lib/payroll-service.ts` | Buchung in veröffentlichter Schicht erhält Lohnart des Arbeitsbereichs; ohne Schicht die der Person; Standortfilter | bestanden | `tests/payroll.ts` |
 | P1 | Lohnexport CSV – `api/payroll/export` | Zeile je Person und Lohnart/Zuschlag mit Personalnummer, Code, Stunden, Satz, Betrag; ohne Sätze nur Stunden; Personen abwählbar | bestanden | `tests/payroll.ts` |
 | P1 | Migration `20261012090000_payroll` | Rein additiv, Bestand unverändert | bestanden | `npm run test:migration` (66) |
-| P1 | Oberfläche „Einstellungen › Lohn“ und „Lohn“ | Bedienbar auf Desktop und 375 px ohne Überbreite | siehe unten | Browser |
+| P1 | Oberfläche „Einstellungen › Lohn“ und „Lohn“ | Bedienbar auf Desktop und 375 px ohne Überbreite | bestanden | Browser (Produktions-Build, `npm run preview:test`): Einstellungen mit Zuschlagsformular, Lohn Oktober mit Rechenweg (Elke 300,00 €, Emil 168,75 € inkl. Sonntag), Export-Dialog und CSV-Download; 1366 px und 375 px ohne Überbreite (vorher 78 px in der Monatsleiste, behoben) |
+| P0 | Anmeldeformulare vor der Hydrierung – `(auth)/login`, `register`, `activate` | Zugangsdaten landen nie in der Adresse | bestanden | Browser ohne JavaScript: Absenden bleibt auf `/login` ohne Parameter (vorher `?email=…&password=…`) |
 | P1 | Steuerliche Behandlung der Zuschläge | Sätze und Vorrangregeln mit Steuerbüro abgestimmt | offen | Fachliche Entscheidung AKRO |
 
 ### Prüfungen am 12.10.2026 (lokal)
@@ -35,6 +36,8 @@ Noch nicht eingespielt.
 | `npm run test:workflows` | 1368/1368 |
 | `npm run test:migration` | 66/66 |
 | `npm run test:payroll` | 31/31 |
+| `npm run build` | erfolgreich |
+| Hinweis Testumgebung | `test:workflows` mit `TEST_NODE_ENV=production`: Echtzeit-Test in `tests/permissions.ts` bekommt über HTTP keine Socket-Verbindung (unabhängig von P0/P1, nicht weiter untersucht); im Entwicklungsmodus wird die Oberfläche im Headless-Browser nicht interaktiv. Browserprüfungen deshalb über `npm run preview:test`. |
 
 ## Erweiterung Kommunikation, Tausch, GPS-Check-in
 
