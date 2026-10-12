@@ -203,7 +203,8 @@ export async function discardEdits(tx: Tx, a: Access, schedule: Schedule) {
     const shift = await tx.shift.findUniqueOrThrow({ where: { id }, include: shiftInclude });
     for (const b of shift.bookings) {
       const check = b.userId ? await assessAssignment(tx, shift, b.userId) : b.contractorWorkerId ? await assessContractorAssignment(tx, shift, b.contractorWorkerId) : null;
-      if (check?.blocks.includes(OVERLAP)) conflicts.push(formatName(personName(b), a.member.organization.nameFormat, { contractor: !!b.contractorWorkerId }) + " (" + shiftLabel(shift) + ")");
+      // Beim Einteilen nur ein bestaetigbarer Hinweis; Verwerfen stellt eine Doppelbelegung trotzdem nicht still wieder her.
+      if (check && [...check.blocks, ...check.warnings].includes(OVERLAP)) conflicts.push(formatName(personName(b), a.member.organization.nameFormat, { contractor: !!b.contractorWorkerId }) + " (" + shiftLabel(shift) + ")");
     }
   }
   if (conflicts.length) throw new ApiError("Verwerfen nicht möglich: Die Wiederherstellung ergäbe Überschneidungen mit anderen Schichten – " + conflicts.join("; ") + ". Bitte zuerst dort lösen.", 409, { conflicts });
