@@ -4,6 +4,7 @@ import { addDate, berlinDate, berlinTime, minuteOfDay, shiftRange } from "@/lib/
 import { branchIds, can, requireAccess, staffIds, timeScope, type Access } from "@/lib/access";
 import { checkAssignment, shiftInclude, shiftView } from "@/lib/planning";
 import { monthlyReport } from "@/lib/report";
+import { dashboardTasks } from "@/lib/dashboard-tasks";
 import { planningOverview } from "@/lib/overview";
 
 /** Eigene, veroeffentlichte Schichten ab jetzt (60 Tage). */
@@ -74,6 +75,7 @@ export async function GET() {
     return {
       ...base,
       manager: true,
+      tasks: await dashboardTasks(a, overview),
       overview: cards,
       todayShifts,
       counts: {
