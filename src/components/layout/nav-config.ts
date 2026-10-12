@@ -166,6 +166,18 @@ export function seitenTitel(pathname: string, me?: CurrentMember): string {
   return treffer ? treffer[1] : "Übersicht";
 }
 
+/**
+ * Ist dieser Eintrag aktiv? Fuer die Planung gehoeren alle Ansichten unter
+ * /schedule (Monat, flexibel, klassisch, Mitarbeiter) zum Punkt "Dienstplan".
+ * Gemeinsam genutzt von Seitenleiste und unterer Navigation.
+ */
+export function isNavItemActive(item: NavItem, pathname: string, role?: string): boolean {
+  if (item.key === "schedule" && isPlanner(role)) {
+    return pathname === "/schedule" || pathname.startsWith("/schedule/");
+  }
+  return isNavActive(item.href, pathname);
+}
+
 /** Ist dieser Navigationspunkt zur aktuellen Adresse aktiv? */
 export function isNavActive(href: string, pathname: string): boolean {
   if (href === "/employees/absences") return pathname.startsWith(href);

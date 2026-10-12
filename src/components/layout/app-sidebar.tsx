@@ -8,7 +8,7 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
 import { useUnreadCount } from "@/lib/hooks/use-unread-count";
-import { isNavActive, isPlanner, navFooterItems, navGroups } from "./nav-config";
+import { isNavActive, isNavItemActive, navFooterItems, navGroups } from "./nav-config";
 import { UserMenu } from "./user-menu";
 
 const SPEICHER_SCHLUESSEL = "akro:sidebar-eingeklappt";
@@ -137,9 +137,7 @@ export function AppSidebar() {
             <ul className="space-y-0.5">
               {group.items.map((item) => {
                 const Icon = item.icon;
-                const active = item.key === "schedule" && isPlanner(me?.role)
-                  ? pathname === "/schedule" || pathname.startsWith("/schedule/")
-                  : isNavActive(item.href, pathname);
+                const active = isNavItemActive(item, pathname, me?.role);
                 const count = item.badge === "unread" ? unread : 0;
                 return (
                   <li key={item.key}>
