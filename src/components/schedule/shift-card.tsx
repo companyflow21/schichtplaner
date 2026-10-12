@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeftRight, Ban, Copy, Loader2, Pencil, Plus, X } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Ban, Copy, Loader2, Lock, Pencil, Plus, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -417,6 +417,13 @@ export function ShiftCard({
               <WishRequestButton shiftId={shift.id} currentUserId={currentUserId} existingRequest={userWishRequest} />
             )}
           </div>
+        )}
+        {/* Plan in Bearbeitung: statt der ausgeblendeten Antrags- und Wunschknoepfe der Grund (nicht fuer die Planung). */}
+        {!canEdit && shift.requestsPaused && (
+          <p className="flex items-start gap-1.5 pt-1 text-[12px] leading-snug text-muted-foreground">
+            <Lock className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
+            <span>Anträge und Tausch sind bis zur Veröffentlichung dieser Woche gesperrt.</span>
+          </p>
         )}
         {/* Kapazität und Kopieren fuer die Planung */}
         {canEdit && (

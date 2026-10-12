@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { isToday } from "date-fns";
+import { Lock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { dayNames, formatDateShort } from "@/lib/utils/calendar";
@@ -27,6 +28,9 @@ type EmployeeRow = {
   dayShifts: Record<number, ShiftData[]>;
   totalHours: number;
 };
+
+/** Hinweis fuer Mitarbeitende, solange ein Plan der Woche in Bearbeitung ist (auch auf der Startseite). */
+export const BEARBEITUNG_HINWEIS = "Diese Woche wird gerade überarbeitet: Du siehst den zuletzt veröffentlichten Stand; Anträge, Tausch und Bestätigen sind bis zur Veröffentlichung gesperrt.";
 
 function getInitials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
@@ -91,11 +95,20 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
 
   // Statusbalken (Entwurf, in Bearbeitung) nur im Plan eines Standorts.
   const balken = standort ? <PlanStatusBanner schedule={data?.schedule ?? null} access={data?.access} standort={standort} /> : null;
+  // Mitarbeitende: eine Schicht der Woche liegt in einem Plan in Bearbeitung - die Planung hat den Statusbalken.
+  const pausiert = !data?.access?.planner && shifts.some((s) => s.requestsPaused && !s.can?.edit);
+  const hinweis = pausiert ? (
+    <p role="status" className="flex items-start gap-1.5 text-[13px] leading-5 text-muted-foreground">
+      <Lock className="mt-1 size-3.5 shrink-0" aria-hidden="true" />
+      <span>{BEARBEITUNG_HINWEIS}</span>
+    </p>
+  ) : null;
 
   if (employees.length === 0) {
     return (
       <>
         {balken}
+        {hinweis}
         <div className="akro-panel p-6 text-[14px] text-muted-foreground">
           Keine eingeplanten Mitarbeitenden in dieser Woche.
         </div>
@@ -106,6 +119,7 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
   return (
     <>
       {balken}
+      {hinweis}
       {/* Ab Tablet: Tabelle, Zeilen = Personen, Spalten = Mo-So */}
       <div className="akro-panel hidden overflow-x-auto md:block">
         <table className="w-full border-collapse">
