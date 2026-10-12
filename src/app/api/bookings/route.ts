@@ -5,6 +5,7 @@ import { assertCan, requireAccess, type Access } from "@/lib/access";
 import { assertReleasable, assign, findShift, notify, placeBooking, planningPool, shiftLabel, type ShiftWithRelations } from "@/lib/planning";
 import { closeOpenRequests, requestParties } from "@/lib/shift-requests";
 import { emitToBranch } from "@/lib/emit";
+import { shiftDays, signalBookedSites } from "@/lib/conflicts";
 
 type Tx = Prisma.TransactionClient;
 const input = z.object({ shiftId: z.string().min(1), userId: z.string().min(1) });
@@ -33,6 +34,8 @@ export async function POST(request: Request) {
       return assign(tx, a, data.shiftId, data.userId, data.confirm === true);
     }, { retry: true });
     emitToBranch(a.orgId, shift.schedule.branchId, "booking:changed", [data.userId]);
+    // Ueberschneidungen gelten ueber Standorte hinweg: auch deren Plaene neu pruefen lassen.
+    await signalBookedSites(a.orgId, [data.userId], "booking:changed", shiftDays(shift), shift.schedule.branchId);
     return { booking };
   });
 }
@@ -95,9 +98,10 @@ export async function PUT(request: Request) {
         await notify(tx, a.orgId, a.userId, [data.replacementUserId], "Neue Schicht", shiftLabel(shift) + ": Du bist fest eingeteilt.", shift.id);
         await informParties(tx, a, shift, parties);
       }
-      return { booking: created, branchId: shift.schedule.branchId, parties };
+      return { booking: created, branchId: shift.schedule.branchId, days: shiftDays(shift), parties };
     }, { retry: true });
     emitToBranch(a.orgId, result.branchId, "booking:changed", [data.userId, data.replacementUserId, ...result.parties]);
+    await signalBookedSites(a.orgId, [data.userId, data.replacementUserId], "booking:changed", result.days, result.branchId);
     return { booking: result.booking };
   });
 }
@@ -122,9 +126,10 @@ export async function DELETE(request: Request) {
         await notify(tx, a.orgId, a.userId, [data.userId], "Schichtzuweisung aufgehoben", shiftLabel(shift) + ": Deine Zuweisung wurde aufgehoben.", shift.id);
         await informParties(tx, a, shift, parties);
       }
-      return { branchId: shift.schedule.branchId, parties };
+      return { branchId: shift.schedule.branchId, days: shiftDays(shift), parties };
     }, { retry: true });
     emitToBranch(a.orgId, result.branchId, "booking:changed", [data.userId, ...result.parties]);
+    await signalBookedSites(a.orgId, [data.userId], "booking:changed", result.days, result.branchId);
     return { success: true };
   });
 }

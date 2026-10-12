@@ -6,6 +6,7 @@ import { loadShiftForDelete, openRequestsOf, shiftDeletion } from "@/lib/shift-d
 import { closeOpenRequests, requestParties } from "@/lib/shift-requests";
 import { shiftRange } from "@/lib/berlin";
 import { emitToBranch, emitToUsers } from "@/lib/emit";
+import { shiftDays, signalBookedSites } from "@/lib/conflicts";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -18,6 +19,8 @@ export async function PATCH(request: Request, context: Context) {
     const affected = personIds(shift.bookings);
     emitToBranch(a.orgId, shift.schedule.branchId, "schedule:updated", affected);
     if (previousBranchId !== shift.schedule.branchId) emitToBranch(a.orgId, previousBranchId, "schedule:updated");
+    // Ueberschneidungen gelten ueber Standorte hinweg: Plaene weiterer Schichten der Eingeteilten neu pruefen lassen.
+    await signalBookedSites(a.orgId, affected, "schedule:updated", shiftDays(shift), shift.schedule.branchId);
     return { shift: shiftView(shift, a) };
   });
 }
@@ -49,6 +52,7 @@ export async function DELETE(_request: Request, context: Context) {
       return { shift, booked, removed: removed.count, notified: [...informed, ...voided], requestsClosed: closed.length };
     }, { retry: true });
     emitToBranch(a.orgId, result.shift.schedule.branchId, "schedule:updated", result.booked);
+    await signalBookedSites(a.orgId, result.booked, "schedule:updated", shiftDays(result.shift), result.shift.schedule.branchId);
     emitToUsers(result.notified, "message:new");
     return { success: true, assignmentsRemoved: result.removed, requestsClosed: result.requestsClosed };
   });

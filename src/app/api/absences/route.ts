@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { canStaff, requireAccess, staffHolders, staffIds } from "@/lib/access";
 import { validDate } from "@/lib/berlin";
 import { notify } from "@/lib/planning";
+import { signalBookedSites } from "@/lib/conflicts";
 
 const include = {
   user: { select: { id: true, firstName: true, lastName: true, profileImage: true } },
@@ -84,6 +85,8 @@ export async function POST(request: NextRequest) {
       await notify(tx, a.orgId, a.userId, recipients, status === "PENDING" ? "Neuer Abwesenheitsantrag" : "Abwesenheit genehmigt", data.dateFrom + " bis " + data.dateTo + " · " + category.name);
       return created;
     });
+    // Genehmigte Abwesenheit macht Zuweisungen in diesem Zeitraum zum Konflikt: betroffene Plaene neu pruefen lassen.
+    if (status === "APPROVED") await signalBookedSites(a.orgId, [data.userId], "schedule:updated", { from: data.dateFrom, to: data.dateTo });
     return Response.json({ absence }, { status: 201 });
   });
 }

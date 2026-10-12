@@ -27,6 +27,7 @@ import { assignmentTests } from "./assignment";
 import { shiftDeleteTests } from "./shift-delete";
 import { employeeDeleteTests } from "./employee-delete";
 import { subcontractorTests } from "./subcontractors";
+import { conflictTests } from "./conflicts";
 import webpush from "web-push";
 
 async function main() {
@@ -271,6 +272,7 @@ try {
   if (run("shift-delete")) await shiftDeleteTests(context);
   if (run("employee-delete")) await employeeDeleteTests(context);
   if (run("subcontractors")) await subcontractorTests(context);
+  if (run("conflicts")) await conflictTests(context, sql);
   console.log("FINAL SUCCESS: " + checks + " assertions / HTTP checks passed.");
   if (process.argv.includes("--serve")) {
     console.log("BROWSER_PREVIEW " + base + " — admin@akro-test.invalid / " + password);

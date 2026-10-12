@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeftRight, Copy, Loader2, Pencil, Plus, X } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Ban, Copy, Loader2, Pencil, Plus, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -12,6 +12,7 @@ import { EmployeePicker } from "./employee-picker";
 import { CopyShiftDialog } from "./copy-shift-dialog";
 import { WishRequestButton, WishCountBadge } from "./wish-plan";
 import type { ShiftData, ScheduleLayout } from "@/types/schedule";
+import type { ConflictItem } from "@/types/conflicts";
 import type { WishRequest } from "./wish-plan";
 import { formatName } from "@/lib/names";
 import { useNameFormat } from "@/lib/hooks/use-current-member";
@@ -35,6 +36,12 @@ interface ShiftCardProps {
   userWishRequest?: WishRequest | null;
   /** Standort auf der Karte zeigen - im Plan eines Standorts steht er schon im Kopf. */
   zeigeStandort?: boolean;
+  /** Nur Planung: Konflikte und Hinweise der Zuweisungen dieser Schicht (GET /api/schedules/conflicts). */
+  conflicts?: ConflictItem[];
+  /** Element-ID der Karte als Sprungziel (Konfliktpanel). */
+  ankerId?: string;
+  /** Kurz hervorheben, etwa nach dem Sprung aus dem Konfliktpanel. */
+  hervorheben?: boolean;
 }
 
 function getInitials(firstName: string, lastName: string): string {
@@ -63,6 +70,9 @@ export function ShiftCard({
   showPauses = true,
   userWishRequest,
   zeigeStandort = true,
+  conflicts = [],
+  ankerId,
+  hervorheben = false,
 }: ShiftCardProps) {
   const queryClient = useQueryClient();
   const nameFormat = useNameFormat();
@@ -85,6 +95,9 @@ export function ShiftCard({
     ? shift.bookings.some((b) => b.userId === highlightUserId)
     : false;
   const isDimmed = highlightUserId ? !hasHighlightUser : false;
+  // Mindestens ein Konflikt: rot; nur Hinweise: wie eine offene Schicht orange.
+  const konflikt = conflicts.some((c) => c.severity === "fehler");
+  const nurHinweise = !konflikt && conflicts.length > 0;
 
   const hasPause = shift.pauseValue > 0;
   const pauseLabel =
@@ -221,6 +234,7 @@ export function ShiftCard({
     const canUnbook = canEdit && !ended && !!booking.userId;
     const canUnbookContractor = !!shift.can?.manageContractors && !ended && !!booking.contractorWorkerId;
     const name = formatName(booking.user, nameFormat, { contractor: !!booking.contractorWorkerId });
+    const eigene = conflicts.filter((c) => c.bookingId === booking.id);
     return (
       <div key={booking.id} className={cn("-mx-1 flex min-h-9 flex-wrap items-center gap-x-1.5 rounded-md px-1", highlightUserId && booking.userId === highlightUserId && "bg-primary/10")}>
         <Avatar size="sm" className="shrink-0">
@@ -229,7 +243,14 @@ export function ShiftCard({
         {/* Schmale Tagesspalten: die Aktionen rutschen unter den Namen statt ihn zu quetschen. */}
         <span className="min-w-20 flex-1 text-[12px] leading-4">
           {name}
-          {booking.unavailable && <span className="block text-[11px] font-medium text-warn">Nicht verfügbar</span>}
+          {/* Konto inaktiv und genehmigte Abwesenheit nennt die Konfliktpruefung genauer. */}
+          {booking.unavailable && !eigene.some((c) => c.kind === "inactive" || c.kind === "absence") && <span className="block text-[11px] font-medium text-warn">Nicht verfügbar</span>}
+          {eigene.map((c) => (
+            <span key={c.kind + (c.other?.shiftId ?? "")} className={cn("mt-0.5 flex items-start gap-1 text-[11px] font-medium", c.severity === "fehler" ? "text-destructive" : "text-warn")}>
+              {c.severity === "fehler" ? <Ban className="mt-0.5 size-3 shrink-0" aria-hidden="true" /> : <AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden="true" />}
+              <span>{c.text}</span>
+            </span>
+          ))}
         </span>
         {(canUnbook || canUnbookContractor) && (
           <div className="ml-auto flex shrink-0 items-center">
@@ -298,15 +319,17 @@ export function ShiftCard({
 
   return (
     <article
+      id={ankerId}
+      tabIndex={ankerId ? -1 : undefined}
       aria-label={`Schicht ${shift.shiftFrom} bis ${shift.shiftTo}`}
       aria-busy={isPending}
       className={cn(
-        "overflow-hidden rounded-lg border bg-card transition-colors",
-        !isFull && "border-warn/40",
+        "scroll-mt-24 overflow-hidden rounded-lg border bg-card transition-colors",
+        konflikt ? "border-destructive/35" : (!isFull || nurHinweise) && "border-warn/40",
         canEdit && "hover:border-primary/60",
         isPending && "pointer-events-none opacity-70",
         isDimmed && "opacity-40",
-        highlightUserId && hasHighlightUser && "border-primary ring-1 ring-primary/20"
+        (hervorheben || (highlightUserId && hasHighlightUser)) && "border-primary ring-1 ring-primary/20"
       )}
       style={isLayout1 ? {} : { borderLeftWidth: "3px", borderLeftColor: divisionColor }}
     >
@@ -368,9 +391,13 @@ export function ShiftCard({
         )}
 
         <div className="space-y-1 pt-2">
-          <StatusBadge ton={isFull ? "ok" : "hinweis"} klein className="max-w-full rounded-md">
-            {isFull ? "Voll besetzt" : `${emptySlots} ${emptySlots === 1 ? "Platz" : "Plätze"} offen`}
-          </StatusBadge>
+          <div className="flex flex-wrap gap-1">
+            {konflikt && <StatusBadge ton="fehler" klein className="max-w-full rounded-md">Konflikt</StatusBadge>}
+            {nurHinweise && <StatusBadge ton="hinweis" klein className="max-w-full rounded-md">Hinweis</StatusBadge>}
+            <StatusBadge ton={isFull ? "ok" : "hinweis"} klein className="max-w-full rounded-md">
+              {isFull ? "Voll besetzt" : `${emptySlots} ${emptySlots === 1 ? "Platz" : "Plätze"} offen`}
+            </StatusBadge>
+          </div>
           <p className="tabular text-[11px] text-muted-foreground">{bookedCount} von {shift.maxEmployees} besetzt</p>
           {ended && canEdit && <p className="text-[11px] text-muted-foreground">Schicht beendet · Zuweisungen bleiben erhalten.</p>}
           {canEdit && offeneBestätigungen > 0 && <p className="text-[11px] text-warn">{offeneBestätigungen} {offeneBestätigungen === 1 ? "Bestätigung offen" : "Bestätigungen offen"}</p>}
