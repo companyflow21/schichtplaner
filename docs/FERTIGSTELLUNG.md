@@ -28,10 +28,10 @@ Branch `claude/wizardly-cerf-cxbutc` (`0de1cc7`, `c21d5b3` und Folgekorrekturen)
 |---|---|
 | `npx tsc --noEmit` | 0 Fehler |
 | `npx eslint src tests --quiet` | 0 Fehler |
-| `npm run test:workflows` | nicht geprüft (Lauf vor dem letzten Testfix: alles grün bis auf eine falsche Erwartung im neuen Urlaubstest) |
+| `npm run test:workflows` | 1687/1687 |
 | `npm run test:migration` | 79/79 |
 | `npm run test:payroll` / `test:accounts` / `test:vacation` / `test:pdf` | 31/31, 15/15, 12/12, 14/14 |
-| `npm run build` | nicht geprüft |
+| `npm run build` | erfolgreich |
 
 ## Smartplan-Abgleich: P2 und P3 (12.10.2026)
 
