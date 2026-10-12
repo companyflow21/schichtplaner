@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { canStaff, requireAccess, type Access } from "@/lib/access";
 import { validDate } from "@/lib/berlin";
 import { notify } from "@/lib/planning";
+import { signalBookedSites } from "@/lib/conflicts";
 
 type Context = { params: Promise<{ id: string }> };
 const include = {
@@ -20,6 +21,12 @@ async function absenceFor(a: Access, id: string) {
   if (!self && !manages) throw new ApiError("Nicht gefunden.", 404);
   if (!await db.organizationMember.findFirst({ where: { organizationId: a.orgId, userId: absence.userId, isActive: true } })) throw new ApiError("Nicht gefunden.", 404);
   return { absence, manages };
+}
+
+/** Kalendertage, die der alte oder der neue Zeitraum beruehrt. */
+function spanOf(before: { dateFrom: Date; dateTo: Date }, after: { dateFrom: Date; dateTo: Date }) {
+  const day = (value: Date) => value.toISOString().slice(0, 10);
+  return { from: [day(before.dateFrom), day(after.dateFrom)].sort()[0], to: [day(before.dateTo), day(after.dateTo)].sort()[1] };
 }
 
 const updateAbsenceSchema = z.object({
@@ -54,6 +61,8 @@ export async function PATCH(request: Request, context: Context) {
       if (data.status && data.status !== absence.status) await notify(tx, a.orgId, a.userId, [absence.userId], "Abwesenheitsantrag " + (data.status === "APPROVED" ? "genehmigt" : data.status === "DECLINED" ? "abgelehnt" : "zur Prüfung"), result.dateFrom.toISOString().slice(0, 10) + " bis " + result.dateTo.toISOString().slice(0, 10));
       return result;
     });
+    // Genehmigt vorher oder nachher: Konflikte im alten und neuen Zeitraum koennen sich aendern.
+    if (absence.status === "APPROVED" || updated.status === "APPROVED") await signalBookedSites(a.orgId, [absence.userId], "schedule:updated", spanOf(absence, updated));
     return { absence: updated };
   });
 }
@@ -64,6 +73,7 @@ export async function DELETE(_request: Request, context: Context) {
     const { absence, manages } = await absenceFor(a, (await context.params).id);
     if (!manages && absence.status !== "PENDING") throw new ApiError("Nur noch nicht entschiedene Anträge können gelöscht werden.");
     await db.absence.delete({ where: { id: absence.id } });
+    if (absence.status === "APPROVED") await signalBookedSites(a.orgId, [absence.userId], "schedule:updated", spanOf(absence, absence));
     return { success: true };
   });
 }

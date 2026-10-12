@@ -266,6 +266,25 @@ async function main() {
   check(holidaySite.holidayState === null && holidaySite.name === "Jena" && holidaySite.address === "Teststraße 1, 07743 Jena" && holidaySite.latitude === 50.9, "existing sites keep their data and get no derived federal state");
   await hol.close();
 
+  // Plan-Lebenszyklus: rein additiv; bestehende Plaene bleiben Entwurf oder veroeffentlicht, keiner ist in Bearbeitung.
+  const EDITING = "20261012120000_schedule_editing";
+  const edit = await database(EDITING);
+  await edit.exec(`
+    INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('e1','Org Lebenszyklus',${now});
+    INSERT INTO "branches" ("id","organizationId","name") VALUES ('eb','e1','Objekt');
+    INSERT INTO "schedules" ("id","organizationId","branchId","weekNumber","year","isPublic","updatedAt") VALUES ('ep','e1','eb',10,2027,true,${now}),('ed','e1','eb',11,2027,false,${now});
+  `);
+  await edit.exec(await readFile("prisma/migrations/" + EDITING + "/migration.sql", "utf8"));
+  const plans = await rows<{ id: string; isPublic: boolean; editingSince: Date | null; editingById: string | null }>(edit, `SELECT "id","isPublic","editingSince","editingById" FROM "schedules" ORDER BY "id"`);
+  check(plans.length === 2 && plans.every((p) => p.editingSince === null && p.editingById === null) && plans.find((p) => p.id === "ep")?.isPublic === true && plans.find((p) => p.id === "ed")?.isPublic === false, "existing plans keep draft/published and are not in editing");
+  check((await rows(edit, `SELECT 1 FROM "schedule_snapshots"`)).length === 0, "no snapshots for existing plans");
+  await edit.exec(`INSERT INTO "schedule_snapshots" ("scheduleId","data") VALUES ('ep','{"version":1,"shifts":[]}')`);
+  await assert.rejects(edit.exec(`INSERT INTO "schedule_snapshots" ("scheduleId","data") VALUES ('ep','{}')`), /unique|duplicate/i);
+  await assert.rejects(edit.exec(`INSERT INTO "schedule_snapshots" ("scheduleId","data") VALUES ('fehlt','{}')`), /foreign key/i);
+  await edit.exec(`DELETE FROM "schedules" WHERE "id"='ep'`);
+  check((await rows(edit, `SELECT 1 FROM "schedule_snapshots"`)).length === 0, "at most one snapshot per plan, only for existing plans, removed with the plan");
+  await edit.close();
+
   console.log("SUCCESS: " + checks + " migration checks passed.");
 }
 

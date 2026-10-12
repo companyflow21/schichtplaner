@@ -6,6 +6,8 @@ import { loadShiftForDelete, openRequestsOf, shiftDeletion } from "@/lib/shift-d
 import { closeOpenRequests, requestParties } from "@/lib/shift-requests";
 import { shiftRange } from "@/lib/berlin";
 import { emitToBranch, emitToUsers } from "@/lib/emit";
+import { shiftDays, signalBookedSites } from "@/lib/conflicts";
+import { isEditing, notifiesEmployees } from "@/lib/schedule-status";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -18,6 +20,8 @@ export async function PATCH(request: Request, context: Context) {
     const affected = personIds(shift.bookings);
     emitToBranch(a.orgId, shift.schedule.branchId, "schedule:updated", affected);
     if (previousBranchId !== shift.schedule.branchId) emitToBranch(a.orgId, previousBranchId, "schedule:updated");
+    // Ueberschneidungen gelten ueber Standorte hinweg: Plaene weiterer Schichten der Eingeteilten neu pruefen lassen.
+    await signalBookedSites(a.orgId, affected, "schedule:updated", shiftDays(shift), shift.schedule.branchId);
     return { shift: shiftView(shift, a) };
   });
 }
@@ -27,6 +31,8 @@ export async function PATCH(request: Request, context: Context) {
  * noch Arbeitszeiten haengen (lib/shift-delete.ts), auch fuer Admins.
  * Alle offenen Antraege, die die Schicht nennen (eigene oder Gegen-Schicht
  * eines Tauschs), werden geschlossen; Zuweisungen entfallen. Je Person eine Nachricht.
+ * Waehrend der Bearbeitung des Plans keine Nachricht; offene Antraege bleiben
+ * bis zur Veroeffentlichung offen (beim Verwerfen kehrt die Schicht zurueck).
  */
 export async function DELETE(_request: Request, context: Context) {
   return api(async () => {
@@ -36,10 +42,10 @@ export async function DELETE(_request: Request, context: Context) {
       const shift = await loadShiftForDelete(tx, a, id);
       const check = await shiftDeletion(tx, a.orgId, shift);
       if (!check.deletable) throw new ApiError(check.reason!, 409);
-      const closed = await closeOpenRequests(tx, a, openRequestsOf(id), "Schicht wurde abgesagt.");
+      const closed = isEditing(shift.schedule) ? [] : await closeOpenRequests(tx, a, openRequestsOf(id), "Schicht wurde abgesagt.");
       const booked = personIds(shift.bookings);
       const when = shiftRange(shift).date.split("-").reverse().join(".") + ", " + shift.shiftFrom + "–" + shift.shiftTo;
-      const informed = shift.schedule.isPublic ? await notify(tx, a.orgId, a.userId, booked, "Schicht abgesagt", "Die Schicht " + (shift.title || "") + " von " + shift.shiftFrom + " bis " + shift.shiftTo + " wurde abgesagt.", id) : [];
+      const informed = notifiesEmployees(shift.schedule) ? await notify(tx, a.orgId, a.userId, booked, "Schicht abgesagt", "Die Schicht " + (shift.title || "") + " von " + shift.shiftFrom + " bis " + shift.shiftTo + " wurde abgesagt.", id) : [];
       // Beteiligte der geschlossenen Antraege, die nicht schon als Eingeteilte Bescheid wissen.
       const parties = requestParties(closed, [...informed, a.userId]);
       const voided = await notify(tx, a.orgId, a.userId, parties, "Antrag hinfällig", "Dein Antrag wurde geschlossen, weil die Schicht am " + when + " abgesagt wurde.", id);
@@ -49,6 +55,7 @@ export async function DELETE(_request: Request, context: Context) {
       return { shift, booked, removed: removed.count, notified: [...informed, ...voided], requestsClosed: closed.length };
     }, { retry: true });
     emitToBranch(a.orgId, result.shift.schedule.branchId, "schedule:updated", result.booked);
+    await signalBookedSites(a.orgId, result.booked, "schedule:updated", shiftDays(result.shift), result.shift.schedule.branchId);
     emitToUsers(result.notified, "message:new");
     return { success: true, assignmentsRemoved: result.removed, requestsClosed: result.requestsClosed };
   });

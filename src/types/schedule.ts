@@ -89,6 +89,9 @@ export type BriefingData = {
   updatedAt: string;
 };
 
+/** Lebenszyklus eines Wochenplans (siehe lib/schedule-status.ts). */
+export type ScheduleStatus = "DRAFT" | "PUBLISHED" | "EDITING";
+
 export type ScheduleData = {
   id: string;
   organizationId: string;
@@ -96,10 +99,48 @@ export type ScheduleData = {
   weekNumber: number;
   year: number;
   isPublic: boolean;
+  /** Nur fuer die Planung eines Standortplans; Mitarbeitende sehen isPublic. */
+  status?: ScheduleStatus;
+  editingSince?: string | null;
+  editingBy?: { name: string } | null;
   settingsLayout: ScheduleLayout;
   showTitle: boolean;
   showPauses: boolean;
   shifts: ShiftData[];
+};
+
+/** Kategorien einer geaenderten Schicht im Aenderungsdiff. */
+export type ScheduleDiffChange = "Zeit" | "Tag" | "Titel" | "Pause" | "Qualifikation" | "Arbeitsbereich" | "Plätze" | "Besetzung";
+
+/** Schicht im Aenderungsdiff (GET /api/schedules/[id]/diff). */
+export type ScheduleDiffShift = {
+  id: string;
+  /** "Mo, 05.10.2026, 08:00–16:00, Standort" */
+  label: string;
+  date: string;
+  dayOfWeek: number;
+  shiftFrom: string;
+  shiftTo: string;
+  title: string | null;
+  pauseOption: "PER_HOUR" | "PER_SHIFT";
+  pauseValue: number;
+  maxEmployees: number;
+  openPlaces: number;
+  requiredQualifications: string[];
+  division: { id: string; title: string } | null;
+  people: { key: string; name: string }[];
+};
+
+export type ScheduleDiffData = {
+  added: ScheduleDiffShift[];
+  /** movedTo: Schicht liegt jetzt in einem anderen Plan (anderer Standort). */
+  removed: (ScheduleDiffShift & { movedTo: ScheduleDiffShift | null })[];
+  changed: { shift: { id: string; label: string }; before: ScheduleDiffShift; after: ScheduleDiffShift; changes: ScheduleDiffChange[] }[];
+  /** Wer beim Veroeffentlichen mit Benachrichtigung genau eine Sammelmitteilung erhaelt. */
+  affectedUserIds: string[];
+  affected: { userId: string; name: string }[];
+  /** Neue oder geaenderte Schichten mit offenen Plaetzen ("Neue offene Schichten"). */
+  openPlacesAdded: boolean;
 };
 
 /** Rechte der angemeldeten Person an einem Standortplan. */
