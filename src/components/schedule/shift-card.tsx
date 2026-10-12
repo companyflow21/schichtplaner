@@ -277,6 +277,12 @@ export function ShiftCard({
               <ConfirmDialog
                 title="Zuweisung aufheben"
                 description={`${name} wird aus dieser Schicht entfernt. Der Platz ist danach wieder offen.`}
+                details={
+                  <ul className="list-disc space-y-1 pl-5">
+                    <li>Offene Anträge der Person zu dieser Schicht (Übernahme, Tausch) werden abgelehnt.</li>
+                    <li>Die Person wird nur bei veröffentlichtem Plan benachrichtigt, nicht im Entwurf und nicht während der Bearbeitung.</li>
+                  </ul>
+                }
                 confirmLabel="Entfernen"
                 onConfirm={() => booking.userId && unbookMutation.mutate(booking.userId)}
                 disabled={isPending}
@@ -296,6 +302,7 @@ export function ShiftCard({
               <ConfirmDialog
                 title="Subunternehmer-Zuweisung aufheben"
                 description={`${name} wird aus dieser Schicht entfernt. Der Platz ist danach wieder offen.`}
+                details={<p>Der Platzhalter hat kein Benutzerkonto; es wird keine Mitteilung versendet.</p>}
                 confirmLabel="Entfernen"
                 onConfirm={() => booking.contractorWorkerId && contractorMutation.mutate({ method: "DELETE", contractorWorkerId: booking.contractorWorkerId })}
                 disabled={isPending}
