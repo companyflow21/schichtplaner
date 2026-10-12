@@ -150,7 +150,7 @@ export function ScheduleToolbar({
           </h1>
           <button type="button" onClick={vor} aria-label="Nächste Woche" className="flex size-10 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><ChevronRight className="size-4" /></button>
         </div>
-        {!istAktuelleWoche && <Button variant="outline" size="sm" onClick={() => geheZu(current.weekNumber, current.year)}>Diese Woche</Button>}
+        <Button variant="outline" size="sm" disabled={istAktuelleWoche} onClick={() => geheZu(current.weekNumber, current.year)}>Heute</Button>
         <Button variant="outline" size="sm" asChild><Link href="/schedule/month">Standort wechseln</Link></Button>
         {schedule && <PlanStatusBadge schedule={schedule} />}
 

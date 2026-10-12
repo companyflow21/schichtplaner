@@ -121,9 +121,12 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
               <ChevronRight className="size-4" />
             </Link>
           </div>
-          {apiMonth !== heuteMonat && (
+          {/* Immer sichtbar wie in der Wochenansicht; im aktuellen Monat deaktiviert. */}
+          {apiMonth === heuteMonat ? (
+            <Button variant="outline" size="sm" disabled>Heute</Button>
+          ) : (
             <Button variant="outline" size="sm" asChild>
-              <Link href={monthPath(heuteMonat, standort, nurOffen)}>Aktueller Monat</Link>
+              <Link href={monthPath(heuteMonat, standort, nurOffen)}>Heute</Link>
             </Button>
           )}
         </div>
