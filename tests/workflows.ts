@@ -65,8 +65,11 @@ const port = Number(process.env.TEST_PORT || 3305);
 const base = "http://127.0.0.1:" + port;
 // Der eigene Server (server.ts) statt "next dev": nur so laufen Socket.IO und
 // die Echtzeit-Rechtepruefung mit.
+// TEST_NODE_ENV=production nutzt den Produktions-Build (vorher "npm run build"), etwa fuer
+// Browserpruefungen mit --serve: im Entwicklungsmodus wurde die Oberflaeche im Headless-Browser
+// nicht interaktiv.
 const child = spawn(process.execPath, ["node_modules/tsx/dist/cli.mjs", "server.ts"], {
-  cwd: process.cwd(), windowsHide: true, env: { ...process.env, NODE_ENV: "development", NEXT_DEV_WEBPACK: "1", PORT: String(port), DATABASE_URL: url, DATABASE_POOL_MAX: "1", AUTH_SECRET: "integration-test-secret-only-0123456789abcdef", AUTH_TRUST_HOST: "true", AUTH_URL: base, APP_URL: base, AI_ENABLED: "false", ALLOW_REGISTRATION: "false", PUSH_LOOP_DISABLED: "1", VAPID_PUBLIC_KEY: vapid.publicKey, VAPID_PRIVATE_KEY: vapid.privateKey, VAPID_SUBJECT: "mailto:push-test@akro-test.invalid", NEXT_TELEMETRY_DISABLED: "1", TZ: "Europe/Berlin" },
+  cwd: process.cwd(), windowsHide: true, env: { ...process.env, NODE_ENV: process.env.TEST_NODE_ENV === "production" ? "production" : "development", NEXT_DEV_WEBPACK: "1", PORT: String(port), DATABASE_URL: url, DATABASE_POOL_MAX: "1", AUTH_SECRET: "integration-test-secret-only-0123456789abcdef", AUTH_TRUST_HOST: "true", AUTH_URL: base, APP_URL: base, AI_ENABLED: "false", ALLOW_REGISTRATION: "false", PUSH_LOOP_DISABLED: "1", VAPID_PUBLIC_KEY: vapid.publicKey, VAPID_PRIVATE_KEY: vapid.privateKey, VAPID_SUBJECT: "mailto:push-test@akro-test.invalid", NEXT_TELEMETRY_DISABLED: "1", TZ: "Europe/Berlin" },
   stdio: ["ignore", "pipe", "pipe"]
 });
 let serverLog = "";
