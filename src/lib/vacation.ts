@@ -30,6 +30,7 @@ export type VacationYear = {
 
 const weekday = (date: string) => ((new Date(date + "T12:00:00Z").getUTCDay() + 6) % 7) + 1;
 const round2 = (value: number) => Math.round(value * 100) / 100;
+const german = (date: string) => date.slice(8, 10) + "." + date.slice(5, 7) + "." + date.slice(0, 4);
 
 /** Urlaubsjahr, in dem ein Tag liegt. */
 export function vacationYear(date: string, yearStart: string): { from: string; to: string } {
@@ -81,7 +82,7 @@ export function computeVacation(input: { rules: VacationRules; absences: Vacatio
       if (a.status === "PENDING") { pending += days; continue; }
       const date = a.from > year.from ? a.from : year.from;
       if (date > input.today) planned += days; else taken += days;
-      raw.push({ date, kind: "TAKEN", label: "Urlaub " + a.from + (a.to !== a.from ? " bis " + a.to : ""), days: -days });
+      raw.push({ date, kind: "TAKEN", label: "Urlaub " + german(a.from) + (a.to !== a.from ? " – " + german(a.to) : ""), days: -days });
     }
     for (const x of input.adjustments) if (x.date >= year.from && x.date <= year.to) { adjusted += x.days; raw.push({ date: x.date, kind: "ADJUSTMENT", label: x.comment, days: x.days }); }
     const order = { CARRY: 0, ALLOCATION: 1, ADJUSTMENT: 2, TAKEN: 3 };

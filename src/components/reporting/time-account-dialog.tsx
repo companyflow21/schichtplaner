@@ -19,6 +19,7 @@ type AccountView = {
 export const METHOD_LABEL: Record<AccountMethod, string> = { ACTUAL_MINUS_TARGET: "Ist − Soll", PLAN_MINUS_TARGET: "Plan − Soll", ACTUAL_MINUS_PLAN: "Ist − Plan" };
 export const signedHours = (minutes: number) => (minutes > 0 ? "+" : minutes < 0 ? "−" : "") + hours(Math.abs(minutes));
 const date = (d: string) => new Date(d + "T12:00:00Z").toLocaleDateString("de-DE", { timeZone: "UTC", day: "2-digit", month: "2-digit", year: "numeric" });
+const short = (d: string) => d.slice(8, 10) + "." + d.slice(5, 7) + ".";
 
 /** Zeitkonto einer Person: Perioden mit Soll, Plan, Ist, Ausgleich und laufendem Saldo; Ausgleich buchen (Admins). */
 export function TimeAccountDialog({ userId, name, from, to, onClose }: { userId?: string; name: string; from: string; to: string; onClose: () => void }) {
@@ -30,7 +31,7 @@ export function TimeAccountDialog({ userId, name, from, to, onClose }: { userId?
   const before = balanceBefore(data?.result ?? null, shown[0]?.from ?? from);
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl [&>*]:min-w-0">
         <DialogHeader>
           <DialogTitle>Zeitkonto {name}</DialogTitle>
           <DialogDescription>{data ? METHOD_LABEL[data.method] + " · Saldo zum " + date(to) : "Wird geladen …"}</DialogDescription>
@@ -44,17 +45,17 @@ export function TimeAccountDialog({ userId, name, from, to, onClose }: { userId?
             <div className="overflow-x-auto rounded-[var(--radius)] border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-xs text-muted-foreground">
-                  <tr><th className="px-2 py-1.5 text-left font-medium">Zeitraum</th><th className="px-2 py-1.5 text-right font-medium">Soll</th><th className="px-2 py-1.5 text-right font-medium">Plan</th><th className="px-2 py-1.5 text-right font-medium">Ist</th><th className="px-2 py-1.5 text-right font-medium">Ausgleich</th><th className="px-2 py-1.5 text-right font-medium">Saldo</th></tr>
+                  <tr><th className="px-2 py-1.5 text-left font-medium">Zeitraum</th><th className="px-2 py-1.5 text-right font-medium">Soll</th><th className="hidden px-2 py-1.5 text-right font-medium sm:table-cell">Plan</th><th className="px-2 py-1.5 text-right font-medium">Ist</th><th className="hidden px-2 py-1.5 text-right font-medium sm:table-cell">Ausgleich</th><th className="px-2 py-1.5 text-right font-medium">Saldo</th></tr>
                 </thead>
                 <tbody>
-                  <tr className="border-t text-muted-foreground"><td className="px-2 py-1.5" colSpan={5}>Saldo vor {date(shown[0]?.from ?? from)}</td><td className="px-2 py-1.5 text-right tabular-nums">{signedHours(before)}</td></tr>
+                  <tr className="border-t text-muted-foreground"><td className="px-2 py-1.5 sm:hidden" colSpan={3}>Saldo vor {date(shown[0]?.from ?? from)}</td><td className="hidden px-2 py-1.5 sm:table-cell" colSpan={5}>Saldo vor {date(shown[0]?.from ?? from)}</td><td className="px-2 py-1.5 text-right tabular-nums">{signedHours(before)}</td></tr>
                   {shown.map((p) => (
                     <tr key={p.from} className="border-t" title={signedHours(p.balanceMinutes - p.deltaMinutes) + " + " + signedHours(p.deltaMinutes) + " = " + signedHours(p.balanceMinutes)}>
-                      <td className="px-2 py-1.5 whitespace-nowrap">{date(p.from)} – {date(p.to)}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap"><span className="sm:hidden">{short(p.from)}–{short(p.to)}</span><span className="hidden sm:inline">{date(p.from)} – {date(p.to)}</span></td>
                       <td className="px-2 py-1.5 text-right tabular-nums">{hours(p.targetMinutes)}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums">{hours(p.plannedMinutes)}</td>
+                      <td className="hidden px-2 py-1.5 text-right tabular-nums sm:table-cell">{hours(p.plannedMinutes)}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums">{hours(p.actualMinutes)}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums">{p.compensationMinutes ? signedHours(p.compensationMinutes) : ""}</td>
+                      <td className="hidden px-2 py-1.5 text-right tabular-nums sm:table-cell">{p.compensationMinutes ? signedHours(p.compensationMinutes) : ""}</td>
                       <td className={cn("px-2 py-1.5 text-right font-medium tabular-nums", p.balanceMinutes < 0 && "text-destructive")}>{signedHours(p.balanceMinutes)}</td>
                     </tr>
                   ))}

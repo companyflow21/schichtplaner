@@ -90,7 +90,7 @@ export function VacationDialog({ userId, name, onClose }: { userId?: string; nam
   const year = years[i];
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl [&>*]:min-w-0">
         <DialogHeader>
           <DialogTitle>Urlaubskonto {name}</DialogTitle>
           <DialogDescription>{data?.categoryName ? "Abgezogen wird „" + data.categoryName + "“." : "Wird geladen …"}</DialogDescription>
@@ -107,8 +107,8 @@ export function VacationDialog({ userId, name, onClose }: { userId?: string; nam
             <p>Genommen und geplant: <strong>{usedText(year)}</strong> Tagen · verfügbar <strong>{days(year.available)}</strong>{year.pending ? " · " + days(year.pending) + " beantragt" : ""}</p>
             <ul className="divide-y rounded-[var(--radius)] border">
               {year.entries.map((e, n) => (
-                <li key={n} className="grid grid-cols-[6.5rem_1fr_4rem_4rem] gap-2 px-2 py-1.5">
-                  <span className="tabular-nums">{date(e.date)}</span><span>{e.label}</span>
+                <li key={n} className="grid grid-cols-[5.5rem_minmax(0,1fr)_auto_auto] gap-2 px-2 py-1.5 sm:grid-cols-[6.5rem_1fr_4rem_4rem]">
+                  <span className="tabular-nums">{date(e.date)}</span><span className="break-words">{e.label}</span>
                   <span className={cn("text-right tabular-nums", e.days < 0 && "text-destructive")}>{signed(e.days)}</span>
                   <span className="text-right font-medium tabular-nums">{days(e.balance)}</span>
                 </li>
@@ -124,7 +124,7 @@ export function VacationDialog({ userId, name, onClose }: { userId?: string; nam
               <ul className="divide-y rounded-[var(--radius)] border text-sm">
                 {data.adjustments.map((x) => (
                   <li key={x.id} className="flex items-center gap-2 px-2 py-1.5">
-                    <span className="w-24 tabular-nums">{date(x.date)}</span><span className="flex-1">{x.comment}</span><span className="tabular-nums">{signed(x.days)}</span>
+                    <span className="w-24 shrink-0 tabular-nums">{date(x.date)}</span><span className="min-w-0 flex-1 break-words">{x.comment}</span><span className="tabular-nums">{signed(x.days)}</span>
                     <Button size="icon-sm" variant="ghost" aria-label="Korrektur löschen" disabled={action.isPending} onClick={() => { if (confirm("Korrektur löschen?")) action.mutate({ url: "/api/vacation/adjustments/" + x.id, method: "DELETE", message: "Korrektur gelöscht" }); }}><Trash2 className="size-4" /></Button>
                   </li>
                 ))}
