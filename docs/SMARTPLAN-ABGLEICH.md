@@ -1,13 +1,14 @@
 # Smartplan-Abgleich – Plan und Arbeitsstand
 
-Stand 12.10.2026. **Vorläufig:** Der Abgleich unten stützt sich nur auf öffentliche Angaben (Quellen am Ende).
-Smartplan selbst ist noch nicht durchgesehen.
+Stand 12.10.2026. Der Abgleich stützt sich auf alle 106 Artikel des offiziellen Smartplan-Hilfe-Centers
+(mit Screenshots) und den Code im Stand `88c21eb`. Smartplan selbst ist noch nicht im Konto durchgesehen;
+was die Artikel offenlassen, steht in den Katalogteilen unter „Offen für die Erfassung im Konto“.
 
 ## Ziel (Vorgaben des Inhabers vom 12.10.2026)
 
 - Der Schichtplaner wird das eigene Endprodukt und löst Smartplan ab.
-- Funktionsumfang: alles, was Smartplan kann. Einzelne Punkte ändert AKRO bewusst ab; sie stehen je Funktion
-  in der Spalte „AKRO-Abweichung“ des Funktionskatalogs.
+- Funktionsumfang: alles, was Smartplan kann. Einzelne Punkte ändert AKRO bewusst ab; sie werden bei der
+  jeweiligen Funktion im Funktionskatalog vermerkt, sobald AKRO sie benennt.
 - Design: Layout und Bedienführung wie Smartplan. Logo, Farben, Texte, Grafiken und Code von Smartplan werden
   nicht übernommen; das AKRO-Erscheinungsbild bleibt.
 - Schwerpunkte: Lohn, Stundenzettel, GPS-Check-in.
@@ -43,42 +44,63 @@ Smartplan selbst ist noch nicht durchgesehen.
 - Screenshots, Exporte und Notizen mit echten Personendaten nur im Scratchpad der Sitzung, nie im Repo.
   Im Funktionskatalog nur Feldnamen und Abläufe, keine Namen oder Daten von Mitarbeitenden.
 
-## Vorläufiger Abgleich (öffentliche Angaben)
+## Funktionskatalog
 
-| Bereich | Smartplan (öffentlich beschrieben) | Schichtplaner heute | Einschätzung |
-|---|---|---|---|
-| Plan erstellen | Kopieren, Vorlagen | Wiederholung 1–52 Wochen, Kopie auf Datum; keine Vorlagen | teilweise |
-| Automatische Planung | Regelbasierte Vorschläge (Höchststunden, Abstand zwischen Schichten, Wünsche) | Optionaler KI-Planer; keine festen Regeln für Höchststunden oder Ruhezeit | teilweise |
-| Veröffentlichen, Bestätigen | vorhanden | vorhanden | vorhanden |
-| Tausch, offene Schichten | Tausch über die App, Freigabe | Abgabe, Zwei-Schichten-Tausch, offene Schicht anfragen, Freigabe | vorhanden |
-| Stempeluhr | Stempeln per Smartphone/Tablet, GPS-Prüfung, Pausen | GPS-Check-in (50 m), Stoppuhr, Pause | vorhanden; Gerätetest offen |
-| Zeitänderungen | Genehmigen oder ablehnen | Korrekturantrag mit Freigabe | vorhanden |
-| Abwesenheiten | Urlaub, Krankheit, sonstige, Antrag per App | vorhanden mit Freigabe | vorhanden |
-| Überstunden | Überstundensaldo in der App | Soll/Ist je Monat, kein fortlaufendes Konto | teilweise |
-| Urlaubskonto | in Smartplan zu prüfen | fehlt | offen |
-| Stunden und Lohn | Lohnberechnung aus erfasster Zeit inkl. Zuschläge und Abwesenheiten, Export Excel/CSV | CSV-Stundenexport; keine Lohnsätze, keine Zuschläge | fehlt |
-| Stundenzettel | in Smartplan zu prüfen; von AKRO gewünscht | fehlt | fehlt |
-| Nachrichten | Teamkanal | Postfach mit Bezug, Browser-Push | vorhanden |
-| Handy-App | iOS und Android | Web-App mit Browser-Push | teilweise |
-| Schnittstelle (API) | im höheren Tarif | keine | fehlt; Bedarf klären |
+Je Funktion: Smartplan-Verhalten in eigenen Worten, Rolle, Stand im Schichtplaner mit Datei-Verweis, Status und Aufwand
+(S < 1 Tag, M 1–3 Tage, L > 3 Tage). Dazu je Teil Layout und Bedienung, Regeln und offene Punkte.
 
-## Funktionskatalog (wird bei der Erfassung gefüllt)
+| Teil | Inhalt | Funktionen | vorhanden | teilweise | anders gelöst | fehlt |
+|---|---|---|---|---|---|---|
+| [A – Planung](smartplan/A-planung.md) | Dienstplan, Vorlagen, Regeln, Assistent, Veröffentlichen, Tausch | 93 | 19 | 25 | 12 | 37 |
+| [B – Zeit und Lohn](smartplan/B-zeit-lohn.md) | Stempeluhr, Terminal, Stunden und Lohn, Zuschläge, Export, Zeitkonten, Stundenzettel | 88 | 3 | 25 | 4 | 56 |
+| [C – Personal, Standorte, Abwesenheit](smartplan/C-personal-orte-abwesenheit.md) | Rollen und Rechte, Mitarbeitende, Standorte, Abwesenheit, Urlaubskonto | 112 | 20 | 30 | 21 | 41 |
+| [D – Allgemeines und App](smartplan/D-allgemein-app.md) | Einrichtung, Nachrichten, Benachrichtigungen, Kalender, Anmeldung, Mitarbeiter-App, DSGVO | 92 | 14 | 30 | 15 | 33 |
+| **Summe** | | **385** | **56** | **110** | **52** | **167** |
 
-Je Bereich eine Tabelle: Bildschirm · Rolle · Felder und Aktionen · Regeln und Meldungen · Schichtplaner heute · AKRO-Abweichung.
+„Anders gelöst“ heißt: AKRO hat bewusst eine eigene Lösung (z. B. Kunden → Einsatzorte, harte Sperre bei
+Überschneidungen, GPS-Check-in nur am Einsatzort der Schicht). Die Zeilen sagen jeweils, was davon übernommen werden sollte.
 
-Bereiche: Dienstplan · Mitarbeitende · Abwesenheiten · Stempeluhr und Zeiterfassung · Stunden und Lohn ·
-Stundenzettel · Nachrichten · Einstellungen · Handy-App.
+**Handy-App:** Die Web-App mit Push kann die Store-App ersetzen, wenn der Push-Test auf echten Android- und
+iPhone-Geräten besteht und ein E-Mail-Ersatz für nicht zugestellte Pushes eingerichtet ist (Teil D).
+
+**Stundenzettel:** Smartplan hat laut Hilfe-Center keinen eigenen Stundenzettel (nur Druck der Stundenliste und Excel).
+Inhalt und Form legt AKRO selbst fest (Vorschlag in Teil B, Abschnitt „Stundenzettel“).
+
+## Paketliste
+
+Reihenfolge nach den Schwerpunkten des Inhabers (Lohn, Stundenzettel, GPS) und nach Abhängigkeiten.
+Jedes Paket wird wie bisher mit Tests, Browserprüfung und Eintrag in `FERTIGSTELLUNG.md` abgeschlossen.
+
+| Paket | Inhalt | Katalog | Aufwand | Status |
+|---|---|---|---|---|
+| P0 | Fehler aus dem Abgleich: Admin-Abwesenheit bleibt „ausstehend“, Abwesenheiten deaktivierter Personen verschwinden, „Reaktivieren“ ohne Funktion, E-Mail nach Aktivierung änderbar, „als ungelesen markieren“ ohne Knopf, negative Werte im CSV als Text | C76, C41, C44, C24, D27, B69 | S | offen |
+| P1 | Lohn: Lohnarten, Personalnummer, Lohnart je Person und Arbeitsbereich, Zuschläge (Tage, Feiertage, Sonderdaten, Zeitblock auch über Mitternacht, Prozent oder Betrag), Lohn je Buchung mit Rechenweg, Lohnexport CSV mit und ohne Sätze | B47–B58, B63–B67 | L | offen |
+| P2 | Stunden prüfen und genehmigen: Buchung ↔ Schicht, Genehmigungsstatus, „Stunden und Lohn“ als ein Bildschirm (aufklappbar, Bearbeiten-Dialog, Rot/Grün, Dezimalstunden), freier Zeitraum, Drucken | B28–B42 | L | offen |
+| P3 | Stundenzettel und Leistungsnachweis je Kunde/Einsatzort als PDF, Monatsabschluss | B42, Teil B „Stundenzettel“ | M | offen |
+| P4 | Zeitkonten: Soll mit Startdatum, laufender Saldo, Ausgleich, Ansicht für Mitarbeitende | B77–B88 | M | offen |
+| P5 | Abwesenheit wirkt auf Schichten, Stunden und Lohn; Abwesenheitsvergütung; Urlaubskonto | B59–B62, B87, C77–C81, C98–C112 | L | offen |
+| P6 | Planungsregeln je Person mit Verstoßliste (Höchststunden, Ruhezeit, Tage am Stück …), Veröffentlichungsdialog mit Änderungsliste, Bearbeitungsmodus | A42–A60, A70, A72 | L | offen |
+| P7 | Vorlagen über mehrere Wochen, Kopieren von Block/Tag/Woche, Person aufnehmen und verteilen | A18–A32 | L | offen |
+| P8 | Regelbasierter Assistent „Besetzung vorschlagen“ | A65–A67 | L | offen |
+| P9 | E-Mail-Versand, Passwort vergessen, Benachrichtigungseinstellungen, Kalender-Abo, „Ich“-Seite | Teil D | L | offen |
+| P10 | Stempel-Terminal mit persönlicher PIN, Live-Übersicht „Wer ist im Dienst“ | B9–B16, B24–B27 | M | offen |
+| P11 | Mitarbeiterprofil mit Reitern, Zusatzfelder, Dokumente, Ein- und Austritt, Anonymisierung | Teil C | L | offen |
+| P12 | Layout-Angleich: Navigation oben mit Glocke, Planansicht mit Seitenleiste – nach Durchsicht des echten Kontos | A, B, D „Layout“ | L | offen |
 
 ## Offene Fragen an den Inhaber
 
-- Lohn: Welche Lohnsoftware oder welches Steuerbüro (z. B. DATEV)? Welche Zuschläge (Nacht, Sonntag, Feiertag) in welcher Höhe? Welche Lohnarten?
+- Lohn: Welche Lohnsoftware oder welches Steuerbüro (z. B. DATEV)? Welche Zuschläge (Nacht, Sonntag, Feiertag) in welcher Höhe?
+  Welche Lohnarten? Gibt es Festgehälter oder Minijobs? Die Hinweise zu § 3b EStG, EFZG, ArbZG und MiLoG in Teil B
+  vom Steuerbüro bestätigen lassen. P1 wird so gebaut, dass AKRO Sätze und Zuschläge selbst einträgt.
 - Stundenzettel: Inhalt, Unterschrift von Mitarbeiter oder Kunde, PDF?
 - Was genau ändert AKRO gegenüber Smartplan ab?
 - Handy-App: Reicht die Web-App mit Push, oder ist eine Store-App nötig?
+- Welcher Smartplan-Tarif ist im AKRO-Konto aktiv? Davon hängt ab, was dort sichtbar ist.
 
 ## Nächster Schritt
 
-Neue Sitzung mit gesetzten Zugangsdaten: Erfassung nach den Regeln oben, Funktionskatalog füllen, danach Abgleich und Paketliste.
+P0 und P1 umsetzen. Parallel, sobald die Zugangsdaten gesetzt sind: Erfassung im Konto nach den Regeln oben,
+offene Punkte der Katalogteile klären, Layout für P12 festhalten.
 
 ## Quellen (öffentlich, abgerufen 12.10.2026)
 
