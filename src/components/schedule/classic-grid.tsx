@@ -7,9 +7,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { dayNames, formatDateShort } from "@/lib/utils/calendar";
 import { cn } from "@/lib/utils";
-import type { ScheduleData, ShiftData } from "@/types/schedule";
+import type { ScheduleResponse, ShiftData } from "@/types/schedule";
 import { formatName } from "@/lib/names";
 import { useNameFormat } from "@/lib/hooks/use-current-member";
+import { PlanStatusBanner } from "./plan-status-banner";
 
 interface ClassicGridProps {
   weekNumber: number;
@@ -26,7 +27,7 @@ interface ClassicGridProps {
  */
 export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGridProps) {
   const nameFormat = useNameFormat();
-  const { data, isLoading } = useQuery<{ schedule: ScheduleData }>({
+  const { data, isLoading } = useQuery<ScheduleResponse>({
     queryKey: ["schedule", weekNumber, year, standort ?? "alle"],
     queryFn: async () => {
       const res = await fetch(`/api/schedules?kw=${weekNumber}&year=${year}${standort ? "&standort=" + encodeURIComponent(standort) : ""}`);
@@ -84,15 +85,23 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
     return <ClassicGridSkeleton />;
   }
 
+  // Statusbalken (Entwurf, in Bearbeitung) nur im Plan eines Standorts.
+  const balken = standort ? <PlanStatusBanner schedule={schedule} access={data?.access} standort={standort} /> : null;
+
   if (timeSlots.length === 0) {
     return (
-      <div className="akro-panel p-6 text-[14px] text-muted-foreground">
-        Keine Schichten in dieser Woche.
-      </div>
+      <>
+        {balken}
+        <div className="akro-panel p-6 text-[14px] text-muted-foreground">
+          Keine Schichten in dieser Woche.
+        </div>
+      </>
     );
   }
 
   return (
+    <>
+    {balken}
     <div className="akro-panel overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
@@ -192,6 +201,7 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 

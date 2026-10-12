@@ -16,6 +16,7 @@ import { ShiftForm } from "./shift-form";
 import { EmployeeNav } from "./employee-nav";
 import { LiveBorder } from "./live-mode";
 import { ConflictPanel, useWeekConflicts } from "./conflict-panel";
+import { PlanStatusBanner } from "./plan-status-banner";
 import type { WishRequest } from "./wish-plan";
 import type { ScheduleResponse, ShiftData } from "@/types/schedule";
 import type { ConflictItem } from "@/types/conflicts";
@@ -202,11 +203,7 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
           {branch.isActive ? "Standort ohne Kunde: neue Schichten erst nach der Zuordnung unter Einsatzorte." : "Standort inaktiv: keine neuen Schichten möglich."}
         </p>
       )}
-      {canEdit && schedule && schedule.id && !schedule.isPublic && shifts.length > 0 && (
-        <p className="mb-4 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]" role="status">
-          <strong>Entwurf:</strong> Diese Woche ist gespeichert, aber für Mitarbeitende unsichtbar – auch wenn die App online erreichbar ist. Erst „Veröffentlichen“ gibt sie frei und benachrichtigt die Eingeteilten. Jede Woche und jeder Standort wird einzeln veröffentlicht.
-        </p>
-      )}
+      <PlanStatusBanner schedule={schedule} access={access} standort={standort} />
       {canEdit && branch && !branch.holidayState && (
         <p className="mb-4 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
           Für diesen Einsatzort ist kein Bundesland festgelegt. Angezeigt werden nur bundesweite Feiertage; landesrechtliche (z. B. Reformationstag in Thüringen, Allerheiligen in NRW) fehlen. Festlegen unter Einsatzorte → Bearbeiten.
