@@ -26,6 +26,7 @@ import { abgleichFixTests } from "./abgleich-fixes";
 import { payrollTests } from "./payroll";
 import { hoursTests } from "./hours";
 import { timesheetTests } from "./timesheet";
+import { timeAccountTests } from "./time-accounts";
 import webpush from "web-push";
 
 async function main() {
@@ -250,6 +251,7 @@ try {
   await payrollTests(context);
   await hoursTests(context);
   await timesheetTests(context);
+  await timeAccountTests(context);
   console.log("FINAL SUCCESS: " + checks + " assertions / HTTP checks passed.");
   if (process.argv.includes("--serve")) {
     console.log("BROWSER_PREVIEW " + base + " — admin@akro-test.invalid / " + password);

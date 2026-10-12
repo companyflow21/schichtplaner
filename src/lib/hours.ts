@@ -1,19 +1,15 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { ApiError } from "./errors";
-import { berlinDate, rangeMinutes, recordMinutes, shiftRange, addDate, isoWeek } from "./berlin";
+import { berlinDate, plannedMinutes, rangeMinutes, recordMinutes, shiftRange, addDate, isoWeek } from "./berlin";
 import { branchIds, can, canSeeTime, canStaff, staffIds, timeScope, type Access } from "./access";
 import { recordOverlaps } from "./time-service";
 import { payrollReport } from "./payroll-service";
+import { balancesFor } from "./time-account-service";
 import type { PayLine } from "./payroll";
 
 export type HoursStatus = "APPROVED" | "OPEN" | "MISSING" | "PLANNED" | "RUNNING";
 
-/** Planminuten einer Schicht: Dauer minus Pause (je Schicht oder je volle Stunde), wie die Monatsauswertung. */
-export function plannedMinutes(shift: { shiftFrom: string; shiftTo: string; pauseOption: string; pauseValue: number }): number {
-  const gross = rangeMinutes(shift.shiftFrom, shift.shiftTo);
-  return Math.max(0, gross - (shift.pauseOption === "PER_HOUR" ? Math.floor(gross / 60) * shift.pauseValue : shift.pauseValue));
-}
 
 /**
  * Stunden pruefen: je Person die geplanten Schichten im Zeitraum mit den
@@ -110,8 +106,11 @@ export async function hoursReport(a: Access, from: string, to: string, branchId:
     };
   }).filter((p) => p.isActive || p.rows.length)
     .sort((x, y) => x.lastName.localeCompare(y.lastName, "de") || x.firstName.localeCompare(y.firstName, "de"));
+  // Zeitkonto: Saldo zum letzten Tag der Abfrage, nur fuer sichtbare, aktive Konten.
+  const balances = await balancesFor(a, result.map((p) => p.userId), to);
   return {
-    from, to, branchId, showPay: a.isAdmin, people: result,
+    from, to, branchId, showPay: a.isAdmin, showBalance: balances.size > 0,
+    people: result.map((p) => ({ ...p, balanceMinutes: balances.has(p.userId) ? balances.get(p.userId)! : null })),
     totals: { plannedMinutes: result.reduce((s, p) => s + p.plannedMinutes, 0), istMinutes: result.reduce((s, p) => s + p.istMinutes, 0), openCount: result.reduce((s, p) => s + p.openCount, 0), totalCents: a.isAdmin ? result.reduce((s, p) => s + (p.totalCents ?? 0), 0) : null },
   };
 }

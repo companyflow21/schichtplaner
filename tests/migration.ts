@@ -301,6 +301,25 @@ async function main() {
   check(autoDefault.length === 1 && autoDefault[0].d === "false", "auto-approval setting exists and defaults to off");
   await ap.close();
 
+  // Zeitkonten: additiv, zunaechst aus; ein Soll je Person und Startdatum.
+  const ACCOUNTS = "20261014090000_time_accounts";
+  const acc = await database(ACCOUNTS);
+  await acc.exec(`
+    INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('k1','Org Konto',${now});
+    INSERT INTO "users" ("id","email","firstName","lastName","updatedAt") VALUES ('ka','ka@akro-test.invalid','Kai','Alt',${now});
+    INSERT INTO "organization_members" ("id","organizationId","userId","role","isActivated") VALUES ('km','k1','ka','EMPLOYEE',true);
+    INSERT INTO "time_settings" ("id","organizationId","autoApprove") VALUES ('ks','k1',true);
+  `);
+  await acc.exec(await readFile("prisma/migrations/" + ACCOUNTS + "/migration.sql", "utf8"));
+  const ts = (await rows<{ autoApprove: boolean; accountsEnabled: boolean; accountMethod: string; accountVisible: boolean }>(acc, `SELECT "autoApprove","accountsEnabled","accountMethod","accountVisible" FROM "time_settings" WHERE "id"='ks'`))[0];
+  check(ts.autoApprove === true && ts.accountsEnabled === false && ts.accountMethod === "ACTUAL_MINUS_TARGET" && ts.accountVisible === false, "existing time settings keep their values; accounts start switched off");
+  await acc.exec(`INSERT INTO "target_hours" ("id","organizationId","memberId","startDate","minutes","period") VALUES ('kt1','k1','km','2026-01-05',2400,'WEEK')`);
+  await assert.rejects(acc.exec(`INSERT INTO "target_hours" ("id","organizationId","memberId","startDate","minutes","period") VALUES ('kt2','k1','km','2026-01-05',1200,'WEEK')`), /unique|duplicate/i);
+  check(true, "one target per person and start date");
+  await acc.exec(`DELETE FROM "organization_members" WHERE "id"='km'`);
+  check((await rows(acc, `SELECT 1 FROM "target_hours"`)).length === 0, "targets are removed with the member");
+  await acc.close();
+
   console.log("SUCCESS: " + checks + " migration checks passed.");
 }
 

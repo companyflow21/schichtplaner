@@ -9,6 +9,7 @@ import {
   Building2,
   BadgeCheck,
   Wallet,
+  Scale,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,11 @@ const sections = [
     key: "payroll",
     label: "Lohn",
     icon: Wallet,
+  },
+  {
+    key: "accounts",
+    label: "Zeitkonten",
+    icon: Scale,
   },
   {
     key: "wishplan",

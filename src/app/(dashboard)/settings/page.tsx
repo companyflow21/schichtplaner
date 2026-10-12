@@ -16,6 +16,7 @@ import { AbsenceSettings } from "@/components/settings/absence-settings";
 import { AccountSettings } from "@/components/settings/account-settings";
 import { QualificationSettings } from "@/components/settings/qualification-settings";
 import { PayrollSettings } from "@/components/settings/payroll-settings";
+import { TimeAccountSettings } from "@/components/settings/time-account-settings";
 
 // ---------- Types ----------
 
@@ -193,6 +194,7 @@ export default function SettingsPage() {
             <option value="schedule">Schichtplan</option>
             <option value="time">Zeiterfassung</option>
             <option value="payroll">Lohn</option>
+            <option value="accounts">Zeitkonten</option>
             <option value="wishplan">Wunschplaene</option>
             <option value="employees">Mitarbeiter</option>
             <option value="qualifications">Qualifikationen</option>
@@ -220,6 +222,8 @@ export default function SettingsPage() {
           )}
 
           {activeSection === "payroll" && <PayrollSettings />}
+
+          {activeSection === "accounts" && <TimeAccountSettings />}
 
           {activeSection === "wishplan" && (
             <div className="space-y-6">
