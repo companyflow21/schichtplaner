@@ -79,7 +79,7 @@ function RuleList({ general, member }: { general: Rules; member: Member | null }
   const [showDisabled, setShowDisabled] = useState(false);
   const url = member ? "/api/planning-rules/members/" + member.memberId : "/api/planning-rules";
   const effective = (key: RuleKey) => (member?.own[key] ?? general[key]) as Rules[RuleKey];
-  const save = <K extends RuleKey>(key: K, rule: Rules[K]) => action.mutate({ url, method: "PUT", data: { rules: { [key]: rule } }, message: RULE_LABEL[key] + " gespeichert" });
+  const save = <K extends RuleKey>(key: K, rule: Rules[K], onError?: () => void) => action.mutate({ url, method: "PUT", data: { rules: { [key]: rule } }, message: RULE_LABEL[key] + " gespeichert" }, { onError });
   const reset = (key: RuleKey) => action.mutate({ url, method: "PUT", data: { reset: [key] }, message: RULE_LABEL[key] + ": wieder allgemein" });
   const disabled = GROUPS.flatMap((g) => g.keys).filter((k) => !effective(k).enabled);
   return (
@@ -93,7 +93,7 @@ function RuleList({ general, member }: { general: Rules; member: Member | null }
             <ul className="divide-y rounded-[var(--radius)] border">
               {keys.map((key) => (
                 <RuleRow key={key + JSON.stringify(effective(key))} ruleKey={key} rule={effective(key)} own={!!member?.own[key]} person={!!member} pending={action.isPending}
-                  onSave={(rule) => save(key, rule)} onReset={() => reset(key)} />
+                  onSave={(rule, onError) => save(key, rule, onError)} onReset={() => reset(key)} />
               ))}
             </ul>
           </section>
@@ -110,10 +110,12 @@ function RuleList({ general, member }: { general: Rules; member: Member | null }
 
 function RuleRow({ ruleKey, rule, own, person, pending, onSave, onReset }: {
   ruleKey: RuleKey; rule: Rules[RuleKey]; own: boolean; person: boolean; pending: boolean;
-  onSave: (rule: Rules[RuleKey]) => void; onReset: () => void;
+  onSave: (rule: Rules[RuleKey], onError?: () => void) => void; onReset: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
-  const toggle = (enabled: boolean) => onSave({ ...rule, enabled } as Rules[RuleKey]);
+  // Sofort umschalten; die Zeile wird mit dem gespeicherten Stand neu aufgebaut (key).
+  const [enabled, setEnabled] = useState(rule.enabled);
+  const toggle = (value: boolean) => { setEnabled(value); onSave({ ...rule, enabled: value } as Rules[RuleKey], () => setEnabled(rule.enabled)); };
   // Zahl speichern, sobald das Feld verlassen wird und sich der Wert geaendert hat.
   const field = (name: string, value: number | null, options: { integer?: boolean; optional?: boolean; min: number; max: number; suffix: string; label: string }) => (
     <label className="inline-flex items-center gap-1.5">
@@ -150,14 +152,14 @@ function RuleRow({ ruleKey, rule, own, person, pending, onSave, onReset }: {
     <li className="space-y-2 px-3 py-2.5 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <label className="flex items-center gap-2 font-medium">
-          <input type="checkbox" className="size-4 accent-primary" checked={rule.enabled} disabled={pending} onChange={(e) => toggle(e.target.checked)} />
+          <input type="checkbox" className="size-4 accent-primary" checked={enabled} disabled={pending} onChange={(e) => toggle(e.target.checked)} />
           {RULE_LABEL[ruleKey]}
         </label>
         {person && (own
           ? <span className="flex items-center gap-2"><span className="rounded-full bg-warn/10 px-2 py-0.5 text-[11px] text-warn">eigene Regel</span><Button size="xs" variant="ghost" disabled={pending} onClick={onReset}>allgemein</Button></span>
           : <span className="text-[11px] text-muted-foreground">allgemein</span>)}
       </div>
-      {rule.enabled && detail && <div className="pl-6">{detail}</div>}
+      {enabled && detail && <div className="pl-6">{detail}</div>}
       {error && <p role="alert" className="pl-6 text-xs text-destructive">{error}</p>}
     </li>
   );
