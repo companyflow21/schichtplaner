@@ -139,6 +139,7 @@ async function fits(page, label) {
     await e.locator('div.cursor-pointer').filter({ hasText: subject }).getByRole('checkbox').click();
     await e.route('**/api/messages/' + message.id, failChange);
     await e.getByRole('button', { name: 'Endgültig löschen', exact: true }).click();
+    await e.getByRole('dialog').getByRole('button', { name: 'Endgültig löschen', exact: true }).click();
     await visible(e.getByText('1 Nachricht(en) konnten nicht geändert werden. Bitte erneut versuchen.', { exact: true }).first());
     assert.equal(await e.getByText('Nachrichten gelöscht', { exact: true }).count(), 0);
     assert.ok((await api(employee, 'GET', '/api/messages?folder=trash')).messages.some(m => m.id === message.id));

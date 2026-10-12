@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -170,23 +171,26 @@ export function WishRequestButton({
           {config.label}
         </Badge>
         {existingRequest.state === "OPEN" && (
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-destructive transition-colors"
-            title="Wunsch stornieren"
-            onClick={() => {
-              if (confirm("Wunsch wirklich stornieren?")) {
-                cancelMutation.mutate(existingRequest.id);
-              }
-            }}
+          <ConfirmDialog
+            title="Wunsch stornieren?"
+            description="Der offene Wunsch wird zurückgezogen und entfernt; die Planung sieht ihn danach nicht mehr."
+            confirmLabel="Wunsch stornieren"
             disabled={cancelMutation.isPending}
+            onConfirm={() => cancelMutation.mutate(existingRequest.id)}
           >
-            {cancelMutation.isPending ? (
-              <Loader2 className="size-3 animate-spin" />
-            ) : (
-              <X className="size-3" />
-            )}
-          </button>
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-destructive transition-colors"
+              title="Wunsch stornieren"
+              disabled={cancelMutation.isPending}
+            >
+              {cancelMutation.isPending ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                <X className="size-3" />
+              )}
+            </button>
+          </ConfirmDialog>
         )}
       </div>
     );

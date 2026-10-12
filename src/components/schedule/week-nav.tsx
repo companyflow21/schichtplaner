@@ -150,6 +150,14 @@ export function WeekNav({ weekNumber, year, baseUrl = "/schedule/flexible", stan
             <ChevronRight className="size-4" />
           </button>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isCurrentWeek}
+          onClick={() => navigateToKW(currentKW.weekNumber, currentKW.year)}
+        >
+          Heute
+        </Button>
         <h1 className="flex flex-wrap items-baseline gap-x-2">
           <span className="akro-kennzahl text-[22px]">KW {String(weekNumber).padStart(2, "0")}</span>
           <span className="tabular text-[13px] font-normal tracking-normal text-muted-foreground">
