@@ -498,24 +498,27 @@ export function BriefingButton({
         {isManager && (
           <SheetFooter className="flex-row gap-2">
             {hasBriefing && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (confirm("Briefing wirklich löschen?")) {
-                    deleteMutation.mutate();
-                  }
-                }}
+              <ConfirmDialog
+                title="Briefing löschen"
+                description="Das Briefing dieser Woche wird endgültig gelöscht und lässt sich nicht wiederherstellen. Mitarbeitende sehen es danach nicht mehr; benachrichtigt wird niemand."
+                confirmLabel="Löschen"
+                onConfirm={() => deleteMutation.mutate()}
                 disabled={isPending}
-                className="text-destructive hover:text-destructive"
               >
-                {deleteMutation.isPending ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="size-3.5" />
-                )}
-                Löschen
-              </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isPending}
+                  className="text-destructive hover:text-destructive"
+                >
+                  {deleteMutation.isPending ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-3.5" />
+                  )}
+                  Löschen
+                </Button>
+              </ConfirmDialog>
             )}
             <Button
               size="sm"
