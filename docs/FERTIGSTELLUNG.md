@@ -26,10 +26,10 @@ Branch `claude/wizardly-cerf-cxbutc` (`b8cca24`, `8572300` und Folgekorrekturen)
 |---|---|
 | `npx tsc --noEmit` | 0 Fehler |
 | `npx eslint src tests --quiet` | 0 Fehler |
-| `npm run test:workflows` | nicht geprüft |
+| `npm run test:workflows` | 1834/1834 |
 | `npm run test:migration` | 84/84 |
-| `npm run test:rules` | 19/19 |
-| `npm run build` | nicht geprüft |
+| `npm run test:rules` / `test:payroll` / `test:accounts` / `test:vacation` / `test:pdf` | 19/19, 31/31, 15/15, 12/12, 14/14 |
+| `npm run build` | erfolgreich |
 
 ## Smartplan-Abgleich: P4 und P5 (12.10.2026)
 
