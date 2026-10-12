@@ -16,7 +16,7 @@ async function upcoming(orgId: string, branches: string[] | null, where: Prisma.
   for (let d = 0; d <= DAYS + 7; d += 7) { const w = isoWeek(addDate(today, d)); weeks.set(w.year + "-" + w.weekNumber, w); }
   const now = new Date(), until = Date.parse(addDate(today, DAYS) + "T00:00:00Z") / 60000;
   const shifts = await db.shift.findMany({
-    where: { deletedAt: null, ...where, schedule: { organizationId: orgId, deletedAt: null, isPublic: true, branchId: branches ? { in: branches } : { not: null }, OR: [...weeks.values()] } },
+    where: { deletedAt: null, ...where, schedule: { organizationId: orgId, deletedAt: null, isPublic: true, editing: false, branchId: branches ? { in: branches } : { not: null }, OR: [...weeks.values()] } },
     include: shiftInclude,
   });
   return shifts.filter(s => isFuture(s, now) && shiftRange(s).start < until).sort((x, y) => shiftRange(x).start - shiftRange(y).start);

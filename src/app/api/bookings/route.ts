@@ -3,6 +3,7 @@ import { api, body, requireMember, serial, ApiError } from "@/lib/api";
 import { assertCan, requireAccess } from "@/lib/access";
 import { assign, notify, planningPool } from "@/lib/planning";
 import { emitToBranch } from "@/lib/emit";
+import { assertNotEditing } from "@/lib/publishing";
 
 const input = z.object({ shiftId: z.string().min(1), userId: z.string().min(1) });
 
@@ -42,7 +43,8 @@ export async function DELETE(request: Request) {
       if (!booking) throw new ApiError("Zuweisung nicht gefunden.", 404);
       assertCan(a, "EDIT_SHIFTS", booking.shift.schedule.branchId);
       await tx.booking.delete({ where: { id: booking.id } });
-      if (booking.shift.schedule.isPublic) await notify(tx, a.orgId, a.userId, [data.userId], "Schichtzuweisung aufgehoben", "Deine Zuweisung wurde aufgehoben.", data.shiftId);
+      // Waehrend der Bearbeitung benachrichtigt erst das erneute Veroeffentlichen.
+      if (booking.shift.schedule.isPublic && !booking.shift.schedule.editing) await notify(tx, a.orgId, a.userId, [data.userId], "Schichtzuweisung aufgehoben", "Deine Zuweisung wurde aufgehoben.", data.shiftId);
       return booking.shift.schedule.branchId;
     });
     emitToBranch(a.orgId, branchId, "booking:changed", [data.userId]);
@@ -62,6 +64,7 @@ export async function PATCH(request: Request) {
     const result = await serial(async tx => {
       const booking = await tx.booking.findFirst({ where: { shiftId: data.shiftId, userId: member.userId, shift: { deletedAt: null, schedule: { organizationId: member.organizationId, isPublic: true, deletedAt: null } } }, include: { shift: { include: { schedule: true } } } });
       if (!booking) throw new ApiError("Schicht nicht gefunden.", 404);
+      assertNotEditing(booking.shift.schedule);
       const updated = await tx.booking.update({ where: { id: booking.id }, data: { confirmedAt: new Date() } });
       return { booking: updated, branchId: booking.shift.schedule.branchId };
     }, { retry: true });

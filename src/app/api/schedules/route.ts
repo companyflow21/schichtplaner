@@ -3,6 +3,7 @@ import { api, serial, ApiError } from "@/lib/api";
 import { branchIds, can, requireAccess, type Access } from "@/lib/access";
 import { ineffectiveBookings, shiftInclude, shiftView } from "@/lib/planning";
 import { ensureSchedule } from "@/lib/shift-service";
+import { publishedView } from "@/lib/publishing";
 
 const LEGACY = "ohne";
 
@@ -48,11 +49,14 @@ export async function GET(request: Request) {
         let schedule = await tx.schedule.findFirst({ where: { organizationId: a.orgId, branchId, weekNumber, year, deletedAt: null } });
         if (!schedule && branch && access.edit && branch.isActive && branch.customerId) schedule = await ensureSchedule(tx, a.orgId, branch.id, { weekNumber, year });
         const visible = schedule && (access.planner || schedule.isPublic);
-        const shifts = visible ? (await tx.shift.findMany({ where: { scheduleId: schedule!.id, deletedAt: null }, include: shiftInclude, orderBy: [{ dayOfWeek: "asc" }, { shiftFrom: "asc" }] })).filter(visibleFor(a)) : [];
+        let loaded = visible ? await tx.shift.findMany({ where: { scheduleId: schedule!.id, deletedAt: null }, include: shiftInclude, orderBy: [{ dayOfWeek: "asc" }, { shiftFrom: "asc" }] }) : [];
+        // Waehrend der Bearbeitung sieht nur die Planung den neuen Stand.
+        if (schedule?.editing && !access.planner) loaded = (await publishedView(tx, loaded, { keepLive: () => false, schedules: { id: schedule.id } })).sort((x, y) => x.dayOfWeek - y.dayOfWeek || x.shiftFrom.localeCompare(y.shiftFrom));
+        const shifts = loaded.filter(visibleFor(a));
         const ineffective = access.planner ? await ineffectiveBookings(tx, a.orgId, shifts) : new Set<string>();
-        const base = schedule && visible ? schedule : { id: "", isPublic: false, settingsLayout: "LAYOUT_1" as const, showTitle: true, showPauses: true };
+        const base = schedule && visible ? schedule : { id: "", isPublic: false, editing: false, settingsLayout: "LAYOUT_1" as const, showTitle: true, showPauses: true };
         return {
-          schedule: { id: base.id, organizationId: a.orgId, branchId, weekNumber, year, isPublic: base.isPublic, settingsLayout: base.settingsLayout, showTitle: base.showTitle, showPauses: base.showPauses, shifts: shifts.map(s => shiftView(s, a, ineffective)) },
+          schedule: { id: base.id, organizationId: a.orgId, branchId, weekNumber, year, isPublic: base.isPublic, editing: base.editing, settingsLayout: base.settingsLayout, showTitle: base.showTitle, showPauses: base.showPauses, shifts: shifts.map(s => shiftView(s, a, ineffective)) },
           branch: branch ? { id: branch.id, name: branch.name, isActive: branch.isActive, customer: branch.customer, plannable: branch.isActive && !!branch.customerId } : null,
           access,
         };
@@ -65,15 +69,21 @@ export async function GET(request: Request) {
         ...(view?.length ? [{ schedule: { branchId: { in: view }, ...(manager ? {} : { isPublic: true }) } }] : []),
         ...(request?.length ? [{ schedule: { branchId: { in: request }, isPublic: true } }] : []),
       ];
-      const shifts = (await tx.shift.findMany({
+      const live = await tx.shift.findMany({
         where: { deletedAt: null, schedule: { organizationId: a.orgId, weekNumber, year, deletedAt: null }, OR: scope },
         include: shiftInclude,
         orderBy: [{ dayOfWeek: "asc" }, { shiftFrom: "asc" }],
-      })).filter(visibleFor(a));
+      });
+      // Bearbeitete Plaene: ohne Planungsrecht der zuletzt veroeffentlichte Stand, eingegrenzt wie "scope".
+      const shifts = (await publishedView(tx, live, {
+        keepLive: (branchId) => can(a, "VIEW_SCHEDULE", branchId) && (a.isAdmin || manager),
+        schedules: { organizationId: a.orgId, weekNumber, year },
+        include: (s) => s.bookings.some(b => b.userId === a.userId) || (!!s.schedule.branchId && (!!view?.includes(s.schedule.branchId) || !!request?.includes(s.schedule.branchId))),
+      })).sort((x, y) => x.dayOfWeek - y.dayOfWeek || x.shiftFrom.localeCompare(y.shiftFrom)).filter(visibleFor(a));
       const planned = shifts.filter(s => can(a, "VIEW_SCHEDULE", s.schedule.branchId) && (a.isAdmin || manager));
       const ineffective = await ineffectiveBookings(tx, a.orgId, planned);
       return {
-        schedule: { id: "", organizationId: a.orgId, branchId: null, weekNumber, year, isPublic: shifts.every(s => s.schedule.isPublic), settingsLayout: "LAYOUT_1", showTitle: true, showPauses: true, shifts: shifts.map(s => shiftView(s, a, ineffective)) },
+        schedule: { id: "", organizationId: a.orgId, branchId: null, weekNumber, year, isPublic: shifts.every(s => s.schedule.isPublic), editing: shifts.some(s => s.schedule.editing), settingsLayout: "LAYOUT_1", showTitle: true, showPauses: true, shifts: shifts.map(s => shiftView(s, a, ineffective)) },
         merged: true,
       };
     });

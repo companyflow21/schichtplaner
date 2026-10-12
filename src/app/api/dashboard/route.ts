@@ -5,14 +5,15 @@ import { branchIds, can, requireAccess, staffIds, timeScope, type Access } from 
 import { checkAssignment, shiftInclude, shiftView } from "@/lib/planning";
 import { monthlyReport } from "@/lib/report";
 import { planningOverview } from "@/lib/overview";
+import { publishedView } from "@/lib/publishing";
 
 /** Eigene, veroeffentlichte Schichten ab jetzt (60 Tage). */
 async function ownShifts(a: Access, today: string) {
   const year = Number(today.slice(0, 4));
-  const shifts = await db.shift.findMany({
-    where: { deletedAt: null, bookings: { some: { userId: a.userId } }, schedule: { organizationId: a.orgId, deletedAt: null, isPublic: true, year: { gte: year - 1, lte: year + 1 } } },
-    include: shiftInclude,
-  });
+  const window = { organizationId: a.orgId, deletedAt: null, isPublic: true, year: { gte: year - 1, lte: year + 1 } };
+  const live = await db.shift.findMany({ where: { deletedAt: null, bookings: { some: { userId: a.userId } }, schedule: window }, include: shiftInclude });
+  // In bearbeiteten Plaenen gilt fuer Personen ohne Planungsrecht der zuletzt veroeffentlichte Stand.
+  const shifts = await publishedView(db, live, { keepLive: (branchId) => can(a, "VIEW_SCHEDULE", branchId) && (a.isAdmin || a.role === "MANAGER"), schedules: window, include: (s) => s.bookings.some((b) => b.userId === a.userId) });
   const now = Date.parse(today) / 60000 + minuteOfDay(berlinTime());
   return shifts.map((s) => ({ s, r: shiftRange(s) })).filter(({ r }) => r.end > now && r.date <= addDate(today, 60)).sort((x, y) => x.r.start - y.r.start).map(({ s }) => shiftView(s, a));
 }
@@ -23,7 +24,8 @@ async function requestableShifts(a: Access, today: string) {
   if (ids && !ids.length) return [];
   const year = Number(today.slice(0, 4));
   const shifts = await db.shift.findMany({
-    where: { deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null, isPublic: true, branchId: ids ? { in: ids } : { not: null }, year: { gte: year - 1, lte: year + 1 } } },
+    // Waehrend der Bearbeitung eines Plans sind keine Anfragen moeglich.
+    where: { deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null, isPublic: true, editing: false, branchId: ids ? { in: ids } : { not: null }, year: { gte: year - 1, lte: year + 1 } } },
     include: shiftInclude,
   });
   const now = Date.parse(today) / 60000 + minuteOfDay(berlinTime());

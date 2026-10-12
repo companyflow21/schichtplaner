@@ -6,6 +6,7 @@ import { branchHolders, branchIds, can, requireAccess, type Access } from "@/lib
 import { checkAssignment, notify, shiftInclude, shiftView, type ShiftWithRelations } from "@/lib/planning";
 import { canDecide, exchangeProblems, isFuture } from "@/lib/shift-requests";
 import { emitToBranch } from "@/lib/emit";
+import { assertNotEditing } from "@/lib/publishing";
 
 type RequestRow = Prisma.ModRequestGetPayload<{ include: { user: { select: { id: true; firstName: true; lastName: true } }; shift: { include: typeof shiftInclude }; targetShift: { include: typeof shiftInclude } } }>;
 type Name = { firstName: string; lastName: string };
@@ -93,6 +94,7 @@ export async function POST(request: Request) {
     const result = await serial(async tx => {
       const shift = await tx.shift.findFirst({ where: { id: data.shiftId, deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null, isPublic: true } }, include: shiftInclude });
       if (!shift) throw new ApiError("Veröffentlichte Schicht nicht gefunden.", 404);
+      assertNotEditing(shift.schedule);
       const branchId = shift.schedule.branchId;
       const ownBooking = shift.bookings.some(b => b.userId === a.userId);
       if (data.kind !== "TAKEOVER" && !ownBooking) throw new ApiError(data.kind === "SWAP" ? "Nur eigene Schichten können zur Übernahme angeboten werden." : "Nur eigene Schichten können getauscht werden.", 403);
@@ -111,6 +113,7 @@ export async function POST(request: Request) {
         target = await tx.shift.findFirst({ where: { id: data.targetShiftId, deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null, isPublic: true } }, include: shiftInclude });
         // Wer dem Standort der Gegen-Schicht nicht zugeordnet ist, erfaehrt nicht, dass es sie gibt.
         if (!target || !can(a, "REQUEST_SHIFTS", target.schedule.branchId) || !target.bookings.some(b => b.userId === data.targetUserId)) throw new ApiError("Andere Schicht nicht gefunden.", 404);
+        assertNotEditing(target.schedule);
         const problems = await exchangeProblems(tx, a.orgId, shift, a.userId, target, data.targetUserId, true);
         if (problems.length) throw new ApiError(problems.join(" "), 409);
       }

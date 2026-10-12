@@ -200,7 +200,8 @@ export async function assign(tx: Tx, a: Access, shiftId: string, userId: string,
   if (blocks.length) throw new ApiError([...blocks, ...warnings].join(" "), 409);
   if (warnings.length && !confirm) throw new ApiError(warnings.join(" "), 409, { confirm: true, warnings });
   const booking = await tx.booking.create({ data: { shiftId, userId, bookedBy: a.userId }, include: { user: { select: publicUser } } });
-  if (shift.schedule.isPublic) await notify(tx, a.orgId, a.userId, [userId], "Neue Schicht", shiftRange(shift).date + ": " + shift.shiftFrom + "–" + shift.shiftTo + ". Bitte bestätigen.", shiftId);
+  // Waehrend der Bearbeitung benachrichtigt erst das erneute Veroeffentlichen.
+  if (shift.schedule.isPublic && !shift.schedule.editing) await notify(tx, a.orgId, a.userId, [userId], "Neue Schicht", shiftRange(shift).date + ": " + shift.shiftFrom + "–" + shift.shiftTo + ". Bitte bestätigen.", shiftId);
   return { booking, shift };
 }
 

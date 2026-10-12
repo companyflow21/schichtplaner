@@ -9,6 +9,7 @@ import { addDate, berlinDate, isoWeek, shiftRange } from "./berlin";
 import { anyBranchIds, assertCan, can, type Access } from "./access";
 import { BRANCH_RIGHTS, type BranchRightKey } from "./access-shared";
 import { ineffectiveBookings, shiftInclude, shiftView, type ShiftView } from "./planning";
+import { publishedView } from "./publishing";
 
 /** Wie weit die Startseite nach offenen Plaetzen vorausschaut. */
 export const HORIZON_DAYS = 28;
@@ -36,11 +37,10 @@ async function shiftsBetween(a: Access, branchIdsToLoad: string[], from: string,
     ...(drafts.length ? [{ branchId: { in: drafts } }] : []),
     ...(published.length ? [{ branchId: { in: published }, isPublic: true }] : []),
   ];
-  return db.shift.findMany({
-    where: { deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null, OR: scope, AND: [{ OR: weeks.map((w) => ({ year: w.year, weekNumber: w.weekNumber })) }] } },
-    include: shiftInclude,
-    orderBy: [{ shiftFrom: "asc" }],
-  });
+  const where: Prisma.ScheduleWhereInput = { organizationId: a.orgId, deletedAt: null, OR: scope, AND: [{ OR: weeks.map((w) => ({ year: w.year, weekNumber: w.weekNumber })) }] };
+  const live = await db.shift.findMany({ where: { deletedAt: null, schedule: where }, include: shiftInclude, orderBy: [{ shiftFrom: "asc" }] });
+  // Bearbeitete Plaene: ohne Planungsrecht der zuletzt veroeffentlichte Stand.
+  return (await publishedView(db, live, { keepLive: (branchId) => planner(a, branchId), schedules: where })).sort((x, y) => x.shiftFrom.localeCompare(y.shiftFrom));
 }
 
 export type BranchCard = {

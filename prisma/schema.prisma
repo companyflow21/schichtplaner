@@ -353,6 +353,9 @@ model Schedule {
   weekNumber     Int
   year           Int
   isPublic       Boolean  @default(false)
+  /// Plan wird bearbeitet: Mitarbeitende sehen weiter den Stand aus ScheduleSnapshot.
+  editing        Boolean  @default(false)
+  publishedAt    DateTime?
   settingsLayout ScheduleLayout @default(LAYOUT_1)
   showTitle      Boolean  @default(true)
   showPauses     Boolean  @default(true)
@@ -365,6 +368,7 @@ model Schedule {
   shifts       Shift[]
   briefings    Briefing[]
   liveSession  LiveSession?
+  snapshot     ScheduleSnapshot?
 
   @@unique([organizationId, weekNumber, year, branchId])
   @@map("schedules")
@@ -1129,4 +1133,17 @@ model PlanningRuleOverride {
   member       OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@map("planning_rule_overrides")
+}
+
+/// Stand eines Plans, den Mitarbeitende zuletzt gesehen haben (beim Veroeffentlichen,
+/// Zurueckziehen und zu Beginn der Bearbeitung): Grundlage fuer die Aenderungsliste.
+model ScheduleSnapshot {
+  id         String   @id @default(cuid())
+  scheduleId String   @unique
+  shifts     Json
+  takenAt    DateTime @default(now())
+
+  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@map("schedule_snapshots")
 }

@@ -82,6 +82,8 @@ export type ScheduleData = {
   weekNumber: number;
   year: number;
   isPublic: boolean;
+  /** Plan wird bearbeitet: ohne Planungsrecht sieht man den zuletzt veroeffentlichten Stand. */
+  editing?: boolean;
   settingsLayout: ScheduleLayout;
   showTitle: boolean;
   showPauses: boolean;

@@ -30,6 +30,7 @@ import { timeAccountTests } from "./time-accounts";
 import { absenceEffectTests } from "./absence-effects";
 import { vacationTests } from "./vacation";
 import { planningRuleTests } from "./planning-rules";
+import { publishingTests } from "./publishing";
 import webpush from "web-push";
 
 async function main() {
@@ -244,7 +245,7 @@ try {
     ["exchange", exchangeTests], ["siteGps", siteGpsTests], ["checkin", checkinTests], ["messaging", messagingTests], ["exchangeDst", exchangeDstTests],
     ["files", fileTests], ["orgDelete", orgDeleteTests], ["pushApi", pushApiTests], ["abgleichFix", abgleichFixTests], ["payroll", payrollTests],
     ["hours", hoursTests], ["timesheet", timesheetTests], ["timeAccounts", timeAccountTests], ["absenceEffects", absenceEffectTests],
-    ["vacation", vacationTests], ["planningRules", planningRuleTests],
+    ["vacation", vacationTests], ["planningRules", planningRuleTests], ["publishing", publishingTests],
   ];
   const only = process.argv.find((arg) => arg.startsWith("--nur="))?.slice(6).split(",");
   if (only?.some((name) => !modules.some(([key]) => key === name))) throw new Error("Unbekanntes Testmodul: " + only.join(", "));

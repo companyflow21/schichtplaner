@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getISOWeek } from "date-fns";
-import { ChevronLeft, ChevronRight, Download, EyeOff, MoreHorizontal, Plus, Table2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, EyeOff, MoreHorizontal, PencilLine, Plus, Table2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -14,6 +14,7 @@ import { LiveMode } from "./live-mode";
 import { BriefingButton, DivisionFilter, OptionsMenu, VisibilityToggle } from "./schedule-options";
 import { ViewSwitcher } from "./view-switcher";
 import { WishFilterToggle } from "./wish-plan";
+import { EditModeButton, PublishDialog } from "./publish-dialog";
 
 interface ScheduleToolbarProps {
   weekNumber: number;
@@ -92,8 +93,11 @@ export function ScheduleToolbar({
   const offenePlätze = shifts.reduce((summe, shift) => summe + (shift.missing ?? Math.max(0, shift.maxEmployees - (shift.occupiedCount ?? shift.bookings.length))), 0);
   const fehlendeBestätigungen = shifts.reduce((summe, shift) => summe + shift.bookings.filter((b) => !b.confirmedAt).length, 0);
   const darfVeröffentlichen = !!access?.publish && !!schedule?.id;
-  // Ein Entwurf mit Schichten wartet aufs Veroeffentlichen - das ist dann die Hauptaktion.
-  const veröffentlichenZuerst = darfVeröffentlichen && !schedule?.isPublic && shifts.length > 0;
+  // Ein Entwurf mit Schichten oder ein Plan in Bearbeitung wartet aufs Veroeffentlichen - das ist dann die Hauptaktion.
+  const inBearbeitung = !!schedule?.isPublic && !!schedule?.editing;
+  const veröffentlichenZuerst = darfVeröffentlichen && ((!schedule?.isPublic && shifts.length > 0) || inBearbeitung);
+  // Bearbeitungsmodus nur fuer Wochen, die noch nicht begonnen haben.
+  const begonnen = year < current.year || (year === current.year && weekNumber <= current.weekNumber);
 
   const filter = schedule?.id ? (
     <>
@@ -143,7 +147,9 @@ export function ScheduleToolbar({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3 py-3">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
           {schedule &&
-            (schedule.isPublic ? (
+            (inBearbeitung ? (
+              <StatusBadge ton="hinweis" icon={PencilLine}>Wird bearbeitet</StatusBadge>
+            ) : schedule.isPublic ? (
               <StatusBadge ton="ok">Veröffentlicht</StatusBadge>
             ) : (
               <StatusBadge ton="hinweis" icon={EyeOff}>Entwurf</StatusBadge>
@@ -168,8 +174,8 @@ export function ScheduleToolbar({
                 Schicht hinzufügen
               </Button>
             )}
-            {darfVeröffentlichen && !schedule.isPublic && (
-              <VisibilityToggle scheduleId={schedule.id} isPublic={false} wochenLabel={wochenLabel} hauptaktion={veröffentlichenZuerst || !onAddShift} />
+            {darfVeröffentlichen && (!schedule.isPublic || inBearbeitung) && (
+              <PublishDialog scheduleId={schedule.id} wochenLabel={wochenLabel} editing={inBearbeitung} hauptaktion={veröffentlichenZuerst || !onAddShift} />
             )}
 
             <Popover>
@@ -208,6 +214,9 @@ export function ScheduleToolbar({
                       Stunden als CSV
                     </Link>
                   </Button>
+                )}
+                {darfVeröffentlichen && schedule.isPublic && !inBearbeitung && (
+                  <EditModeButton scheduleId={schedule.id} wochenLabel={wochenLabel} started={begonnen} className="w-full justify-start" />
                 )}
                 {darfVeröffentlichen && schedule.isPublic && (
                   <VisibilityToggle scheduleId={schedule.id} isPublic wochenLabel={wochenLabel} className="w-full justify-start" />

@@ -181,6 +181,13 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
         </p>
       )}
 
+      {schedule?.editing && (
+        <p className="mb-4 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
+          {access?.planner
+            ? "Bearbeitungsmodus: Mitarbeitende sehen weiter den zuletzt veröffentlichten Stand. Änderungen lösen erst beim Veröffentlichen Nachrichten aus."
+            : "Dieser Plan wird gerade überarbeitet. Du siehst den zuletzt veröffentlichten Stand; Anfragen, Tausch und Bestätigungen sind danach wieder möglich."}
+        </p>
+      )}
       {access?.planner && scheduleId && <RuleViolations scheduleId={scheduleId} isAdmin={!!member?.access?.isAdmin} />}
 
       {/* Employee filter bar */}

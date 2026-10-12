@@ -27,7 +27,7 @@ export async function DELETE(_request: Request, context: Context) {
       const shift = await tx.shift.findFirst({ where: { id, deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null } }, include: shiftInclude });
       if (!shift) throw new ApiError("Schicht nicht gefunden.", 404);
       assertCan(a, "EDIT_SHIFTS", shift.schedule.branchId);
-      if (shift.schedule.isPublic) await notify(tx, a.orgId, a.userId, shift.bookings.map(b => b.userId), "Schicht abgesagt", "Die Schicht " + (shift.title || "") + " von " + shift.shiftFrom + " bis " + shift.shiftTo + " wurde abgesagt.", id);
+      if (shift.schedule.isPublic && !shift.schedule.editing) await notify(tx, a.orgId, a.userId, shift.bookings.map(b => b.userId), "Schicht abgesagt", "Die Schicht " + (shift.title || "") + " von " + shift.shiftFrom + " bis " + shift.shiftTo + " wurde abgesagt.", id);
       await tx.modRequest.updateMany({ where: { shiftId: id, state: "OPEN" }, data: { state: "DECLINED" } });
       await tx.booking.deleteMany({ where: { shiftId: id } });
       await tx.shift.update({ where: { id }, data: { deletedAt: new Date() } });

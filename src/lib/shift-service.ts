@@ -64,7 +64,7 @@ export async function createShifts(tx: Tx, a: Access, data: z.output<typeof shif
   for (let w = 0; w < repeatWeeks; w++) {
     const target = w === 0 ? schedule : await ensureSchedule(tx, a.orgId, branch.id, isoWeek(addDate(weekDate(schedule.year, schedule.weekNumber), w * 7)));
     for (const dayOfWeek of days) shifts.push(await tx.shift.create({ data: { ...base, scheduleId: target.id, dayOfWeek }, include: shiftInclude }));
-    if (target.isPublic) await notify(tx, a.orgId, a.userId, audience, "Neue offene Schichten", branch.name + ": Im veröffentlichten Dienstplan KW " + target.weekNumber + "/" + target.year + " gibt es neue Schichten.");
+    if (target.isPublic && !target.editing) await notify(tx, a.orgId, a.userId, audience, "Neue offene Schichten", branch.name + ": Im veröffentlichten Dienstplan KW " + target.weekNumber + "/" + target.year + " gibt es neue Schichten.");
   }
   return shifts;
 }
@@ -97,6 +97,6 @@ export async function updateShift(tx: Tx, a: Access, id: string, data: z.output<
   }
   const shift = await tx.shift.update({ where: { id }, data: { ...fields, scheduleId: schedule.id }, include: shiftInclude });
   await tx.booking.updateMany({ where: { shiftId: id }, data: { confirmedAt: null } });
-  if (existing.schedule.isPublic || schedule.isPublic) await notify(tx, a.orgId, a.userId, existing.bookings.map(b => b.userId), "Schicht geändert – bitte bestätigen", shiftRange(shift).date + ", " + shift.shiftFrom + "–" + shift.shiftTo + ". Bitte prüfe Zeit und Einsatzort.", id);
+  if ((existing.schedule.isPublic && !existing.schedule.editing) || (schedule.isPublic && !schedule.editing)) await notify(tx, a.orgId, a.userId, existing.bookings.map(b => b.userId), "Schicht geändert – bitte bestätigen", shiftRange(shift).date + ", " + shift.shiftFrom + "–" + shift.shiftTo + ". Bitte prüfe Zeit und Einsatzort.", id);
   return { shift, previousBranchId: existing.schedule.branchId };
 }

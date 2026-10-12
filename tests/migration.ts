@@ -382,6 +382,22 @@ async function main() {
   check((await rows(pr, `SELECT 1 FROM "planning_rule_overrides"`)).length === 0, "one rule set per organization, one override per person; removed with the member");
   await pr.close();
 
+  // Veroeffentlichen: veroeffentlichte Plaene erhalten einen Zeitpunkt, niemand ist in Bearbeitung, ein Stand je Plan.
+  const PUBLISHING = "20261018090000_publishing";
+  const pub = await database(PUBLISHING);
+  await pub.exec(`
+    INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('v1','Org Plan',${now});
+    INSERT INTO "schedules" ("id","organizationId","weekNumber","year","isPublic","updatedAt") VALUES ('sp','v1',10,2026,true,'2026-03-01 10:00:00'), ('sd','v1',11,2026,false,${now});
+  `);
+  await pub.exec(await readFile("prisma/migrations/" + PUBLISHING + "/migration.sql", "utf8"));
+  const plans = await rows<{ id: string; editing: boolean; publishedAt: Date | null }>(pub, `SELECT "id","editing","publishedAt" FROM "schedules" ORDER BY "id"`);
+  check(plans[0].id === "sd" && plans[0].publishedAt === null && plans[1].publishedAt?.toISOString().startsWith("2026-03-01") && plans.every((p) => !p.editing), "published plans get a publication time; nothing is in edit mode");
+  await pub.exec(`INSERT INTO "schedule_snapshots" ("id","scheduleId","shifts") VALUES ('n1','sp','[]')`);
+  await assert.rejects(pub.exec(`INSERT INTO "schedule_snapshots" ("id","scheduleId","shifts") VALUES ('n2','sp','[]')`), /unique|duplicate/i);
+  await pub.exec(`DELETE FROM "schedules" WHERE "id"='sp'`);
+  check((await rows(pub, `SELECT 1 FROM "schedule_snapshots"`)).length === 0, "one saved state per plan; removed with the plan");
+  await pub.close();
+
   console.log("SUCCESS: " + checks + " migration checks passed.");
 }
 
