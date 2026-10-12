@@ -56,32 +56,39 @@ export function lastShiftDate(shift: { dayOfWeek: number; shiftFrom: string; shi
  */
 export type Assessment = { blocks: string[]; warnings: string[]; declared: boolean };
 
-export async function assessAssignment(tx: Tx, shift: PlannedShift, userId: string, excludeShiftId = shift.id): Promise<Assessment> {
-  const member = await tx.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: shift.schedule.organizationId, userId } } });
-  if (!member?.isActive) return { blocks: ["Mitarbeiter ist nicht aktiv."], warnings: [], declared: false };
-  const blocks: string[] = [], warnings: string[] = [];
-  if (shift.schedule.branchId) {
-    const branch = await tx.branch.findUnique({ where: { id: shift.schedule.branchId } });
-    if (!branch?.isActive) blocks.push("Einsatzort ist nicht aktiv.");
-    if (branch?.positions.length && !branch.positions.some(p => p.toLocaleLowerCase("de-DE") === member.position?.toLocaleLowerCase("de-DE"))) warnings.push("Tätigkeit passt nicht zum Einsatzort.");
-  }
-  const qualifications = new Set(member.qualifications.map(q => q.toLocaleLowerCase("de-DE")));
-  if (shift.divisionId) {
-    const division = await tx.division.findUnique({ where: { id: shift.divisionId }, include: { members: true } });
-    if (division && !division.isSystem && division.members.length && !division.members.some(m => m.userId === userId)) warnings.push("Gehört nicht zum Arbeitsbereich.");
-  }
-  const missing = shift.requiredQualifications.filter(q => !qualifications.has(q.toLocaleLowerCase("de-DE")));
-  if (missing.length) warnings.push("Erforderliche Qualifikation fehlt: " + missing.join(", ") + ".");
-  const range = shiftRange(shift);
-  const lastDate = lastShiftDate(shift);
-  const absences = await tx.absence.count({ where: { userId, status: "APPROVED", category: { organizationId: shift.schedule.organizationId }, dateFrom: { lte: new Date(lastDate) }, dateTo: { gte: new Date(range.date) } } });
-  // Die Art der Abwesenheit bleibt Personaldaten; die Planung erfaehrt nur, dass sie genehmigt ist.
-  if (absences) blocks.push("Genehmigte Abwesenheit.");
-  const bookings = await tx.booking.findMany({ where: { userId, shiftId: { not: excludeShiftId }, shift: { deletedAt: null, schedule: { deletedAt: null, organizationId: shift.schedule.organizationId, year: { gte: shift.schedule.year - 1, lte: shift.schedule.year + 1 } } } }, include: { shift: { include: { schedule: true } } } });
-  if (bookings.some(b => overlaps(range, shiftRange(b.shift)))) blocks.push("Zeitliche Überschneidung mit einer anderen Schicht.");
-  const windows = await tx.availability.findMany({ where: { organizationId: shift.schedule.organizationId, userId, date: { gte: new Date(addDate(range.date, -1)), lte: new Date(addDate(range.date, 1)) } } });
+/*
+ * Reine Vergleiche der Einteilungspruefung - gemeinsam fuer assessAssignment
+ * (einzelne Einteilung) und die Konfliktpruefung einer Standortwoche
+ * (lib/conflicts.ts), damit beide dieselben Regeln anwenden.
+ */
+const lower = (value: string) => value.toLocaleLowerCase("de-DE");
+
+/** Einsatzort verlangt Taetigkeiten, und die Taetigkeit der Person ist nicht darunter. */
+export function positionMismatch(positions: string[], position: string | null | undefined): boolean {
+  const own = position?.toLocaleLowerCase("de-DE");
+  return positions.length > 0 && !positions.some(p => lower(p) === own);
+}
+
+/** Erforderliche Qualifikationen, die die Person nicht hat (ohne Gross-/Kleinschreibung). */
+export function missingQualifications(required: string[], held: string[]): string[] {
+  const have = new Set(held.map(lower));
+  return required.filter(q => !have.has(lower(q)));
+}
+
+/** Arbeitsbereich mit Mitgliedern (kein Systembereich), zu denen die Person nicht gehoert. */
+export function outsideDivision(division: { isSystem: boolean; members: { userId: string }[] } | null, userId: string): boolean {
+  return !!division && !division.isSystem && division.members.length > 0 && !division.members.some(m => m.userId === userId);
+}
+
+/**
+ * Eingetragene Verfuegbarkeit gegen den Schichtzeitraum (Fenster vom Vortag
+ * bis Folgetag): unavailable = ein "nicht verfuegbar"-Fenster ueberschneidet
+ * sich; declared = fuer einen Schichttag ist Verfuegbarkeit eingetragen;
+ * outside = die Schicht ragt an einem solchen Tag ueber die Fenster hinaus.
+ */
+export function availabilityState(range: { date: string; start: number; end: number }, lastDate: string, windows: { date: Date; timeFrom: string; timeTo: string; available: boolean }[]) {
   const normalized = windows.map(w => { const start = w.date.getTime() / 60000 + Number(w.timeFrom.slice(0, 2)) * 60 + Number(w.timeFrom.slice(3)); return { ...w, start, end: start + rangeMinutes(w.timeFrom, w.timeTo) }; });
-  if (normalized.some(w => !w.available && overlaps(range, w))) blocks.push("Als nicht verfügbar eingetragen.");
+  const unavailable = normalized.some(w => !w.available && overlaps(range, w));
   let declared = false, outside = false;
   for (const day of [range.date, ...(lastDate !== range.date ? [lastDate] : [])]) {
     const start = Date.parse(day) / 60000, end = start + 1440;
@@ -94,8 +101,36 @@ export async function assessAssignment(tx: Tx, shift: PlannedShift, userId: stri
       if (covered < segment.end) outside = true;
     }
   }
-  if (outside) warnings.push("Schicht liegt außerhalb der eingetragenen Verfügbarkeit.");
-  return { blocks, warnings, declared: declared && !outside && !blocks.length };
+  return { unavailable, declared, outside };
+}
+
+export async function assessAssignment(tx: Tx, shift: PlannedShift, userId: string, excludeShiftId = shift.id): Promise<Assessment> {
+  const member = await tx.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: shift.schedule.organizationId, userId } } });
+  if (!member?.isActive) return { blocks: ["Mitarbeiter ist nicht aktiv."], warnings: [], declared: false };
+  const blocks: string[] = [], warnings: string[] = [];
+  if (shift.schedule.branchId) {
+    const branch = await tx.branch.findUnique({ where: { id: shift.schedule.branchId } });
+    if (!branch?.isActive) blocks.push("Einsatzort ist nicht aktiv.");
+    if (branch && positionMismatch(branch.positions, member.position)) warnings.push("Tätigkeit passt nicht zum Einsatzort.");
+  }
+  if (shift.divisionId) {
+    const division = await tx.division.findUnique({ where: { id: shift.divisionId }, include: { members: true } });
+    if (outsideDivision(division, userId)) warnings.push("Gehört nicht zum Arbeitsbereich.");
+  }
+  const missing = missingQualifications(shift.requiredQualifications, member.qualifications);
+  if (missing.length) warnings.push("Erforderliche Qualifikation fehlt: " + missing.join(", ") + ".");
+  const range = shiftRange(shift);
+  const lastDate = lastShiftDate(shift);
+  const absences = await tx.absence.count({ where: { userId, status: "APPROVED", category: { organizationId: shift.schedule.organizationId }, dateFrom: { lte: new Date(lastDate) }, dateTo: { gte: new Date(range.date) } } });
+  // Die Art der Abwesenheit bleibt Personaldaten; die Planung erfaehrt nur, dass sie genehmigt ist.
+  if (absences) blocks.push("Genehmigte Abwesenheit.");
+  const bookings = await tx.booking.findMany({ where: { userId, shiftId: { not: excludeShiftId }, shift: { deletedAt: null, schedule: { deletedAt: null, organizationId: shift.schedule.organizationId, year: { gte: shift.schedule.year - 1, lte: shift.schedule.year + 1 } } } }, include: { shift: { include: { schedule: true } } } });
+  if (bookings.some(b => overlaps(range, shiftRange(b.shift)))) blocks.push("Zeitliche Überschneidung mit einer anderen Schicht.");
+  const windows = await tx.availability.findMany({ where: { organizationId: shift.schedule.organizationId, userId, date: { gte: new Date(addDate(range.date, -1)), lte: new Date(addDate(range.date, 1)) } } });
+  const availability = availabilityState(range, lastDate, windows);
+  if (availability.unavailable) blocks.push("Als nicht verfügbar eingetragen.");
+  if (availability.outside) warnings.push("Schicht liegt außerhalb der eingetragenen Verfügbarkeit.");
+  return { blocks, warnings, declared: availability.declared && !availability.outside && !blocks.length };
 }
 
 /** Alle Einwaende ohne Unterscheidung - fuer Antraege von Mitarbeitenden, die nichts uebersteuern koennen. */
