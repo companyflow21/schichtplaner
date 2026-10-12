@@ -81,11 +81,13 @@ function RuleList({ general, member }: { general: Rules; member: Member | null }
   const effective = (key: RuleKey) => (member?.own[key] ?? general[key]) as Rules[RuleKey];
   const save = <K extends RuleKey>(key: K, rule: Rules[K], onError?: () => void) => action.mutate({ url, method: "PUT", data: { rules: { [key]: rule } }, message: RULE_LABEL[key] + " gespeichert" }, { onError });
   const reset = (key: RuleKey) => action.mutate({ url, method: "PUT", data: { reset: [key] }, message: RULE_LABEL[key] + ": wieder allgemein" });
-  const disabled = GROUPS.flatMap((g) => g.keys).filter((k) => !effective(k).enabled);
+  // Ausgeschaltete Regeln eingeklappt - ausser eigenen Regeln der Person (sonst waere die Abweichung unsichtbar).
+  const shown = (k: RuleKey) => effective(k).enabled || !!member?.own[k];
+  const disabled = GROUPS.flatMap((g) => g.keys).filter((k) => !shown(k));
   return (
     <div className="space-y-5">
       {GROUPS.map((group) => {
-        const keys = group.keys.filter((k) => showDisabled || effective(k).enabled);
+        const keys = group.keys.filter((k) => showDisabled || shown(k));
         if (!keys.length) return null;
         return (
           <section key={group.title} className="space-y-2">
