@@ -6,6 +6,7 @@ import { canStaff, requireAccess, staffHolders, staffIds } from "@/lib/access";
 import { validDate } from "@/lib/berlin";
 import { notify } from "@/lib/planning";
 import { signalBookedSites } from "@/lib/conflicts";
+import { applyEffects, effectsSchema } from "@/lib/absence-effects";
 
 const include = {
   user: { select: { id: true, firstName: true, lastName: true, profileImage: true } },
@@ -67,6 +68,8 @@ const createAbsenceSchema = z.object({
   dateTo: z.string().refine(validDate, "Ungültiges Datum."),
   note: z.string().max(2000).optional(),
   status: z.enum(["PENDING", "APPROVED"]).optional(),
+  /** Wirkung auf die Schichten im Zeitraum, nur bei sofortiger Genehmigung. */
+  effects: effectsSchema.optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -82,7 +85,8 @@ export async function POST(request: NextRequest) {
     if (!category) throw new ApiError("Kategorie nicht gefunden.", 404);
     if (data.dateFrom > data.dateTo) throw new ApiError("Enddatum liegt vor dem Beginn.");
     const absence = await db.$transaction(async (tx) => {
-      const created = await tx.absence.create({ data: { userId: data.userId, categoryId: data.categoryId, dateFrom: new Date(data.dateFrom), dateTo: new Date(data.dateTo), note: data.note || null, status }, include });
+      const created = await tx.absence.create({ data: { userId: data.userId, categoryId: data.categoryId, dateFrom: new Date(data.dateFrom), dateTo: new Date(data.dateTo), note: data.note || null, status, ...(status === "APPROVED" ? { approvedById: a.userId, approvedAt: new Date() } : {}) }, include });
+      if (status === "APPROVED") await applyEffects(tx, a, created, category, data.effects);
       const recipients = status === "PENDING" ? await staffHolders(tx, a.orgId, data.userId, "MANAGE_ABSENCES") : [data.userId];
       await notify(tx, a.orgId, a.userId, recipients, status === "PENDING" ? "Neuer Abwesenheitsantrag" : "Abwesenheit genehmigt", data.dateFrom + " bis " + data.dateTo + " · " + category.name);
       return created;

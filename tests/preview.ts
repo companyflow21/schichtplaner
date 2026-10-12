@@ -56,6 +56,20 @@ async function main() {
   await manual(elke.user.id, "2026-10-05", "22:00", "06:00", 0, { branchId: branch.id, shiftId: shift.id });
   await manual(elke.user.id, "2026-10-07", "08:00", "16:30", 30, { approved: false });
   await manual(emil.user.id, "2026-10-11", "08:00", "16:00", 30);
+
+  // --- Zeitkonto, Urlaubskonto, Abwesenheit mit gebuchter Schicht -----------------------
+  await db.timeSettings.create({ data: { organizationId: org.id, accountsEnabled: true, accountVisible: true } });
+  await db.targetHours.create({ data: { organizationId: org.id, memberId: elke.member.id, startDate: new Date("2026-10-05"), minutes: 40 * 60, period: "WEEK" } });
+  const urlaub = await db.absenceCategory.create({ data: { organizationId: org.id, name: "Urlaub", color: "#16a34a", isPaid: true, payCode: "500" } });
+  await db.vacationSettings.create({ data: { organizationId: org.id, enabled: true, categoryId: urlaub.id, startDate: new Date("2026-01-01") } });
+  await db.vacationAdjustment.create({ data: { organizationId: org.id, memberId: emil.member.id, date: new Date("2026-01-01"), days: 4.5, comment: "Resturlaub 2025" } });
+  await db.absence.create({ data: { userId: emil.user.id, categoryId: urlaub.id, dateFrom: new Date("2026-08-03"), dateTo: new Date("2026-08-14"), status: "APPROVED", approvedAt: new Date() } });
+  // Elke beantragt Urlaub am Mittwoch der Folgewoche, an dem sie eingeplant ist: Genehmigen zeigt die Schicht.
+  const next = isoWeek("2026-10-12");
+  const nextPlan = await db.schedule.create({ data: { organizationId: org.id, branchId: branch.id, year: next.year, weekNumber: next.weekNumber, isPublic: true } });
+  const wed = await db.shift.create({ data: { scheduleId: nextPlan.id, dayOfWeek: 3, shiftFrom: "08:00", shiftTo: "16:00", pauseOption: "PER_SHIFT", pauseValue: 30, title: "Empfang Tag" } });
+  await db.booking.create({ data: { shiftId: wed.id, userId: elke.user.id } });
+  await db.absence.create({ data: { userId: elke.user.id, categoryId: urlaub.id, dateFrom: new Date("2026-10-14"), dateTo: new Date("2026-10-16") } });
   await db.$disconnect();
 
   const base = "http://127.0.0.1:" + port;

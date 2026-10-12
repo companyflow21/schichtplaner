@@ -22,7 +22,7 @@ import { formatName } from "@/lib/names";
 import { euro, formatNumber, hours, type PayLine } from "@/lib/payroll";
 import { cn } from "@/lib/utils";
 
-type Status = "APPROVED" | "OPEN" | "MISSING" | "PLANNED" | "RUNNING";
+type Status = "APPROVED" | "OPEN" | "MISSING" | "PLANNED" | "RUNNING" | "ABSENT";
 /** OPEN, REVIEWED (von Pruefenden) oder AUTO (ohne Pruefer: Altbestand bei Einfuehrung oder automatische Genehmigung). */
 type Approval = "OPEN" | "REVIEWED" | "AUTO";
 type RecordView = {
@@ -32,7 +32,8 @@ type RecordView = {
   pay: { totalCents: number; lines: PayLine[]; warnings: string[] } | null;
 };
 type Row = {
-  key: string; date: string; status: Status; canEnter: boolean; plannedMinutes: number; istMinutes: number; deviationMinutes: number | null;
+  key: string; date: string; status: Status; canEnter: boolean; plannedMinutes: number;
+  absence: { category: string; handling: "PAID" | "UNPAID" | "RELEASED" | null; pay: { totalCents: number; lines: PayLine[]; warnings: string[] } | null } | null; istMinutes: number; deviationMinutes: number | null;
   shift: { id: string; from: string; to: string; title: string | null; branchName: string | null; customerName: string | null; division: { title: string; color: string } | null; pauseMinutes: number } | null;
   records: RecordView[];
 };
@@ -62,6 +63,7 @@ const STATUS: Record<Status, { label: string; className: string; bar: string }> 
   MISSING: { label: "nicht erfasst", className: "bg-destructive/10 text-destructive", bar: "bg-destructive" },
   PLANNED: { label: "geplant", className: "bg-muted text-muted-foreground", bar: "bg-muted-foreground/30" },
   RUNNING: { label: "läuft", className: "bg-primary/10 text-primary", bar: "bg-primary" },
+  ABSENT: { label: "abwesend", className: "bg-accent text-accent-foreground", bar: "bg-accent-foreground/40" },
 };
 const AUTO_TITLE = "Ohne Prüfer genehmigt: Altbestand, bei Einführung der Stundenprüfung automatisch übernommen, oder Einstellung „Selbst erfasste Zeiten automatisch genehmigen“.";
 
@@ -316,7 +318,7 @@ function RowItem({ row, showPay, userId, busy, onApprove, onEdit, onEnter }: {
   onEnter: (v: { userId: string; date: string; timeFrom: string; timeTo: string; breakMinutes: number }) => void;
 }) {
   const s = STATUS[row.status];
-  const rowPay = row.records.reduce((sum, r) => sum + (r.pay?.totalCents ?? 0), 0);
+  const rowPay = row.records.reduce((sum, r) => sum + (r.pay?.totalCents ?? 0), 0) + (row.absence?.pay?.totalCents ?? 0);
   return (
     <li className="flex">
       <span className={cn("w-1 shrink-0", s.bar)} aria-hidden />
@@ -324,9 +326,9 @@ function RowItem({ row, showPay, userId, busy, onApprove, onEdit, onEnter }: {
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <span className="font-medium">{shortDate(row.date)}{row.shift ? " · Plan " + row.shift.from + "–" + row.shift.to + (row.shift.pauseMinutes ? " (Pause " + row.shift.pauseMinutes + " Min.)" : "") : " · ohne geplante Schicht"}</span>
           <span className="flex items-center gap-2">
-            <span className="tabular-nums">{row.records.length ? hours(row.istMinutes) + " h" : row.shift ? hours(row.plannedMinutes) + " h geplant" : ""}</span>
+            <span className="tabular-nums">{row.records.length || row.absence ? hours(row.istMinutes) + " h" : row.shift ? hours(row.plannedMinutes) + " h geplant" : ""}</span>
             {row.deviationMinutes !== null && row.deviationMinutes !== 0 && <span className={cn("tabular-nums text-xs", Math.abs(row.deviationMinutes) >= 15 ? "text-warn" : "text-muted-foreground")}>{signed(row.deviationMinutes)}</span>}
-            {showPay && row.records.length > 0 && <span className="whitespace-nowrap tabular-nums">{euro(rowPay)}</span>}
+            {showPay && (row.records.length > 0 || row.absence) && <span className="whitespace-nowrap tabular-nums">{euro(rowPay)}</span>}
             <span className={cn("rounded-full px-2 py-0.5 text-xs", s.className)}>{s.label}</span>
           </span>
         </div>
@@ -336,6 +338,12 @@ function RowItem({ row, showPay, userId, busy, onApprove, onEdit, onEnter }: {
             <span>{[row.shift.branchName, row.shift.customerName].filter(Boolean).join(" · ")}</span>
             {row.shift.title && <span>· {row.shift.title}</span>}
           </p>
+        )}
+        {row.absence && (
+          <div className="space-y-1 rounded-md bg-muted/40 px-2 py-1.5">
+            <p>Abwesenheit: {row.absence.category} · {row.absence.handling === "PAID" ? "bezahlt mit Planstunden" : row.absence.handling === "UNPAID" ? "zählt 0 Stunden" : row.absence.handling === "RELEASED" ? "Schicht offen gestellt" : "ohne Festlegung (0 Stunden)"}</p>
+            {showPay && row.absence.pay && <ul className="text-xs text-muted-foreground">{row.absence.pay.lines.map((l, i) => <li key={i}>{lineText(l)}</li>)}</ul>}
+          </div>
         )}
         {row.records.map((r) => (
           <div key={r.id} className="space-y-1 rounded-md bg-muted/40 px-2 py-1.5">

@@ -20,7 +20,7 @@ export type SiteReport = {
   perPerson: { name: string; minutes: number }[]; totalMinutes: number; openCount: number;
 };
 
-const STATUS_TEXT: Record<HoursStatus, string> = { APPROVED: "genehmigt", OPEN: "offen", MISSING: "nicht erfasst", PLANNED: "geplant", RUNNING: "läuft" };
+const STATUS_TEXT: Record<HoursStatus, string> = { APPROVED: "genehmigt", OPEN: "offen", MISSING: "nicht erfasst", PLANNED: "geplant", RUNNING: "läuft", ABSENT: "abwesend" };
 const proofText = (r: { type: string; checkin: { method: string } | null }) =>
   r.checkin ? (r.checkin.method === "GPS" ? "GPS-Check-in" : "Check-in freigegeben") : r.type === "WATCH" ? "Stoppuhr" : r.type === "MANUAL_DURATION" ? "Dauer" : "manuell";
 /** Ohne Pruefer genehmigt (Altbestand bei Einfuehrung, automatische Genehmigung): "autom. übernommen". */
@@ -51,7 +51,10 @@ export async function timesheet(a: Access, userId: string, from: string, to: str
   const rows: TimesheetRow[] = person.rows.flatMap((row): TimesheetRow[] => {
     const site = row.shift ? [row.shift.branchName, row.shift.customerName].filter(Boolean).join(" · ") || null : null;
     const plan = { planFrom: row.shift?.from ?? null, planTo: row.shift?.to ?? null };
-    if (!row.records.length) return [{ date: row.date, site, ...plan, timeFrom: null, timeTo: null, breakMinutes: 0, minutes: 0, surcharges: [], status: STATUS_TEXT[row.status], proof: null, comment: null }];
+    if (!row.records.length) {
+      const status = row.absence ? "abwesend: " + row.absence.category + (row.absence.handling === "PAID" ? " (bezahlt)" : "") : STATUS_TEXT[row.status];
+      return [{ date: row.date, site, ...plan, timeFrom: null, timeTo: null, breakMinutes: 0, minutes: row.istMinutes, surcharges: [], status, proof: null, comment: null }];
+    }
     return row.records.map((r, i) => ({
       date: r.date, site: site ?? r.branchName, ...(i === 0 ? plan : { planFrom: null, planTo: null }), timeFrom: r.timeFrom, timeTo: r.timeTo,
       breakMinutes: Math.round(r.breakSeconds / 60), minutes: r.minutes, surcharges: surchargesOf.get(r.id) ?? [], status: recordStatus(r), proof: proofText(r), comment: r.comment,

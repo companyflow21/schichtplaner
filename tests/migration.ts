@@ -395,6 +395,49 @@ async function main() {
   check((await rows(acc, `SELECT 1 FROM "target_hours"`)).length === 0, "targets are removed with the member");
   await acc.close();
 
+  // Abwesenheit: Altbestand ohne Wirkung und ohne "genehmigt von"; Entscheidung je Schicht eindeutig.
+  const EFFECTS = "20261015090000_absence_effects";
+  const eff = await database(EFFECTS);
+  await eff.exec(`
+    INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('e1','Org Abw',${now});
+    INSERT INTO "users" ("id","email","firstName","lastName","updatedAt") VALUES ('ea','ea@akro-test.invalid','Eva','Alt',${now});
+    INSERT INTO "absence_categories" ("id","organizationId","name") VALUES ('ec','e1','Urlaub');
+    INSERT INTO "absences" ("id","userId","categoryId","dateFrom","dateTo","status") VALUES ('ex','ea','ec','2026-09-01','2026-09-02','APPROVED');
+    INSERT INTO "schedules" ("id","organizationId","weekNumber","year","updatedAt") VALUES ('ep','e1',36,2026,${now});
+    INSERT INTO "shifts" ("id","scheduleId","dayOfWeek","shiftFrom","shiftTo") VALUES ('es','ep',2,'08:00','16:00');
+  `);
+  await eff.exec(await readFile("prisma/migrations/" + EFFECTS + "/migration.sql", "utf8"));
+  const legacy = (await rows<{ status: string; approvedById: string | null }>(eff, `SELECT "status","approvedById" FROM "absences" WHERE "id"='ex'`))[0];
+  check(legacy.status === "APPROVED" && legacy.approvedById === null && (await rows(eff, `SELECT 1 FROM "absence_shifts"`)).length === 0, "approved legacy absences keep their status and have no effects");
+  check((await rows<{ payCode: string | null }>(eff, `SELECT "payCode" FROM "absence_categories" WHERE "id"='ec'`))[0].payCode === null, "categories start without payroll code");
+  await eff.exec(`INSERT INTO "absence_shifts" ("id","absenceId","shiftId","handling") VALUES ('f1','ex','es','PAID')`);
+  await assert.rejects(eff.exec(`INSERT INTO "absence_shifts" ("id","absenceId","shiftId","handling") VALUES ('f2','ex','es','UNPAID')`), /unique|duplicate/i);
+  await eff.exec(`DELETE FROM "absences" WHERE "id"='ex'`);
+  check((await rows(eff, `SELECT 1 FROM "absence_shifts"`)).length === 0, "one decision per absence and shift; removed with the absence");
+  await eff.close();
+
+  // Urlaubskonto: additiv und zunaechst aus; je Organisation eine Regel, je Person eine Abweichung.
+  const VACATION = "20261016090000_vacation_account";
+  const vac = await database(VACATION);
+  await vac.exec(`
+    INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('u1','Org Urlaub',${now});
+    INSERT INTO "users" ("id","email","firstName","lastName","updatedAt") VALUES ('ua','ua@akro-test.invalid','Uwe','Alt',${now});
+    INSERT INTO "organization_members" ("id","organizationId","userId","role","isActivated") VALUES ('um','u1','ua','EMPLOYEE',true);
+  `);
+  await vac.exec(await readFile("prisma/migrations/" + VACATION + "/migration.sql", "utf8"));
+  check((await rows(vac, `SELECT 1 FROM "vacation_settings"`)).length === 0, "no organization gets a vacation account by the migration");
+  await vac.exec(`INSERT INTO "vacation_settings" ("id","organizationId","updatedAt") VALUES ('v1','u1',${now})`);
+  const vs = (await rows<{ enabled: boolean; daysPerYear: number; yearStart: string; excludedWeekdays: number[]; carryOver: boolean; visible: boolean }>(vac, `SELECT "enabled","daysPerYear","yearStart","excludedWeekdays","carryOver","visible" FROM "vacation_settings"`))[0];
+  check(!vs.enabled && vs.daysPerYear === 30 && vs.yearStart === "01-01" && vs.excludedWeekdays.join() === "6,7" && vs.carryOver && vs.visible, "defaults: off, 30 days, calendar year, weekends free, carry-over, visible");
+  await assert.rejects(vac.exec(`INSERT INTO "vacation_settings" ("id","organizationId","updatedAt") VALUES ('v2','u1',${now})`), /unique|duplicate/i);
+  await vac.exec(`INSERT INTO "vacation_rules" ("id","organizationId","memberId","updatedAt") VALUES ('r1','u1','um',${now})`);
+  await assert.rejects(vac.exec(`INSERT INTO "vacation_rules" ("id","organizationId","memberId","updatedAt") VALUES ('r2','u1','um',${now})`), /unique|duplicate/i);
+  await vac.exec(`INSERT INTO "vacation_adjustments" ("id","organizationId","memberId","date","days","comment") VALUES ('a1','u1','um','2026-01-01',2.5,'Resturlaub')`);
+  check(true, "one settings row per organization, one rule per person");
+  await vac.exec(`DELETE FROM "organization_members" WHERE "id"='um'`);
+  check((await rows(vac, `SELECT 1 FROM "vacation_rules"`)).length === 0 && (await rows(vac, `SELECT 1 FROM "vacation_adjustments"`)).length === 0, "rules and corrections are removed with the member");
+  await vac.close();
+
   console.log("SUCCESS: " + checks + " migration checks passed.");
 }
 

@@ -27,6 +27,7 @@
     "test:payroll": "tsx tests/payroll-unit.ts",
     "test:pdf": "tsx tests/timesheet-pdf.ts",
     "test:accounts": "tsx tests/time-account-unit.ts",
+    "test:vacation": "tsx tests/vacation-unit.ts",
     "preview:test": "tsx tests/preview.ts",
     "test:login-throttle": "tsx tests/login-throttle.ts",
     "test:push": "tsx tests/push-outbox.ts",

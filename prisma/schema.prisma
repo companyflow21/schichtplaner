@@ -95,6 +95,9 @@ model Organization {
   timeAccounts      TimeAccount[]
   targetHours       TargetHours[]
   timeCompensations TimeCompensation[]
+  vacationSettings  VacationSettings?
+  vacationRules     VacationRule[]
+  vacationAdjustments VacationAdjustment[]
 
   @@map("organizations")
 }
@@ -137,6 +140,8 @@ model OrganizationMember {
   timeAccount    TimeAccount?
   targetHours    TargetHours[]
   compensations  TimeCompensation[]
+  vacationRule   VacationRule?
+  vacationAdjustments VacationAdjustment[]
 
   @@unique([organizationId, userId])
   @@unique([id, organizationId])
@@ -458,6 +463,7 @@ model Shift {
   exchangeRequests ModRequest[] @relation("ModRequestTargetShift")
   checkins    Checkin[]
   timeRecords TimeRecord[]
+  absenceEffects AbsenceShift[]
 
   @@map("shifts")
 }
@@ -696,9 +702,13 @@ model Absence {
   note       String?
   status     AbsenceStatus @default(PENDING)
   createdAt  DateTime     @default(now())
+  /// Wer genehmigt hat und wann (leer bei Altbestand).
+  approvedById String?
+  approvedAt   DateTime?
 
   user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   category AbsenceCategory @relation(fields: [categoryId], references: [id])
+  shiftEffects AbsenceShift[]
 
   @@map("absences")
 }
@@ -715,6 +725,8 @@ model AbsenceCategory {
   name           String
   color          String   @default("#ef4444")
   isPaid         Boolean  @default(true)
+  /// Lohnart-Code fuer bezahlte Abwesenheitsstunden im Lohnexport.
+  payCode        String?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   absences     Absence[]
@@ -1134,4 +1146,99 @@ model TimeCompensation {
 
   @@index([memberId, date])
   @@map("time_compensations")
+}
+
+enum AbsenceHandling {
+  /// Schicht bleibt, zaehlt mit Planstunden (bezahlt)
+  PAID
+  /// Schicht bleibt, zaehlt 0 Stunden (unbezahlt)
+  UNPAID
+  /// Person aus der Schicht genommen; Schicht ist wieder offen
+  RELEASED
+}
+
+/// Entscheidung je betroffener Schicht beim Genehmigen einer Abwesenheit.
+model AbsenceShift {
+  id        String          @id @default(cuid())
+  absenceId String
+  shiftId   String
+  handling  AbsenceHandling
+  createdAt DateTime        @default(now())
+
+  absence Absence @relation(fields: [absenceId], references: [id], onDelete: Cascade)
+  shift   Shift   @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@unique([absenceId, shiftId])
+  @@index([shiftId])
+  @@map("absence_shifts")
+}
+
+enum VacationAllocation {
+  /// ganzer Jahresanspruch zu Beginn des Urlaubsjahres (anteilig bei spaeterem Beginn)
+  YEARLY
+  /// je Monatsanfang ein Zwoelftel
+  MONTHLY
+}
+
+/// Urlaubskonto: allgemeine Regeln der Organisation.
+model VacationSettings {
+  id               String   @id @default(cuid())
+  organizationId   String   @unique
+  enabled          Boolean  @default(false)
+  /// Abwesenheitsart, die vom Urlaubskonto abgezogen wird
+  categoryId       String?
+  /// Beginn des Urlaubsjahres als MM-TT
+  yearStart        String   @default("01-01")
+  /// Beginn des Urlaubskontos fuer alle ohne eigenes Startdatum
+  startDate        DateTime? @db.Date
+  daysPerYear      Float    @default(30)
+  allocation       VacationAllocation @default(YEARLY)
+  carryOver        Boolean  @default(true)
+  /// null = ohne Grenze
+  carryOverMax     Float?
+  /// ISO-Wochentage ohne Abzug, Vorgabe Sa und So
+  excludedWeekdays Int[]    @default([6, 7])
+  countHolidays    Boolean  @default(false)
+  /// Mitarbeitende sehen ihr eigenes Urlaubskonto
+  visible          Boolean  @default(true)
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("vacation_settings")
+}
+
+/// Abweichende Urlaubsregeln einer Person (null = allgemein).
+model VacationRule {
+  id             String    @id @default(cuid())
+  organizationId String
+  memberId       String    @unique
+  included       Boolean   @default(true)
+  daysPerYear    Float?
+  startDate      DateTime? @db.Date
+  carryOver      Boolean?
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("vacation_rules")
+}
+
+/// Manuelle Korrektur des Urlaubskontos (± Tage), z. B. Resturlaub bei Einfuehrung.
+model VacationAdjustment {
+  id             String   @id @default(cuid())
+  organizationId String
+  memberId       String
+  date           DateTime @db.Date
+  days           Float
+  comment        String
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, date])
+  @@map("vacation_adjustments")
 }

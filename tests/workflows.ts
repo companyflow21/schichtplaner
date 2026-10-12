@@ -37,6 +37,8 @@ import { abgleichFixTests } from "./abgleich-fixes";
 import { hoursTests } from "./hours";
 import { timesheetTests } from "./timesheet";
 import { timeAccountTests } from "./time-accounts";
+import { absenceEffectTests } from "./absence-effects";
+import { vacationTests } from "./vacation";
 import webpush from "web-push";
 
 async function main() {
@@ -295,6 +297,8 @@ try {
   if (run("hours")) await hoursTests(context);
   if (run("timesheet")) await timesheetTests(context);
   if (run("time-accounts")) await timeAccountTests(context);
+  if (run("absence-effects")) await absenceEffectTests(context);
+  if (run("vacation")) await vacationTests(context);
   console.log("FINAL SUCCESS: " + checks + " assertions / HTTP checks passed.");
   if (process.argv.includes("--serve")) {
     console.log("BROWSER_PREVIEW " + base + " — admin@akro-test.invalid / " + password);
