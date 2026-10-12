@@ -3,6 +3,7 @@ import { can, requireAccess, type Access } from "@/lib/access";
 import { ineffectiveBookings, shiftInclude, shiftView } from "@/lib/planning";
 import { ineffectiveFor, mergedScope, visibleFor } from "@/lib/schedule-visibility";
 import { ensureSchedule } from "@/lib/shift-service";
+import { editingInfo } from "@/lib/schedule-editing";
 import { branchHolidays } from "@/lib/holidays";
 import { weekDate } from "@/lib/berlin";
 
@@ -47,8 +48,10 @@ export async function GET(request: Request) {
         const shifts = visible ? (await tx.shift.findMany({ where: { scheduleId: schedule!.id, deletedAt: null }, include: shiftInclude, orderBy: [{ dayOfWeek: "asc" }, { shiftFrom: "asc" }] })).filter(visibleFor(a)) : [];
         const ineffective = access.planner ? await ineffectiveBookings(tx, a.orgId, shifts) : new Set<string>();
         const base = schedule && visible ? schedule : { id: "", isPublic: false, settingsLayout: "LAYOUT_1" as const, showTitle: true, showPauses: true };
+        // Lebenszyklus (Entwurf / veroeffentlicht / in Bearbeitung) nur fuer die Planung.
+        const lifecycle = schedule && access.planner ? await editingInfo(tx, a, schedule) : {};
         return {
-          schedule: { id: base.id, organizationId: a.orgId, branchId, weekNumber, year, isPublic: base.isPublic, settingsLayout: base.settingsLayout, showTitle: base.showTitle, showPauses: base.showPauses, shifts: shifts.map(s => shiftView(s, a, ineffective)) },
+          schedule: { id: base.id, organizationId: a.orgId, branchId, weekNumber, year, isPublic: base.isPublic, ...lifecycle, settingsLayout: base.settingsLayout, showTitle: base.showTitle, showPauses: base.showPauses, shifts: shifts.map(s => shiftView(s, a, ineffective)) },
           // Feiertage nach Bundesland des Einsatzorts; ohne Bundesland nur bundeseinheitliche (holidayState null zeigt das an).
           branch: branch ? { id: branch.id, name: branch.name, isActive: branch.isActive, customer: branch.customer, plannable: branch.isActive && !!branch.customerId, holidayState: branch.holidayState, holidays: branchHolidays(branch.holidayState, weekDate(year, weekNumber, 1), weekDate(year, weekNumber, 7)).map(h => ({ ...h, dayOfWeek: (new Date(h.date + "T12:00:00Z").getUTCDay() + 6) % 7 + 1 })) } : null,
           access,

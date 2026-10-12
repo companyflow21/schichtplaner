@@ -4,6 +4,7 @@ import { addDate, overlaps, rangeMinutes, shiftRange } from "./berlin";
 import { branchIds, can, type Access } from "./access";
 import { normalizeBranchRights } from "./access-shared";
 import { CHECKED_IN, wallToUtcMinutes } from "./checkin";
+import { notifiesEmployees, scheduleStatus } from "./schedule-status";
 
 type Tx = Prisma.TransactionClient;
 
@@ -324,12 +325,12 @@ export async function placeContractorBooking(tx: Tx, a: Access, shift: ShiftWith
   return tx.booking.create({ data: { shiftId: shift.id, contractorWorkerId, ...plannerBooking(a) }, include: { contractorWorker: { select: contractorWorkerView } } });
 }
 
-/** Einteilen mit Nachricht an die Person (nur veroeffentlichte Plaene). */
+/** Einteilen mit Nachricht an die Person (nur veroeffentlichte Plaene ausserhalb der Bearbeitung). */
 export async function assign(tx: Tx, a: Access, shiftId: string, userId: string, confirm = false) {
   const shift = await findShift(tx, a.orgId, shiftId);
   if (!shift) throw new ApiError("Schicht nicht gefunden.", 404);
   const booking = await placeBooking(tx, a, shift, userId, confirm);
-  if (shift.schedule.isPublic) await notify(tx, a.orgId, a.userId, [userId], "Neue Schicht", shiftLabel(shift) + ": Du bist fest eingeteilt.", shiftId);
+  if (notifiesEmployees(shift.schedule)) await notify(tx, a.orgId, a.userId, [userId], "Neue Schicht", shiftLabel(shift) + ": Du bist fest eingeteilt.", shiftId);
   return { booking, shift };
 }
 
@@ -428,7 +429,8 @@ export function shiftView(shift: ShiftWithRelations, a: Access, ineffective: Set
     can: {
       edit: can(a, "EDIT_SHIFTS", branchId),
       handle: can(a, "HANDLE_REQUESTS", branchId),
-      request: shift.schedule.isPublic && can(a, "REQUEST_SHIFTS", branchId),
+      // Waehrend der Bearbeitung ruhen Antraege.
+      request: scheduleStatus(shift.schedule) === "PUBLISHED" && can(a, "REQUEST_SHIFTS", branchId),
       manageContractors: a.isAdmin,
     },
   };

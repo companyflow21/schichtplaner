@@ -374,6 +374,11 @@ model Schedule {
   settingsLayout ScheduleLayout @default(LAYOUT_1)
   showTitle      Boolean  @default(true)
   showPauses     Boolean  @default(true)
+  /// Bearbeitung eines veroeffentlichten Plans (Status EDITING, siehe
+  /// lib/schedule-status.ts): seit wann und von wem (Konto, wie bookedBy).
+  /// Gesetzt und geleert zusammen mit editSnapshot.
+  editingSince   DateTime?
+  editingById    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   deletedAt      DateTime?
@@ -383,9 +388,24 @@ model Schedule {
   shifts       Shift[]
   briefings    Briefing[]
   liveSession  LiveSession?
+  editSnapshot ScheduleSnapshot?
 
   @@unique([organizationId, weekNumber, year, branchId])
   @@map("schedules")
+}
+
+/// Veroeffentlichter Stand eines Wochenplans, festgehalten beim Start der
+/// Bearbeitung: Grundlage fuer Aenderungsliste und Verwerfen. Eigene Tabelle,
+/// damit die Momentaufnahme nicht mit jedem Plan (shiftInclude) geladen wird.
+model ScheduleSnapshot {
+  scheduleId String   @id
+  takenAt    DateTime @default(now())
+  /// { version: 1, takenAt, shifts: [Schicht mit allen Feldern und Buchungen] }
+  data       Json
+
+  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@map("schedule_snapshots")
 }
 
 enum ScheduleLayout {

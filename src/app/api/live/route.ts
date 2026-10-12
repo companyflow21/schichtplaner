@@ -3,6 +3,7 @@ import { api, body, ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { assertCan, can, requireAccess, type Access } from "@/lib/access";
 import { emitToSchedule } from "@/lib/emit";
+import { isEditing } from "@/lib/schedule-status";
 
 /** Protokolle mit Namen nur fuer die Planung des Standorts. */
 function sessionInclude(withLogs: boolean) {
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
     const { scheduleId } = await body(request, z.object({ scheduleId: z.string().min(1) }));
     const schedule = await scheduleFor(a, scheduleId);
     assertCan(a, "EDIT_SHIFTS", schedule.branchId, "Nur die Planung dieses Standorts kann den Live-Modus starten.");
+    if (isEditing(schedule)) throw new ApiError("Der Plan wird gerade überarbeitet. Den Live-Modus bitte nach dem Veröffentlichen oder Verwerfen starten.", 409);
     const existing = await db.liveSession.findUnique({ where: { scheduleId } });
     if (existing?.isActive) throw new ApiError("Live-Modus ist bereits aktiv", 409);
     if (existing) await db.liveSession.delete({ where: { id: existing.id } });

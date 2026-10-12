@@ -7,6 +7,7 @@ import { closeOpenRequests, requestParties } from "@/lib/shift-requests";
 import { shiftRange } from "@/lib/berlin";
 import { emitToBranch, emitToUsers } from "@/lib/emit";
 import { shiftDays, signalBookedSites } from "@/lib/conflicts";
+import { isEditing, notifiesEmployees } from "@/lib/schedule-status";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -30,6 +31,8 @@ export async function PATCH(request: Request, context: Context) {
  * noch Arbeitszeiten haengen (lib/shift-delete.ts), auch fuer Admins.
  * Alle offenen Antraege, die die Schicht nennen (eigene oder Gegen-Schicht
  * eines Tauschs), werden geschlossen; Zuweisungen entfallen. Je Person eine Nachricht.
+ * Waehrend der Bearbeitung des Plans keine Nachricht; offene Antraege bleiben
+ * bis zur Veroeffentlichung offen (beim Verwerfen kehrt die Schicht zurueck).
  */
 export async function DELETE(_request: Request, context: Context) {
   return api(async () => {
@@ -39,10 +42,10 @@ export async function DELETE(_request: Request, context: Context) {
       const shift = await loadShiftForDelete(tx, a, id);
       const check = await shiftDeletion(tx, a.orgId, shift);
       if (!check.deletable) throw new ApiError(check.reason!, 409);
-      const closed = await closeOpenRequests(tx, a, openRequestsOf(id), "Schicht wurde abgesagt.");
+      const closed = isEditing(shift.schedule) ? [] : await closeOpenRequests(tx, a, openRequestsOf(id), "Schicht wurde abgesagt.");
       const booked = personIds(shift.bookings);
       const when = shiftRange(shift).date.split("-").reverse().join(".") + ", " + shift.shiftFrom + "–" + shift.shiftTo;
-      const informed = shift.schedule.isPublic ? await notify(tx, a.orgId, a.userId, booked, "Schicht abgesagt", "Die Schicht " + (shift.title || "") + " von " + shift.shiftFrom + " bis " + shift.shiftTo + " wurde abgesagt.", id) : [];
+      const informed = notifiesEmployees(shift.schedule) ? await notify(tx, a.orgId, a.userId, booked, "Schicht abgesagt", "Die Schicht " + (shift.title || "") + " von " + shift.shiftFrom + " bis " + shift.shiftTo + " wurde abgesagt.", id) : [];
       // Beteiligte der geschlossenen Antraege, die nicht schon als Eingeteilte Bescheid wissen.
       const parties = requestParties(closed, [...informed, a.userId]);
       const voided = await notify(tx, a.orgId, a.userId, parties, "Antrag hinfällig", "Dein Antrag wurde geschlossen, weil die Schicht am " + when + " abgesagt wurde.", id);
