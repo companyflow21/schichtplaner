@@ -137,7 +137,7 @@ function VerwerfenKnopf({ scheduleId, wochenLabel, seit }: { scheduleId: string;
             <ul className="list-disc space-y-0.5 pl-4">
               {error.conflicts.map((c, i) => <li key={i}>{c}</li>)}
             </ul>
-            <p>Bitte die Überschneidungen zuerst dort lösen und dann erneut verwerfen.</p>
+            <p>Bitte zuerst die andere Schicht der Person ändern und dann erneut verwerfen.</p>
           </div>
         ),
         duration: 20000,
