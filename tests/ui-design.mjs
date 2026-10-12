@@ -27,6 +27,16 @@ async function login(page, email, role) {
   await visible(page.locator('main'));
   passed(role + ': Anmeldung über Formular');
 }
+// Anzeigename wie src/lib/names.ts formatName(): die Planansichten folgen dem Namensformat der Organisation.
+function displayName(user, format) {
+  const first = user.firstName.trim(), last = user.lastName.trim();
+  switch (format) {
+    case 'LASTNAME_FIRSTNAME': return [last, first].filter(Boolean).join(', ');
+    case 'LASTNAME': return last || first;
+    case 'FIRSTNAME': return first || last;
+    default: return (first + ' ' + last).trim();
+  }
+}
 function isoWeek(date) {
   const d = new Date(date); d.setUTCHours(0, 0, 0, 0);
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -89,6 +99,7 @@ async function main() {
     const members = (await api(admin, 'GET', '/api/employees')).members;
     const employeeMember = members.find(member => member.user.email === config.employeeEmail);
     const managerMember = members.find(member => member.user.email === 'load-user-001@akro-test.invalid');
+    const employeeName = displayName(employeeMember.user, (await api(admin, 'GET', '/api/me')).nameFormat);
     const branch = (await api(admin, 'GET', '/api/branches')).branches.find(b => b.isActive && b.customerId);
     assert.ok(employeeMember && managerMember && branch, 'Synthetic role/branch fixtures');
     await api(admin, 'PATCH', `/api/employees/${managerMember.id}/role`, { role: 'MANAGER' });
@@ -171,10 +182,10 @@ async function main() {
     const card = a.locator('article').filter({ hasText: title }).filter({ visible: true });
     await card.getByRole('button', { name: 'Mitarbeiter zuweisen', exact: true }).click();
     await a.getByPlaceholder('Mitarbeiter suchen...').fill(employeeMember.user.firstName + ' ' + employeeMember.user.lastName);
-    await a.getByRole('option').filter({ hasText: employeeMember.user.firstName + ' ' + employeeMember.user.lastName }).click();
+    await a.getByRole('option').filter({ hasText: employeeName }).click();
     const hints = a.getByRole('dialog').filter({ hasText: 'Trotz Hinweis einteilen?' });
     if (await hints.isVisible()) await hints.getByRole('button', { name: 'Trotzdem einteilen', exact: true }).click();
-    await visible(card.getByText(employeeMember.user.firstName + ' ' + employeeMember.user.lastName, { exact: true }));
+    await visible(card.getByText(employeeName, { exact: true }));
     passed('Schicht über Formular erstellt und über Kandidatenauswahl besetzt');
     const saved = (await api(admin, 'GET', `/api/schedules?kw=${week.kw}&year=${week.year}&standort=${branch.id}`)).schedule;
     const target = saved.shifts.find(shift => shift.title === title);
@@ -229,7 +240,7 @@ async function main() {
       const views = a.getByRole('group', { name: 'Ansicht', exact: true });
       await views.getByRole('link', { name: 'Mitarbeiter', exact: true }).click();
       await a.waitForURL('**/schedule/employee/**');
-      await visible(a.locator('main').getByText(employeeMember.user.firstName + ' ' + employeeMember.user.lastName, { exact: true }).filter({ visible: true }).first());
+      await visible(a.locator('main').getByText(employeeName, { exact: true }).filter({ visible: true }).first());
       await visible(a.locator('main').getByText('10:00–12:00', { exact: false }).filter({ visible: true }).first());
       await fits(a, `Mitarbeiterplan ${width}px`);
       await views.getByRole('link', { name: 'Monat', exact: true }).click();
