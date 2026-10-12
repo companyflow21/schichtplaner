@@ -69,7 +69,7 @@ export default function LoginPage() {
             Anmelden
           </h1>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form method="post" onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">E-Mail</Label>
               <Input
