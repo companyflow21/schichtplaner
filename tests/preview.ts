@@ -48,11 +48,13 @@ async function main() {
   const week = isoWeek("2026-10-05");
   const schedule = await db.schedule.create({ data: { organizationId: org.id, branchId: branch.id, year: week.year, weekNumber: week.weekNumber, isPublic: true } });
   const shift = await db.shift.create({ data: { scheduleId: schedule.id, dayOfWeek: 1, shiftFrom: "22:00", shiftTo: "06:00", divisionId: empfang.id, title: "Empfang Nacht" } });
-  await db.booking.create({ data: { shiftId: shift.id, userId: elke.user.id } });
-  const manual = (userId: string, date: string, timeFrom: string, timeTo: string, breakMinutes = 0, branchId: string | null = null) =>
-    db.timeRecord.create({ data: { organizationId: org.id, userId, date: new Date(date), type: "MANUAL", timeFrom, timeTo, breakSeconds: breakMinutes * 60, branchId } });
-  await manual(elke.user.id, "2026-10-05", "22:00", "06:00", 0, branch.id);
-  await manual(elke.user.id, "2026-10-07", "08:00", "16:30", 30);
+  // Dienstag ohne Zeiterfassung: erscheint als "nicht erfasst".
+  const missing = await db.shift.create({ data: { scheduleId: schedule.id, dayOfWeek: 2, shiftFrom: "08:00", shiftTo: "16:00", pauseOption: "PER_SHIFT", pauseValue: 30, title: "Empfang Tag" } });
+  for (const s of [shift, missing]) await db.booking.create({ data: { shiftId: s.id, userId: elke.user.id } });
+  const manual = (userId: string, date: string, timeFrom: string, timeTo: string, breakMinutes = 0, extra: { branchId?: string; shiftId?: string; approved?: boolean } = {}) =>
+    db.timeRecord.create({ data: { organizationId: org.id, userId, date: new Date(date), type: "MANUAL", timeFrom, timeTo, breakSeconds: breakMinutes * 60, branchId: extra.branchId ?? null, shiftId: extra.shiftId ?? null, approvedAt: extra.approved === false ? null : new Date() } });
+  await manual(elke.user.id, "2026-10-05", "22:00", "06:00", 0, { branchId: branch.id, shiftId: shift.id });
+  await manual(elke.user.id, "2026-10-07", "08:00", "16:30", 30, { approved: false });
   await manual(emil.user.id, "2026-10-11", "08:00", "16:00", 30);
   await db.$disconnect();
 

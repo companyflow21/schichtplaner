@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ErrorMessage, json, selectClass } from "@/components/workforce/client";
 import { TimeRecordForm } from "@/components/time/time-record-form";
+import { SiteReportButton, TimesheetButton } from "./timesheet-button";
 import { addDate, berlinDate } from "@/lib/berlin";
 import { euro, formatNumber, hours, type PayLine } from "@/lib/payroll";
 import { cn } from "@/lib/utils";
@@ -94,7 +95,8 @@ export function HoursView() {
           <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">Stunden und Lohn</h1>
           <p className="text-sm text-muted-foreground">Plan und Ist je Schicht prüfen, korrigieren und genehmigen{data?.showPay ? " – mit Lohn und Lohnexport" : ""}</p>
         </div>
-        <div className="flex gap-2 print:hidden">
+        <div className="flex flex-wrap gap-2 print:hidden">
+          {standort && <SiteReportButton branchId={standort} from={from} to={to} />}
           <Button size="sm" variant="outline" onClick={() => window.print()}><Printer className="size-4" />Drucken</Button>
           {data?.showPay && <Button size="sm" onClick={() => setExporting(true)}><Download className="size-4" />Lohnexport</Button>}
         </div>
@@ -190,11 +192,10 @@ export function HoursView() {
                         <tr className="border-t bg-muted/20">
                           <td colSpan={cols} className="px-3 py-3">
                             <div className="space-y-2">
-                              {p.approvable.length > 0 && (
-                                <div className="flex justify-end print:hidden">
-                                  <Button size="sm" disabled={approve.isPending} onClick={() => approve.mutate({ ids: p.approvable, approved: true })}><Check className="size-4" />Alle offenen genehmigen ({p.approvable.length})</Button>
-                                </div>
-                              )}
+                              <div className="flex flex-wrap justify-end gap-2 print:hidden">
+                                <TimesheetButton userId={p.userId} from={from} to={to} />
+                                {p.approvable.length > 0 && <Button size="sm" disabled={approve.isPending} onClick={() => approve.mutate({ ids: p.approvable, approved: true })}><Check className="size-4" />Alle offenen genehmigen ({p.approvable.length})</Button>}
+                              </div>
                               {p.rows.length === 0 ? <p className="text-sm text-muted-foreground">Keine Schichten und keine Buchungen im Zeitraum.</p> : (
                                 <ul className="divide-y overflow-hidden rounded-[var(--radius)] border bg-card">
                                   {p.rows.map((row) => <RowItem key={row.key} row={row} showPay={data.showPay} userId={p.userId} busy={approve.isPending}

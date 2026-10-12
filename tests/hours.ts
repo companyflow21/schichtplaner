@@ -28,7 +28,7 @@ export async function hoursTests(t: TestContext) {
   // --- Eigene Erfassung: offen und der Schicht zugeordnet ------------------------
   const own = (await sB.request("/api/time", "POST", { type: "MANUAL", userId: users.staffB.id, date: "2025-09-08", timeFrom: "08:05", timeTo: "16:10", breakMinutes: 30 }, 201)).record;
   check(own.shiftId === monday.id && own.approvedAt === null && own.branchId === branch.id, "own entry is linked to the overlapping shift and still open");
-  let rows = (await person(admin)).rows;
+  const rows = (await person(admin)).rows;
   const mon = rows.find((r: any) => r.shift?.id === monday.id), tue = rows.find((r: any) => r.shift?.id === tuesday.id);
   check(mon.status === "OPEN" && mon.plannedMinutes === 450 && mon.istMinutes === 455 && mon.deviationMinutes === 5, "Monday: plan 7,5 h, actual 7,58 h, open, +5 minutes");
   check(tue.status === "MISSING" && tue.records.length === 0 && tue.canEnter === true, "Tuesday: planned in the past without time is shown as not recorded");
