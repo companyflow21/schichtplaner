@@ -79,7 +79,7 @@ Jedes Paket wird wie bisher mit Tests, Browserprüfung und Eintrag in `FERTIGSTE
 | P3 | Stundenzettel und Leistungsnachweis je Kunde/Einsatzort als PDF, Monatsabschluss | B42, Teil B „Stundenzettel“ | M | umgesetzt (`5f4e78d`); offen: Monatsabschluss, elektronische Bestätigung |
 | P4 | Zeitkonten: Soll mit Startdatum, laufender Saldo, Ausgleich, Ansicht für Mitarbeitende | B77–B88 | M | umgesetzt (`0de1cc7`); offen: Saldo im Lohnexport, Kappungsgrenzen |
 | P5 | Abwesenheit wirkt auf Schichten, Stunden und Lohn; Abwesenheitsvergütung; Urlaubskonto | B59–B62, B87, C77–C81, C98–C112 | L | umgesetzt (`c21d5b3`); offen: Vergütung nach Durchschnitt statt Planstunden, halbe Urlaubstage im Antrag, Urlaubssperren |
-| P6 | Planungsregeln je Person mit Verstoßliste (Höchststunden, Ruhezeit, Tage am Stück …), Veröffentlichungsdialog mit Änderungsliste, Bearbeitungsmodus | A42–A60, A70, A72 | L | offen |
+| P6 | Planungsregeln je Person mit Verstoßliste (Höchststunden, Ruhezeit, Tage am Stück …), Veröffentlichungsdialog mit Änderungsliste, Bearbeitungsmodus | A42–A60, A70, A72 | L | umgesetzt (P6-Commits); offen: Stundenziel, „Stunden am Stück“ und „von automatischer Planung ausschließen“ (erst mit dem Assistenten P8), Wochentagsregeln (A58), Bearbeitung verwerfen |
 | P7 | Vorlagen über mehrere Wochen, Kopieren von Block/Tag/Woche, Person aufnehmen und verteilen | A18–A32 | L | offen |
 | P8 | Regelbasierter Assistent „Besetzung vorschlagen“ | A65–A67 | L | offen |
 | P9 | E-Mail-Versand, Passwort vergessen, Benachrichtigungseinstellungen, Kalender-Abo, „Ich“-Seite | Teil D | L | offen |
@@ -167,11 +167,41 @@ Jedes Paket wird wie bisher mit Tests, Browserprüfung und Eintrag in `FERTIGSTE
 - Der Antrag zeigt „verfügbar · dieser Zeitraum · danach“. Kontoauszug je Urlaubsjahr. Übersicht „Urlaubskonten“
   unter Abwesenheiten für Administration und Manager mit „Abwesenheiten entscheiden“.
 
+## Planungsregeln (P6) – so prüft der Schichtplaner
+
+- Einstellungen › Planungsregeln (nur Administration): allgemeine Regeln und Abweichungen je Person; eine Abweichung
+  ersetzt die allgemeine Regel ganz und ist in der Liste mit „weicht ab“ markiert, „allgemein“ setzt zurück.
+- Regeln: Mindest- und Höchststunden je Woche oder Monat, Höchststunden am Tag, Mindestruhezeit zwischen Schichten,
+  höchstens Arbeitstage am Stück und je Woche, Arbeitstage und freie Tage zusammenhängend (mindestens 2),
+  höchstens Wochenenden mit Schicht in Folge, ein freier Werktag je Wochenendtag mit Schicht. Vorgaben nach
+  Arbeitszeitgesetz (48 h/Woche, 10 h/Tag, 11 h Ruhezeit), zunächst alle aus.
+- Gezählt werden alle Schichten einer Person an allen Standorten, auch in Entwürfen; eine Schicht gehört zu ihrem
+  Anfangstag; Stunden sind Planstunden (ohne Pause); Tage mit genehmigter Abwesenheit zählen nicht. Abstände bis
+  15 Minuten gelten als zusammenhängend.
+- Verstöße sind Hinweise: Einteilen und Veröffentlichen bleiben möglich (Smartplan A60). Der Wochenplan zeigt sie
+  der Planung im Kasten „Regelverstöße“ mit Liste je Person; ein Klick springt zur Schicht.
+- Anders als Smartplan bleiben genehmigte Abwesenheit, „nicht verfügbar“ und Überschneidungen harte Sperren beim
+  Einteilen (A53, A55, A68).
+
+## Veröffentlichen und Bearbeitungsmodus (P6)
+
+- Je Plan wird der Stand gespeichert, den Mitarbeitende zuletzt gesehen haben (beim Veröffentlichen, Zurückziehen
+  und zu Beginn der Bearbeitung). „Veröffentlichen“ öffnet eine Prüfung: Zeitraum, neue, gelöschte und geänderte
+  Schichten mit Datum, Zeit, Arbeitsbereich und Personen, Eingeteilte mit Abwesenheit, offene Plätze,
+  Regelverstöße; „Betroffene benachrichtigen“ ist abwählbar.
+- „Plan bearbeiten“ (Weitere Aktionen) nimmt einen veröffentlichten Plan einer kommenden Woche zurück in die
+  Planung (Status „Wird bearbeitet“). Mitarbeitende sehen bis zum erneuten Veröffentlichen den bisherigen Stand
+  (Wochenplan, eigener Plan, Startseite, Monatsansicht) mit Hinweis; Anfragen, Tausch und Bestätigen ruhen;
+  Änderungen lösen keine Einzelnachrichten aus. „Änderungen veröffentlichen“ benachrichtigt nur die Betroffenen
+  mit ihren Änderungen, bei neuen offenen Plätzen alle mit Anfragerecht.
+- Laufende Wochen werden wie bisher direkt geändert (A71), weil Check-in und Zeiterfassung den aktuellen Plan
+  nutzen. „Stunden und Lohn“ zeigt für kommende Wochen den Planungsstand.
+
 ## Nächster Schritt
 
-P6 (Planungsregeln je Person mit Verstoßliste, Veröffentlichungsdialog mit Änderungsliste, Bearbeitungsmodus).
-Parallel, sobald die Zugangsdaten gesetzt sind: Erfassung im Konto nach den Regeln oben, offene Punkte klären,
-Layout für P12 festhalten.
+P7 (Vorlagen über mehrere Wochen, Kopieren von Block/Tag/Woche, Person aufnehmen und verteilen). Parallel,
+sobald die Zugangsdaten gesetzt sind: Erfassung im Konto nach den Regeln oben, offene Punkte klären, Layout für
+P12 festhalten.
 
 ## Quellen (öffentlich, abgerufen 12.10.2026)
 

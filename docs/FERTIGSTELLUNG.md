@@ -5,6 +5,32 @@ Status: `bestanden` · `fehlgeschlagen` · `nicht geprüft` · `offen` (fachlich
 Nachweise sind lokal (PGlite-Workflowtests, isolierte Docker-Testinstallation), soweit nicht anders vermerkt.
 Auf Netcup eingespielt: `9eabd44` am 28.09.2026, `b5efa55` am 29.09.2026 (Löschen, Qualifikationen bearbeiten, Push).
 
+## Smartplan-Abgleich: P6 (12.10.2026)
+
+Branch `claude/wizardly-cerf-cxbutc`. Noch nicht eingespielt. Migrationen `20261017090000_planning_rules` und
+`20261018090000_publishing` sind additiv (veröffentlichte Pläne erhalten `publishedAt`); vorher auf einer Kopie prüfen.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P1 | Regelkern – `lib/planning-rules.ts` | Stunden je Woche/Monat (min/max), Stunden am Tag, Ruhezeit (Lücke ≤ 15 min zusammenhängend), Tage am Stück, Tage je Woche, einzelne Arbeits-/freie Tage, Wochenenden in Folge, freier Werktag je Wochenendtag; Nachtschicht zählt am Anfangstag | bestanden | `npm run test:rules` (19) |
+| P1 | Regeln und Verstöße – `api/planning-rules`, `api/schedules/[id]/violations` | Einstellungen nur Admin; Abweichung je Person ersetzt die Regel, „allgemein“ setzt zurück; Verstöße über alle Standorte und Entwürfe, ohne Abwesenheitstage; nur Planung sieht sie; Veröffentlichen trotz Verstoß | bestanden | `tests/planning-rules.ts` |
+| P0 | Veröffentlichen mit Änderungsliste – `lib/publishing.ts`, `api/schedules/[id]/publish` | Erste Veröffentlichung: alle neu, alle Berechtigten benachrichtigt; danach neue/gelöschte/geänderte Schichten gegenüber dem zuletzt gesehenen Stand; Benachrichtigung abwählbar | bestanden | `tests/publishing.ts` |
+| P0 | Bearbeitungsmodus – `api/schedules/[id]/edit` | Nur kommende Wochen (laufende 409); Mitarbeitende sehen den alten Stand (Wochenplan, eigener Plan); Anfragen und Bestätigen 409; keine Einzelnachrichten; Wiederveröffentlichen benachrichtigt nur Betroffene mit ihren Änderungen | bestanden | `tests/publishing.ts` |
+| P1 | Zurückziehen | Stand bleibt für die Änderungsliste; erneutes Veröffentlichen informiert alle wie bisher | bestanden | `tests/publishing.ts` |
+| P1 | Migrationen | Additiv; ohne Eintrag alle Regeln aus; eine Regelzeile je Organisation, eine Abweichung je Person; ein gespeicherter Stand je Plan, Löschen kaskadiert | bestanden | `npm run test:migration` (84) |
+| P1 | Oberfläche | Einstellungen › Planungsregeln, Kasten „Regelverstöße“ mit Sprung zur Schicht, Dialog „Änderungen veröffentlichen?“, „Plan bearbeiten“, Status „Wird bearbeitet“, Hinweis für Mitarbeitende, 375 px | nicht geprüft | Browser (Produktions-Build, `npm run preview:test`) |
+
+### Prüfungen (lokal)
+
+| Prüfung | Ergebnis |
+|---|---|
+| `npx tsc --noEmit` | 0 Fehler |
+| `npx eslint src tests --quiet` | 0 Fehler |
+| `npm run test:workflows` | nicht geprüft |
+| `npm run test:migration` | 84/84 |
+| `npm run test:rules` | 19/19 |
+| `npm run build` | nicht geprüft |
+
 ## Smartplan-Abgleich: P4 und P5 (12.10.2026)
 
 Branch `claude/wizardly-cerf-cxbutc` (`0de1cc7`, `c21d5b3` und Folgekorrekturen). Noch nicht eingespielt. Migrationen `20261014090000_time_accounts`,

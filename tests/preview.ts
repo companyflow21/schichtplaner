@@ -70,6 +70,18 @@ async function main() {
   const wed = await db.shift.create({ data: { scheduleId: nextPlan.id, dayOfWeek: 3, shiftFrom: "08:00", shiftTo: "16:00", pauseOption: "PER_SHIFT", pauseValue: 30, title: "Empfang Tag" } });
   await db.booking.create({ data: { shiftId: wed.id, userId: elke.user.id } });
   await db.absence.create({ data: { userId: elke.user.id, categoryId: urlaub.id, dateFrom: new Date("2026-10-14"), dateTo: new Date("2026-10-16") } });
+
+  // --- Planungsregeln, Bearbeitungsmodus, erste Veroeffentlichung -----------------------
+  // Ruhezeit 11 h und hoechstens 10 h am Tag: Elkes Nacht bis Di 06:00 und Di ab 08:00 verstossen.
+  await db.planningRules.create({ data: { organizationId: org.id, rules: { rest: { enabled: true, hours: 11 }, dailyHours: { enabled: true, max: 10 } } } });
+  await db.branchAccess.create({ data: { organizationId: org.id, memberId: elke.member.id, branchId: branch.id, rights: ["VIEW_SCHEDULE", "REQUEST_SHIFTS"] } });
+  const coming = isoWeek("2026-10-19"), draftWeek = isoWeek("2026-10-26");
+  const comingPlan = await db.schedule.create({ data: { organizationId: org.id, branchId: branch.id, year: coming.year, weekNumber: coming.weekNumber, isPublic: true, publishedAt: new Date() } });
+  const comingMon = await db.shift.create({ data: { scheduleId: comingPlan.id, dayOfWeek: 1, shiftFrom: "08:00", shiftTo: "16:00", pauseOption: "PER_SHIFT", pauseValue: 30, title: "Empfang Tag" } });
+  await db.shift.create({ data: { scheduleId: comingPlan.id, dayOfWeek: 2, shiftFrom: "08:00", shiftTo: "16:00", pauseOption: "PER_SHIFT", pauseValue: 30, title: "Empfang Tag" } });
+  await db.booking.create({ data: { shiftId: comingMon.id, userId: elke.user.id } });
+  const draft = await db.schedule.create({ data: { organizationId: org.id, branchId: branch.id, year: draftWeek.year, weekNumber: draftWeek.weekNumber } });
+  for (const day of [1, 2, 3]) await db.shift.create({ data: { scheduleId: draft.id, dayOfWeek: day, shiftFrom: "06:00", shiftTo: "14:00", title: "Frühdienst" } });
   await db.$disconnect();
 
   const base = "http://127.0.0.1:" + port;
