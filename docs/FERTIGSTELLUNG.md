@@ -1,6 +1,7 @@
 # Fertigstellung – Arbeitsliste
 
-Stand 28.09.2026, Branch `feat/kommunikation-tausch-gps` (Basis `7d80426`, läuft produktiv).
+Übergabe des Smartplan-Abgleichs (P0–P6, Branch `claude/wizardly-cerf-cxbutc`, nicht eingespielt): siehe [`UEBERGABE.md`](UEBERGABE.md).
+Abschnitte unten neueste zuerst. Ältere Angaben: Stand 28.09.2026, Branch `feat/kommunikation-tausch-gps` (Basis `7d80426`, läuft produktiv).
 Status: `bestanden` · `fehlgeschlagen` · `nicht geprüft` · `offen` (fachliche Entscheidung).
 Nachweise sind lokal (PGlite-Workflowtests, isolierte Docker-Testinstallation), soweit nicht anders vermerkt.
 Auf Netcup eingespielt: `9eabd44` am 28.09.2026, `b5efa55` am 29.09.2026 (Löschen, Qualifikationen bearbeiten, Push).

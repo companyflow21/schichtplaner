@@ -31,6 +31,11 @@ Als Admin angemeldet:
 Ohne Freigabe sehen Manager keine Standorte und Mitarbeitende nur ihre eigenen Schichten,
 Zeiten und Abwesenheiten. Details: `docs/AKRO-ERWEITERUNG.md`, Abschnitte 5 und 6.
 
+## Lohn, Stunden, Zeitkonten, Urlaub und Planungsregeln
+Neu aus dem Smartplan-Abgleich (P0–P6). Einrichtung in sechs Schritten, wer was sehen darf und die offenen
+Entscheidungen: `docs/UEBERGABE.md`, Abschnitte „Nach dem Einspielen einrichten“ und „Wer was darf“. Die Rechenregeln
+(Lohn, Zuschläge, Zeitkonto, Urlaub, Planungsregeln) stehen in `docs/SMARTPLAN-ABGLEICH.md`.
+
 ## Bedienung: Nachrichten, Tausch und Check-in
 
 **Nachrichten** (Mehr → Postfach → „Neue Nachricht“)
@@ -160,7 +165,8 @@ Das Skript erzeugt einen PostgreSQL-Dump im Custom-Format, prüft ihn mit `pg_re
 Testdatenbank – nie in die Betriebsdatenbank. Für die Netcup-Installation gilt das dortige Verfahren per SSH.
 
 ## Aktualisieren
-1. Backup wie oben ziehen.
+1. Backup wie oben ziehen. Bei neuen Datenbank-Migrationen vorher die Migrationsprobe an einer Kopie
+   (`npm run test:migration:copy`, siehe `docs/UEBERGABE.md` › Einspielen).
 2. `docker compose up -d --build` – baut die App neu und spielt ausstehende Datenbank-Migrationen automatisch ein.
 3. Prüfen: `docker compose ps` zeigt die App als `healthy`, danach **https://localhost** öffnen.
 

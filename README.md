@@ -24,6 +24,8 @@
 
 > **Note:** The application UI is in German. Internationalization (i18n) support is planned for future releases.
 
+> **AKRO:** Stand, Einspiel-Checkliste und offene Punkte des Smartplan-Abgleichs: [`docs/UEBERGABE.md`](docs/UEBERGABE.md).
+
 ## Features
 
 ### Shift Planning

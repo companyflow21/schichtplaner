@@ -199,9 +199,9 @@ Jedes Paket wird wie bisher mit Tests, Browserprüfung und Eintrag in `FERTIGSTE
 
 ## Nächster Schritt
 
-P7 (Vorlagen über mehrere Wochen, Kopieren von Block/Tag/Woche, Person aufnehmen und verteilen). Parallel,
-sobald die Zugangsdaten gesetzt sind: Erfassung im Konto nach den Regeln oben, offene Punkte klären, Layout für
-P12 festhalten.
+Auf Wunsch des Inhabers nach P6 pausiert; Übergabe mit Einspiel-Checkliste in [`UEBERGABE.md`](UEBERGABE.md). Danach
+P7 (Vorlagen über mehrere Wochen, Kopieren von Block/Tag/Woche, Person aufnehmen und verteilen). Parallel, sobald die
+Zugangsdaten gesetzt sind: Erfassung im Konto nach den Regeln oben, offene Punkte klären, Layout für P12 festhalten.
 
 ## Quellen (öffentlich, abgerufen 12.10.2026)
 
