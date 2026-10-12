@@ -285,6 +285,30 @@ async function main() {
   check((await rows(edit, `SELECT 1 FROM "schedule_snapshots"`)).length === 0, "at most one snapshot per plan, only for existing plans, removed with the plan");
   await edit.close();
 
+  // Lohn: rein additiv; Personalnummer eindeutig je Organisation, genutzte Lohnart nicht loeschbar.
+  const PAYROLL = "20261012090000_payroll";
+  const pay = await database(PAYROLL);
+  await pay.exec(`
+    INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('l1','Org Lohn',${now}),('l2','Org Zwei',${now});
+    INSERT INTO "users" ("id","email","firstName","lastName","updatedAt") VALUES ('la','la@akro-test.invalid','Lea','Alt',${now}),('lb','lb@akro-test.invalid','Leo','Alt',${now});
+    INSERT INTO "organization_members" ("id","organizationId","userId","role","isActivated","position") VALUES ('lm1','l1','la','EMPLOYEE',true,'Wache'),('lm2','l1','lb','EMPLOYEE',true,null),('lm3','l2','la','EMPLOYEE',true,null);
+    INSERT INTO "divisions" ("id","organizationId","title") VALUES ('ld','l1','Empfang');
+  `);
+  await pay.exec(await readFile("prisma/migrations/" + PAYROLL + "/migration.sql", "utf8"));
+  const member = (await rows<{ position: string | null; personnelNumber: string | null; payTypeId: string | null }>(pay, `SELECT "position","personnelNumber","payTypeId" FROM "organization_members" WHERE "id"='lm1'`))[0];
+  check(member.position === "Wache" && member.personnelNumber === null && member.payTypeId === null, "existing members keep their data and start without personnel number and pay type");
+  check((await rows<{ payTypeId: string | null }>(pay, `SELECT "payTypeId" FROM "divisions" WHERE "id"='ld'`))[0].payTypeId === null, "existing work areas start without their own pay type");
+  await pay.exec(`UPDATE "organization_members" SET "personnelNumber"='100' WHERE "id"='lm1'; UPDATE "organization_members" SET "personnelNumber"='100' WHERE "id"='lm3';`);
+  await assert.rejects(pay.exec(`UPDATE "organization_members" SET "personnelNumber"='100' WHERE "id"='lm2'`), /unique|duplicate/i);
+  check(true, "personnel numbers are unique within an organisation but may repeat across organisations");
+  await pay.exec(`INSERT INTO "pay_types" ("id","organizationId","title","hourlyRateCents") VALUES ('lp','l1','Normal',1500); UPDATE "organization_members" SET "payTypeId"='lp' WHERE "id"='lm1';`);
+  await assert.rejects(pay.exec(`DELETE FROM "pay_types" WHERE "id"='lp'`), /foreign key|violates/i);
+  check(true, "a pay type in use cannot be deleted");
+  await pay.exec(`INSERT INTO "surcharges" ("id","organizationId","name","rateKind","rate") VALUES ('ls','l1','Nacht','PERCENT',2500)`);
+  const surcharge = (await rows<{ weekdays: number[]; allPeople: boolean; timeFrom: string; timeTo: string }>(pay, `SELECT "weekdays","allPeople","timeFrom","timeTo" FROM "surcharges" WHERE "id"='ls'`))[0];
+  check(surcharge.weekdays.length === 0 && surcharge.allPeople && surcharge.timeFrom === "00:00" && surcharge.timeTo === "00:00", "surcharge defaults: no days, everyone, whole day");
+  await pay.close();
+
   console.log("SUCCESS: " + checks + " migration checks passed.");
 }
 

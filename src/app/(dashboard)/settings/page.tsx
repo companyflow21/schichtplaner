@@ -16,6 +16,7 @@ import { TimeSettings } from "@/components/settings/time-settings";
 import { AbsenceSettings } from "@/components/settings/absence-settings";
 import { AccountSettings } from "@/components/settings/account-settings";
 import { QualificationSettings } from "@/components/settings/qualification-settings";
+import { PayrollSettings } from "@/components/settings/payroll-settings";
 
 // ---------- Types ----------
 
@@ -205,6 +206,7 @@ function SettingsContent() {
           >
             <option value="schedule">Schichtplan</option>
             <option value="time">Zeiterfassung</option>
+            <option value="payroll">Lohn</option>
             <option value="wishplan">Wunschpläne</option>
             <option value="employees">Mitarbeiter</option>
             <option value="qualifications">Qualifikationen</option>
@@ -230,6 +232,8 @@ function SettingsContent() {
               isSaving={updateMutation.isPending}
             />
           )}
+
+          {activeSection === "payroll" && <PayrollSettings />}
 
           {activeSection === "wishplan" && (
             <div className="space-y-6">

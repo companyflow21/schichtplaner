@@ -8,6 +8,7 @@ import {
   MessageSquare,
   Settings,
   Users,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import type { CurrentMember } from "@/lib/hooks/use-current-member";
@@ -111,6 +112,7 @@ export function navGroups(me?: CurrentMember): NavGroup[] {
       items: [
         ...(can.locations ? [{ key: "divisions", href: "/divisions", label: "Einsatzorte", icon: Building2 }] : []),
         { key: "reporting", href: "/reporting", label: "Auswertung", icon: BarChart3 },
+        ...(can.admin ? [{ key: "payroll", href: "/payroll", label: "Lohn", icon: Wallet }] : []),
         { key: "portal", href: "/portal/inbox", label: "Nachrichten", icon: MessageSquare, badge: "unread" as const },
       ],
     },
