@@ -16,6 +16,7 @@ import { ShiftCard } from "./shift-card";
 import { ShiftForm } from "./shift-form";
 import { EmployeeNav } from "./employee-nav";
 import { LiveBorder } from "./live-mode";
+import { RuleViolations } from "./rule-violations";
 import type { WishRequest } from "./wish-plan";
 import type { ScheduleResponse, ShiftData } from "@/types/schedule";
 
@@ -179,6 +180,8 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
           Altbestand ohne Standort – nur für die Administration sichtbar. Beim Bearbeiten einen Standort wählen.
         </p>
       )}
+
+      {access?.planner && scheduleId && <RuleViolations scheduleId={scheduleId} isAdmin={!!member?.access?.isAdmin} />}
 
       {/* Employee filter bar */}
       {shifts.some((s) => s.bookings.length) && (

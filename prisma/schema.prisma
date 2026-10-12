@@ -93,6 +93,8 @@ model Organization {
   vacationSettings  VacationSettings?
   vacationRules     VacationRule[]
   vacationAdjustments VacationAdjustment[]
+  planningRules     PlanningRules?
+  planningRuleOverrides PlanningRuleOverride[]
 
   @@map("organizations")
 }
@@ -135,6 +137,7 @@ model OrganizationMember {
   targetHours    TargetHours[]
   compensations  TimeCompensation[]
   vacationRule   VacationRule?
+  planningRuleOverride PlanningRuleOverride?
   vacationAdjustments VacationAdjustment[]
 
   @@unique([organizationId, userId])
@@ -1100,4 +1103,30 @@ model VacationAdjustment {
 
   @@index([memberId, date])
   @@map("vacation_adjustments")
+}
+
+/// Planungsregeln der Organisation: je Regel an/aus und Werte (siehe src/lib/planning-rules.ts).
+model PlanningRules {
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  rules          Json     @default("{}")
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("planning_rules")
+}
+
+/// Abweichende Planungsregeln einer Person; jede enthaltene Regel ersetzt die allgemeine ganz.
+model PlanningRuleOverride {
+  id             String   @id @default(cuid())
+  organizationId String
+  memberId       String   @unique
+  rules          Json     @default("{}")
+  updatedAt      DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("planning_rule_overrides")
 }

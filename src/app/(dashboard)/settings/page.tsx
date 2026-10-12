@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { use, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ShieldAlert, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
 import {
+  SETTINGS_SECTIONS,
   SettingsSidebar,
   type SettingsSection,
 } from "@/components/settings/settings-sidebar";
@@ -18,6 +19,7 @@ import { QualificationSettings } from "@/components/settings/qualification-setti
 import { PayrollSettings } from "@/components/settings/payroll-settings";
 import { TimeAccountSettings } from "@/components/settings/time-account-settings";
 import { VacationSettings } from "@/components/settings/vacation-settings";
+import { PlanningRulesSettings } from "@/components/settings/planning-rules-settings";
 
 // ---------- Types ----------
 
@@ -57,11 +59,13 @@ type SettingsResponse = {
 
 // ---------- Component ----------
 
-export default function SettingsPage() {
+export default function SettingsPage({ searchParams }: { searchParams: Promise<{ bereich?: string }> }) {
+  // Direkter Sprung in einen Bereich, z. B. /settings?bereich=rules aus dem Wochenplan.
+  const { bereich } = use(searchParams);
   const queryClient = useQueryClient();
   const { data: currentMember, isLoading: memberLoading } = useCurrentMember();
-  const [activeSection, setActiveSection] =
-    useState<SettingsSection>("schedule");
+  const [activeSection, setActiveSection] = useState<SettingsSection>(() =>
+    bereich && SETTINGS_SECTIONS.includes(bereich as SettingsSection) ? (bereich as SettingsSection) : "schedule");
 
   const isAdmin =
     currentMember?.role === "OWNER" || currentMember?.role === "ADMIN";
@@ -193,6 +197,7 @@ export default function SettingsPage() {
             className="w-full rounded-md border bg-background px-3 py-2 text-sm mb-4"
           >
             <option value="schedule">Schichtplan</option>
+            <option value="rules">Planungsregeln</option>
             <option value="time">Zeiterfassung</option>
             <option value="payroll">Lohn</option>
             <option value="accounts">Zeitkonten</option>
@@ -222,6 +227,8 @@ export default function SettingsPage() {
               isSaving={updateMutation.isPending}
             />
           )}
+
+          {activeSection === "rules" && <PlanningRulesSettings />}
 
           {activeSection === "payroll" && <PayrollSettings />}
 

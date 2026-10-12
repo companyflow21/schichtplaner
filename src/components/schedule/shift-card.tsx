@@ -154,6 +154,7 @@ export function ShiftCard({
 
   return (
     <div
+      data-shift-id={shift.id}
       className={cn(
         "group overflow-hidden rounded-[var(--radius)] border bg-card transition-colors",
         // Rangfolge: unbesetzt faellt auf, fehlende Bestätigung bleibt

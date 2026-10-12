@@ -11,6 +11,7 @@ import {
   Wallet,
   Scale,
   Palmtree,
+  ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,11 @@ const sections = [
     key: "schedule",
     label: "Schichtplan",
     icon: Calendar,
+  },
+  {
+    key: "rules",
+    label: "Planungsregeln",
+    icon: ListChecks,
   },
   {
     key: "time",
@@ -68,6 +74,7 @@ const sections = [
 ] as const;
 
 export type SettingsSection = (typeof sections)[number]["key"];
+export const SETTINGS_SECTIONS: readonly SettingsSection[] = sections.map((s) => s.key);
 
 interface SettingsSidebarProps {
   activeSection: SettingsSection;

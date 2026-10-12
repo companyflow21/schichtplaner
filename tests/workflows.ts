@@ -29,6 +29,7 @@ import { timesheetTests } from "./timesheet";
 import { timeAccountTests } from "./time-accounts";
 import { absenceEffectTests } from "./absence-effects";
 import { vacationTests } from "./vacation";
+import { planningRuleTests } from "./planning-rules";
 import webpush from "web-push";
 
 async function main() {
@@ -237,26 +238,18 @@ try {
   console.log("SUCCESS: " + checks + " assertions / HTTP checks passed.");
 
   const context: TestContext = { base, users, password, categoryId: category.id, check, Session: Session as unknown as TestContext["Session"], counter: () => checks };
-  await permissionTests(context);
-  await staffSiteTests(context);
-  await catalogTargetTests(context);
-  await qualificationEditTests(context);
-  await exchangeTests(context);
-  await siteGpsTests(context);
-  await checkinTests(context);
-  await messagingTests(context);
-  await exchangeDstTests(context);
-  await fileTests(context);
-  await orgDeleteTests(context);
-  await pushApiTests(context);
-  await abgleichFixTests(context);
-  await payrollTests(context);
-  await hoursTests(context);
-  await timesheetTests(context);
-  await timeAccountTests(context);
-  await absenceEffectTests(context);
-  await vacationTests(context);
-  console.log("FINAL SUCCESS: " + checks + " assertions / HTTP checks passed.");
+  // Mit --nur=name1,name2 laufen nach der Grundpruefung nur diese Module (zum schnellen Nacharbeiten).
+  const modules: [string, (t: TestContext) => Promise<void>][] = [
+    ["permissions", permissionTests], ["staffSites", staffSiteTests], ["catalogTargets", catalogTargetTests], ["qualificationEdit", qualificationEditTests],
+    ["exchange", exchangeTests], ["siteGps", siteGpsTests], ["checkin", checkinTests], ["messaging", messagingTests], ["exchangeDst", exchangeDstTests],
+    ["files", fileTests], ["orgDelete", orgDeleteTests], ["pushApi", pushApiTests], ["abgleichFix", abgleichFixTests], ["payroll", payrollTests],
+    ["hours", hoursTests], ["timesheet", timesheetTests], ["timeAccounts", timeAccountTests], ["absenceEffects", absenceEffectTests],
+    ["vacation", vacationTests], ["planningRules", planningRuleTests],
+  ];
+  const only = process.argv.find((arg) => arg.startsWith("--nur="))?.slice(6).split(",");
+  if (only?.some((name) => !modules.some(([key]) => key === name))) throw new Error("Unbekanntes Testmodul: " + only.join(", "));
+  for (const [name, run] of modules) if (!only || only.includes(name)) await run(context);
+  console.log((only ? "PARTIAL SUCCESS (" + only.join(", ") + "): " : "FINAL SUCCESS: ") + checks + " assertions / HTTP checks passed.");
   if (process.argv.includes("--serve")) {
     console.log("BROWSER_PREVIEW " + base + " — admin@akro-test.invalid / " + password);
     await new Promise<void>(resolve => { process.on("SIGTERM",resolve); process.on("SIGINT",resolve); });
