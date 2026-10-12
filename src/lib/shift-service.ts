@@ -7,6 +7,7 @@ import { assessAssignment, assessContractorAssignment, dayLabel, notify, personI
 import { isoWeek, weekDate, addDate, shiftRange, rangeMinutes, minuteOfDay, validDate } from "./berlin";
 import { assertCan, branchHolders, type Access } from "./access";
 import { catalogQualifications } from "./qualifications";
+import { isEditing, notifiesEmployees } from "./schedule-status";
 
 type Tx = Prisma.TransactionClient;
 
@@ -99,7 +100,8 @@ function describe(issues: Issue[]) {
  * - erst alle Probleme sammeln: Sperren -> 409 mit details.conflicts,
  *   Hinweise ohne confirm -> 409 { confirm: true, warnings }; nichts bleibt
  * - preview: dieselbe Rechnung, dann PreviewRollback (nichts bleibt)
- * Nachrichten erst am Ende, eine je Person (nur veroeffentlichte Plaene).
+ * Nachrichten erst am Ende, eine je Person (nur veroeffentlichte Plaene
+ * ausserhalb der Bearbeitung).
  */
 async function placeShifts(tx: Tx, a: Access, branch: Branch, base: ShiftBase, targets: Target[], options: PlanOptions): Promise<ShiftWithRelations[]> {
   const { assignees } = options;
@@ -146,7 +148,7 @@ async function placeShifts(tx: Tx, a: Access, branch: Branch, base: ShiftBase, t
   const stored = await tx.shift.findMany({ where: { id: { in: created.map(s => s.id) } }, include: shiftInclude });
   const shifts = created.map(c => stored.find(s => s.id === c.id)!);
   // Eingeteilte Personen: eine Nachricht fuer alle neuen Schichten.
-  const published = shifts.filter(s => s.schedule.isPublic);
+  const published = shifts.filter(s => notifiesEmployees(s.schedule));
   if (assignees.length && published.length) {
     const one = published.length === 1;
     await notify(tx, a.orgId, a.userId, assignees, one ? "Neue Schicht" : "Neue Schichten",
@@ -208,7 +210,7 @@ export async function copyShift(tx: Tx, a: Access, id: string, data: z.output<ty
   return placeShifts(tx, a, branch, base, targets, { assignees: data.withAssignments ? personIds(source.bookings) : [], contractorWorkerIds: data.withAssignments ? source.bookings.flatMap(b => b.contractorWorkerId ? [b.contractorWorkerId] : []) : [], confirm: data.confirm, preview: data.preview });
 }
 
-function pauseText(shift: { pauseOption: string; pauseValue: number }) {
+export function pauseText(shift: { pauseOption: string; pauseValue: number }) {
   return shift.pauseValue ? shift.pauseValue + " Min." + (shift.pauseOption === "PER_HOUR" ? " pro Stunde" : "") : "keine";
 }
 
@@ -225,6 +227,8 @@ export async function updateShift(tx: Tx, a: Access, id: string, data: z.output<
     if (!branchId) throw new ApiError("Eine Schicht braucht einen Standort.", 400);
     const target = await plannableBranch(tx, a, branchId);
     schedule = await ensureSchedule(tx, a.orgId, target.id, existing.schedule, existing.schedule);
+    // Verwerfen dort wuesste nicht, woher die Schicht kam.
+    if (isEditing(schedule)) throw new ApiError("Der Wochenplan am Zielstandort wird gerade überarbeitet. Bitte dort zuerst veröffentlichen oder verwerfen.", 409);
   }
   const effective = { ...existing, ...fields, scheduleId: schedule.id, schedule };
   if (effective.shiftFrom === effective.shiftTo) throw new ApiError("Beginn und Ende müssen unterschiedlich sein.");
@@ -250,10 +254,11 @@ export async function updateShift(tx: Tx, a: Access, id: string, data: z.output<
   }
   const shift = await tx.shift.update({ where: { id }, data: { ...fields, scheduleId: schedule.id }, include: shiftInclude });
   // Zuweisungen bleiben verbindlich; Information nur bei relevanter Aenderung.
+  // Waehrend der Bearbeitung (auch beim Verlegen aus ihr heraus) erst gesammelt beim Veroeffentlichen.
   const moved = shift.dayOfWeek !== existing.dayOfWeek || shift.shiftFrom !== existing.shiftFrom || shift.shiftTo !== existing.shiftTo || shift.scheduleId !== existing.scheduleId;
   const pause = shift.pauseOption !== existing.pauseOption || shift.pauseValue !== existing.pauseValue;
   const title = (shift.title ?? "") !== (existing.title ?? "");
-  if ((moved || pause || title) && (existing.schedule.isPublic || schedule.isPublic)) {
+  if ((moved || pause || title) && (notifiesEmployees(existing.schedule) || notifiesEmployees(schedule)) && !isEditing(existing.schedule)) {
     const text = [moved ? "Neu: " + shiftLabel(shift) + ". Vorher: " + shiftLabel(existing) + "." : shiftLabel(shift) + "."];
     if (pause) text.push("Pause jetzt: " + pauseText(shift) + ".");
     if (title) text.push("Tätigkeit jetzt: " + (shift.title || "keine Angabe") + ".");

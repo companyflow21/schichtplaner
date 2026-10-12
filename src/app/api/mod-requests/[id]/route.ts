@@ -4,6 +4,7 @@ import { branchHolders, can, requireAccess } from "@/lib/access";
 import { assign, checkAssignment, notify, shiftInclude } from "@/lib/planning";
 import { canDecide, deciders, exchangeProblems, isFuture } from "@/lib/shift-requests";
 import { emitToBranch } from "@/lib/emit";
+import { EDITING_REQUESTS, isEditing } from "@/lib/schedule-status";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -38,6 +39,8 @@ export async function PATCH(request: Request, context: Context) {
       // Wer den Antrag weder stellen, uebernehmen, beantworten noch entscheiden darf, erfaehrt nicht, dass es ihn gibt.
       if (!r || (!seesAsPlanner && r.userId !== a.userId && r.targetUserId !== a.userId && !can(a, "REQUEST_SHIFTS", branchId))) throw new ApiError("Antrag nicht gefunden.", 404);
       if (r.state !== "OPEN") throw new ApiError("Antrag wurde bereits bearbeitet.", 409);
+      // Waehrend der Bearbeitung ruhen Antraege (auch Zustimmung und Uebernahmeangebot).
+      if (isEditing(r.shift.schedule) || (r.targetShift && isEditing(r.targetShift.schedule))) throw new ApiError(EDITING_REQUESTS, 409);
       const target = r.kind === "EXCHANGE" ? r.targetShift : null;
       if (r.kind === "EXCHANGE" && (!target || target.deletedAt || !target.schedule.isPublic || target.schedule.deletedAt)) throw new ApiError("Die andere Schicht besteht nicht mehr.", 409);
       const affected = [r.userId, ...(r.targetUserId ? [r.targetUserId] : [])];
