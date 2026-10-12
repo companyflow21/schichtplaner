@@ -110,8 +110,12 @@ dieselben Zahlen bis auf die Workflow-Suite (3156) und war Grundlage der Browser
 Browser-Tests der Design-Sitzung gegen den Build `b1c6627` (AKRO-Vorschau, Playwright mit
 Chrome): `tests/ui-quality.mjs` 16/16, `tests/ui-shift-location.mjs` bestanden,
 `tests/ui-design.mjs` 71/71 nach der Testkorrektur `2c1658c` (siehe „Bekannte Einschränkungen“).
-Eine Wiederholung der drei Läufe auf dem Endstand-Build steht aus, solange Port 3337 durch
-die AKRO-Vorschau belegt ist.
+Wiederholung auf dem Endstand-Build (`a794955`, Worktree `final-abnahme`, 12.10.2026, 21:53–23:11):
+`tests/ui-design.mjs` 71/71 („DESIGN-ABNAHME BESTANDEN“), `tests/ui-shift-location.mjs`
+bestanden (7 PASS), `tests/ui-quality.mjs` 16/16. Der erste `ui-quality`-Lauf brach beim Login
+mit einem 60-s-Timeout ab, während rund 36 zurückgebliebene Headless-Chrome-Prozesse aus
+abgebrochenen Vorläufen den Rechner ausbremsten (die beiden anderen Skripte brauchten
+dadurch über eine Stunde); nach deren Beendigung bestand derselbe Lauf in 18 Sekunden.
 
 ### Browserabnahme (12.10.2026, 17:25–17:35)
 
