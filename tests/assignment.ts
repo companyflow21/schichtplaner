@@ -114,8 +114,9 @@ export async function assignmentTests(t: TestContext) {
   await publish(nord.id, d4);
   const blocker = await shift(sued.id, d4, "10:00", "14:00");
   await book(blocker.id, id.staffA.id);
-  const overlap = await mA.request("/api/bookings", "PUT", { shiftId: F.id, userId: id.employee.id, replacementUserId: id.staffA.id, confirm: true }, 409);
-  check(overlap.error.includes("Überschneidung") && !overlap.confirm && await holders(F.id) === id.employee.id, "overlap blocks the replacement, original assignment intact");
+  // Ueberschneidung (anderer Standort) ist keine Sperre mehr, sondern ein Hinweis, den die Planung bestaetigt (unten).
+  const overlap = await mA.request("/api/bookings", "PUT", { shiftId: F.id, userId: id.employee.id, replacementUserId: id.staffA.id }, 409);
+  check(overlap.confirm === true && overlap.warnings.includes("Zeitliche Überschneidung mit einer anderen Schicht.") && await holders(F.id) === id.employee.id, "overlap asks for one confirmation before the replacement, original assignment intact");
   const absence = (await rep.request("/api/absences", "POST", { userId: id.replacement.id, categoryId: t.categoryId, dateFrom: d4, dateTo: d4 }, 201)).absence;
   await admin.request("/api/absences/" + absence.id, "PATCH", { status: "APPROVED" });
   const absent = await admin.request("/api/bookings", "PUT", { shiftId: F.id, userId: id.employee.id, replacementUserId: id.replacement.id, confirm: true }, 409);
@@ -133,6 +134,8 @@ export async function assignmentTests(t: TestContext) {
   await book(F.id, id.employee.id);
   await admin.request("/api/bookings", "PUT", { shiftId: F.id, userId: id.staffB.id, replacementUserId: id.employee.id, confirm: true }, 409);
   check(await holders(F.id) === [id.staffB.id, id.employee.id].sort().join(), "replacement already on the shift is rejected");
+  await mA.request("/api/bookings", "PUT", { shiftId: F.id, userId: id.staffB.id, replacementUserId: id.staffA.id, confirm: true });
+  check(await holders(F.id) === [id.employee.id, id.staffA.id].sort().join() && await holders(blocker.id) === id.staffA.id, "confirmed overlap: replacement saved, the person keeps the overlapping assignment at the other site");
 
   // Vergangene Schicht und Check-in: Zuweisung bleibt Nachweis.
   const past = await shift(nord.id, addDate(today, -3), "08:00", "12:00");
@@ -178,21 +181,19 @@ export async function assignmentTests(t: TestContext) {
   check(preview.preview && preview.occurrences.map((o: any) => o.date).join() === occ.join() && preview.occurrences.every((o: any) => !o.endsNextDay && !o.duplicate) && preview.conflicts.length === 0, "preview lists all occurrences (repeatDays x repeatWeeks) without conflicts");
   check(preview.warnings.length === 4 && preview.warnings.every((x: any) => x.userId === id.staffA.id && x.name === "Emil Einser" && x.reasons.join().includes("Brandschutz")), "preview names the person, date and cause of each hint");
   check((await titled(nord.id, occ[0], "Serie mit Auswahl")).length === 0 && (await titled(nord.id, occ[3], "Serie mit Auswahl")).length === 0, "preview creates nothing");
-  // Konflikt an einem Termin: nichts wird angelegt.
+  // Ueberschneidung an einem Termin (anderer Standort): Hinweis mit Person, Tag und Ursache; ohne Bestaetigung nichts angelegt.
   const clash = await shift(sued.id, occ[1], "12:00", "18:00");
   await book(clash.id, id.employee.id);
-  const conflict = await mA.request("/api/shifts", "POST", { ...create, assignees: [id.employee.id, id.staffA.id], confirm: true }, 409);
-  const c0 = conflict.conflicts?.[0];
-  check(conflict.conflicts?.length === 1 && c0.userId === id.employee.id && c0.date === occ[1] && c0.reasons.join().includes("Überschneidung") && conflict.error.includes("Mara Test") && conflict.error.includes(occ[1].slice(8, 10) + "." + occ[1].slice(5, 7) + "." + occ[1].slice(0, 4)), "conflict on one occurrence: 409 with person, date and cause");
-  check(occ.every(Boolean) && (await titled(nord.id, occ[0], "Serie mit Auswahl")).length === 0 && (await titled(nord.id, occ[3], "Serie mit Auswahl")).length === 0, "conflict: no shift and no assignment created");
-  const conflictPreview = await mA.request("/api/shifts", "POST", { ...create, assignees: [id.employee.id], preview: true });
-  check(conflictPreview.conflicts.length === 1 && conflictPreview.conflicts[0].date === occ[1], "preview shows the conflict as well");
-  await admin.request("/api/bookings", "DELETE", { shiftId: clash.id, userId: id.employee.id });
   const hints = await mA.request("/api/shifts", "POST", { ...create, assignees: [id.employee.id, id.staffA.id] }, 409);
-  check(hints.confirm === true && hints.warnings.length === 4 && (await titled(nord.id, occ[0], "Serie mit Auswahl")).length === 0, "hints without confirmation: 409, nothing created");
+  const h0 = hints.warnings?.find((x: any) => x.userId === id.employee.id);
+  check(hints.confirm === true && !hints.conflicts && hints.warnings.length === 5 && h0?.date === occ[1] && h0.reasons.join() === "Zeitliche Überschneidung mit einer anderen Schicht." && hints.error.includes("Mara Test") && hints.error.includes(occ[1].slice(8, 10) + "." + occ[1].slice(5, 7) + "." + occ[1].slice(0, 4)), "overlap on one occurrence: 409 asks for confirmation with person, date and cause");
+  check(occ.every(Boolean) && (await titled(nord.id, occ[0], "Serie mit Auswahl")).length === 0 && (await titled(nord.id, occ[3], "Serie mit Auswahl")).length === 0, "hints without confirmation: no shift and no assignment created");
+  const overlapPreview = await mA.request("/api/shifts", "POST", { ...create, assignees: [id.employee.id], preview: true });
+  check(overlapPreview.conflicts.length === 0 && overlapPreview.warnings.length === 1 && overlapPreview.warnings[0].date === occ[1] && overlapPreview.warnings[0].reasons.join().includes("Überschneidung"), "preview shows the overlap as a hint, not as a conflict");
   const c6 = { a: await snapshot(sA), e: await snapshot(emp), b: await snapshot(sB) };
   const series = (await mA.request("/api/shifts", "POST", { ...create, assignees: [id.employee.id, id.staffA.id], confirm: true })).shifts;
   check(series.length === 4 && series.map((s: any) => s.date).join() === occ.join() && series.every((s: any) => s.bookings.length === 2 && s.bookings.every((b: any) => b.confirmation === "PLANNER" && b.confirmedAt)), "confirmed: four shifts, each with both binding assignments");
+  check(await holders(clash.id) === id.employee.id, "confirmed overlap: the assignment at the other site stays");
   const n6 = { a: await fresh(sA, c6.a), e: await fresh(emp, c6.e), b: await fresh(sB, c6.b) };
   check(n6.a.length === 1 && n6.a[0].subject === "Neue Schichten" && n6.a[0].body.split("\n").length === 5 && n6.e.length === 1, "one summary message per assignee for the whole series");
   check(n6.b.length === 1 && n6.b[0].subject === "Neue offene Schichten" && n6.b[0].body.includes("KW " + w6.weekNumber), "one open-shift notice per person with access, not per week");
@@ -224,12 +225,15 @@ export async function assignmentTests(t: TestContext) {
   check(copies.length === 3 && copies.map((s: any) => s.date).join() === targets.join() && copies.every((s: any) => s.endsNextDay && s.shiftFrom === "22:00" && s.shiftTo === "06:00" && s.bookings.length === 0 && s.maxEmployees === 2 && s.pauseValue === 30 && s.description === "Pforte nutzen" && s.title === "Nachtkopie" && s.requiredQualifications.join() === "Erste Hilfe" && s.branchId === nord.id), "copy to several days keeps times, details and location, without assignments by default");
   const legacy = (await admin.request(copyUrl, "POST", { date: addDate(d7, 40) })).shifts;
   check(legacy.length === 1 && legacy[0].date === addDate(d7, 40), "single { date } still copies");
-  // Mit Zuweisungen: Konflikt an einem Tag -> nichts angelegt.
+  // Mit Zuweisungen: Ueberschneidung an einem Tag -> Hinweis; ohne Bestaetigung nichts angelegt.
   const late = await shift(sued.id, addDate(d7, 20), "23:00", "23:30");
   await book(late.id, id.staffA.id);
-  const copyConflict = await admin.request(copyUrl, "POST", { dates: [addDate(d7, 19), addDate(d7, 20)], withAssignments: true }, 409);
-  check(copyConflict.conflicts.length === 1 && copyConflict.conflicts[0].userId === id.staffA.id && copyConflict.conflicts[0].date === addDate(d7, 20) && copyConflict.error.includes("Emil Einser"), "copy with assignments: conflict names person and date");
-  check((await titled(nord.id, addDate(d7, 19), "Nachtkopie")).length === 0 && (await titled(nord.id, addDate(d7, 20), "Nachtkopie")).length === 0, "copy conflict: nothing created");
+  const lateDays = [addDate(d7, 19), addDate(d7, 20)];
+  const copyHint = await admin.request(copyUrl, "POST", { dates: lateDays, withAssignments: true }, 409);
+  check(copyHint.confirm === true && !copyHint.conflicts && copyHint.warnings.length === 1 && copyHint.warnings[0].userId === id.staffA.id && copyHint.warnings[0].date === lateDays[1] && copyHint.warnings[0].reasons.join().includes("Überschneidung") && copyHint.error.includes("Emil Einser"), "copy with assignments: overlap asks for confirmation and names person and date");
+  check((await titled(nord.id, lateDays[0], "Nachtkopie")).length === 0 && (await titled(nord.id, lateDays[1], "Nachtkopie")).length === 0, "copy without confirmation: nothing created");
+  const lateCopies = (await admin.request(copyUrl, "POST", { dates: lateDays, withAssignments: true, confirm: true })).shifts;
+  check(lateCopies.length === 2 && lateCopies.every((s: any) => s.bookings.length === 2) && await holders(late.id) === id.staffA.id, "confirmed copy: both assignments on each day, the overlapping one at the other site stays");
   const t1 = addDate(d7, 30), t2 = addDate(d7, 31);
   await publish(nord.id, t1); await publish(nord.id, t2);
   const c7 = { a: await snapshot(sA), b: await snapshot(sB) };

@@ -6,9 +6,9 @@
  * und Leerzustand. Teil von tests/workflows.ts; eigene Personen, Standorte
  * und eine Woche rund 150 Tage in der Zukunft.
  *
- * Eine Ueberschneidung laesst sich ueber die API nicht anlegen (Sperre beim
- * Einteilen und beim Aendern der Zeit, siehe unten). Der Test erzeugt sie
- * deshalb wie Altbestand per SQL direkt in der PGlite-Datenbank.
+ * Eine Ueberschneidung legt die Planung beim Einteilen nach ausdruecklicher
+ * Bestaetigung an (confirm: true); eine Zeitaenderung, die eine neue
+ * Ueberschneidung erzeugen wuerde, lehnt die API weiterhin ab.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { io, type Socket } from "socket.io-client";
@@ -16,12 +16,9 @@ import { addDate, berlinDate, isoWeek, weekDate } from "../src/lib/berlin";
 import type { TestContext } from "./permissions";
 import { newPerson, planner, type Sess } from "./people";
 
-/** Direkter Zugang zur Testdatenbank (PGlite); wartet, bis die Serververbindung frei ist. */
-export type TestSql = { query: (text: string, params?: unknown[]) => Promise<unknown> };
-
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-export async function conflictTests(t: TestContext, sql: TestSql) {
+export async function conflictTests(t: TestContext) {
   const { users, check } = t;
   const admin = new t.Session(); await admin.login(users.admin.email);
   const foreign = new t.Session(); await foreign.login(users.foreign.email);
@@ -129,8 +126,13 @@ export async function conflictTests(t: TestContext, sql: TestSql) {
     await S.book(S1.id, lea.id); // grenzt an, ueberschneidet sich nicht
     check(of(await conflicts(), N1.id).length === 0, "conflicts: adjacent shifts at two sites do not overlap");
     const refused = await admin.request("/api/shifts/" + S1.id, "PATCH", { shiftFrom: "12:00" }, 409);
-    check(refused.error.includes("Überschneidung"), "conflicts: the API refuses a time change that would create an overlap (test creates it directly)");
-    await sql.query('UPDATE "shifts" SET "shiftFrom" = $1 WHERE "id" = $2', ["12:00", S1.id]);
+    check(refused.error.includes("Lea: Zeitliche Überschneidung mit einer anderen Schicht.") && refused.error.includes("Zuweisung zuerst lösen") && !refused.confirm, "conflicts: a time change that would create an overlap is refused and explains the way to confirm it");
+    // Bestaetigter Weg ueber die API: Zuweisung loesen, Zeit aendern, mit Bestaetigung neu einteilen.
+    await admin.request("/api/bookings", "DELETE", { shiftId: S1.id, userId: lea.id });
+    await admin.request("/api/shifts/" + S1.id, "PATCH", { shiftFrom: "12:00" });
+    const asked = await admin.request("/api/bookings", "POST", { shiftId: S1.id, userId: lea.id }, 409);
+    check(asked.confirm === true && asked.warnings.join() === "Zeitliche Überschneidung mit einer anderen Schicht.", "conflicts: assigning across sites with an overlap asks for confirmation");
+    await S.book(S1.id, lea.id);
     r = await conflicts();
     const cross = of(r, N1.id, "overlap");
     check(cross.length === 1 && cross[0].severity === "fehler" && cross[0].text === "Zeitliche Überschneidung mit einer anderen Schicht." && cross[0].userId === lea.id, "conflicts: overlap across sites is an error at the assignment");
