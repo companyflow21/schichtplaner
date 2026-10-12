@@ -78,7 +78,7 @@ Jedes Paket wird wie bisher mit Tests, Browserprüfung und Eintrag in `FERTIGSTE
 | P2 | Stunden prüfen und genehmigen: Buchung ↔ Schicht, Genehmigungsstatus, „Stunden und Lohn“ als ein Bildschirm (aufklappbar, Bearbeiten-Dialog, Rot/Grün, Dezimalstunden), freier Zeitraum, Drucken | B28–B42 | L | umgesetzt (`0ff8e24`); offen: „Ist = Plan“ ohne Erfassung (Entscheidung), „nicht erschienen“, Pausen mit Uhrzeit, Aktivitätsprotokoll im Dialog |
 | P3 | Stundenzettel und Leistungsnachweis je Kunde/Einsatzort als PDF, Monatsabschluss | B42, Teil B „Stundenzettel“ | M | umgesetzt (`5f4e78d`); offen: Monatsabschluss, elektronische Bestätigung |
 | P4 | Zeitkonten: Soll mit Startdatum, laufender Saldo, Ausgleich, Ansicht für Mitarbeitende | B77–B88 | M | umgesetzt (`0de1cc7`); offen: Saldo im Lohnexport, Kappungsgrenzen |
-| P5 | Abwesenheit wirkt auf Schichten, Stunden und Lohn; Abwesenheitsvergütung; Urlaubskonto | B59–B62, B87, C77–C81, C98–C112 | L | umgesetzt (P5-Commit); offen: Vergütung nach Durchschnitt statt Planstunden, halbe Urlaubstage im Antrag, Urlaubssperren |
+| P5 | Abwesenheit wirkt auf Schichten, Stunden und Lohn; Abwesenheitsvergütung; Urlaubskonto | B59–B62, B87, C77–C81, C98–C112 | L | umgesetzt (`c21d5b3`); offen: Vergütung nach Durchschnitt statt Planstunden, halbe Urlaubstage im Antrag, Urlaubssperren |
 | P6 | Planungsregeln je Person mit Verstoßliste (Höchststunden, Ruhezeit, Tage am Stück …), Veröffentlichungsdialog mit Änderungsliste, Bearbeitungsmodus | A42–A60, A70, A72 | L | offen |
 | P7 | Vorlagen über mehrere Wochen, Kopieren von Block/Tag/Woche, Person aufnehmen und verteilen | A18–A32 | L | offen |
 | P8 | Regelbasierter Assistent „Besetzung vorschlagen“ | A65–A67 | L | offen |

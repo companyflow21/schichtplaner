@@ -7,7 +7,7 @@ Auf Netcup eingespielt: `9eabd44` am 28.09.2026, `b5efa55` am 29.09.2026 (Lösch
 
 ## Smartplan-Abgleich: P4 und P5 (12.10.2026)
 
-Branch `claude/wizardly-cerf-cxbutc`. Noch nicht eingespielt. Migrationen `20261014090000_time_accounts`,
+Branch `claude/wizardly-cerf-cxbutc` (`0de1cc7`, `c21d5b3` und Folgekorrekturen). Noch nicht eingespielt. Migrationen `20261014090000_time_accounts`,
 `20261015090000_absence_effects` und `20261016090000_vacation_account` sind additiv; vorher auf einer Kopie prüfen.
 
 | Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
@@ -20,7 +20,7 @@ Branch `claude/wizardly-cerf-cxbutc`. Noch nicht eingespielt. Migrationen `20261
 | P1 | Urlaubskonto – `lib/vacation.ts`, `lib/vacation-service.ts`, `api/vacation` | Anspruch jährlich oder monatlich, anteilig ab Beginn, Übertrag mit Grenze, freie Wochentage und Feiertage, genommen/geplant/beantragt, Korrektur in halben Tagen, Kosten im Antrag | bestanden | `npm run test:vacation` (12), `tests/vacation.ts` |
 | P1 | Sichtbarkeit Urlaubskonto | Admin; Manager mit „Abwesenheiten entscheiden“; die Person bei Freigabe; Übersicht nur für Entscheidende; Regeln und Korrekturen nur Admin | bestanden | `tests/vacation.ts` |
 | P1 | Migrationen | Zeitkonten und Urlaubskonto zunächst aus; Altabwesenheiten behalten ihren Status ohne Wirkung; eindeutige Schlüssel; Löschen kaskadiert | bestanden | `npm run test:migration` (79) |
-| P1 | Oberfläche | Dialog „Folgen für die Schichten“, Urlaubshinweis im Antrag, „Urlaubskonten“ unter Abwesenheiten, eigenes Konto, Einstellungen Zeitkonten und Urlaubskonto, Saldo-Spalte, 375 px ohne Überbreite | nicht geprüft | Browser (Produktions-Build, `npm run preview:test`) |
+| P1 | Oberfläche | Dialog „Folgen für die Schichten“, Urlaubshinweis im Antrag, „Urlaubskonten“ unter Abwesenheiten, eigenes Konto, Einstellungen Zeitkonten und Urlaubskonto, Saldo-Spalte, 375 px ohne Überbreite | bestanden | Browser (Produktions-Build, `npm run preview:test`, 1366 und 375 px): Genehmigen mit Folgen-Dialog (eine Schicht, drei Optionen), Zeile „abwesend“ mit 7,50 h und 112,50 € in „Stunden und Lohn“, Urlaubskonten und Kontoauszug, eigene Karte „10 von 34,5 Tagen · verfügbar 24,5“, Hinweis im Antrag „dieser Zeitraum 5 · danach 19,5“, eigenes Zeitkonto; keine Überbreite. Dabei behoben: Kontoauszug und Zeitkonto-Dialog waren auf 375 px zu breit, Ansichtsknöpfe ohne Namen auf dem Handy |
 
 ### Prüfungen (lokal)
 
