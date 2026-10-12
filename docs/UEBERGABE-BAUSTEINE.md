@@ -43,6 +43,11 @@ Design-Stufe 1 der parallelen Sitzung ist auf demselben Branch integriert und in
   Bestätigen von Altbestand (`PATCH /api/bookings`) ist während EDITING gesperrt (409).
   Check-in und Zeiterfassung bleiben auf Live-Daten (Entscheidung 1), neu angelegte Schichten
   erscheinen dort nicht.
+- Hinweis für Mitarbeitende (`90693f9`): `shiftView.requestsPaused` (true während EDITING, ohne
+  weitere Angaben); Schichtkarte zeigt „Anträge und Tausch sind bis zur Veröffentlichung dieser
+  Woche gesperrt.“, „Mein Dienstplan“ und Startseite zeigen „Diese Woche wird gerade überarbeitet:
+  Du siehst den zuletzt veröffentlichten Stand; Anträge, Tausch und Bestätigen sind bis zur
+  Veröffentlichung gesperrt.“ – der Bestätigen-Knopf der Startseite entfällt solange.
 
 ### Baustein 2 – Veröffentlichen mit Änderungs-Diff und abwählbarer Benachrichtigung
 
@@ -86,18 +91,27 @@ Design-Stufe 1 der parallelen Sitzung ist auf demselben Branch integriert und in
 
 ## Nachweise
 
-Zentrale Gesamtabnahme auf `badfea6` (12.10.2026, 16:53–17:23, flüchtige PGlite,
-Ports 3408/55542, Rechner sonst weitgehend frei):
+Zentrale Gesamtabnahme auf dem Endstand des Quellcodes `90693f9` (die späteren Commits
+`2c1658c`, `2a231a9` ändern nur `tests/ui-design.mjs` und Doku) am 12.10.2026, 21:27–21:45,
+in einem eigenen Worktree mit frischem `npm ci`, flüchtige PGlite, Ports 3408/55542:
 
 | Prüfung | Ergebnis |
 |---|---|
 | `npx prisma generate`, `npx tsc --noEmit --incremental false` | 0 Fehler |
 | `npm run lint` | 0 Fehler, 25 bestehende Warnungen (Referenzwert) |
 | `npm run test:migration` / `:history` / `:subcontractors` | 65 / 29 / 21 bestanden |
-| `tests/plan-banner.tsx`, `conflict-card.tsx`, `schedule-actions.tsx`, `info-hint.tsx` | 45 / 17 / 45 / 6 |
+| `tests/plan-banner.tsx`, `conflict-card.tsx`, `schedule-actions.tsx`, `info-hint.tsx`, `requests-paused.tsx` | 45 / 17 / 45 / 6 / 14 |
 | `npm run test:push`, `test:checkin`, `tests/serial-retry.ts` | 9 / 44 / 15 |
-| `npm run test:workflows` (vollständig, alle Module inkl. `plan-lifecycle`, `plan-frozen`, `conflicts`, `dashboard-tasks`) | FINAL SUCCESS 3156/3156 |
+| `npm run test:workflows` (vollständig, alle Module inkl. `plan-lifecycle`, `plan-frozen`, `conflicts`, `dashboard-tasks`) | FINAL SUCCESS 3171/3171 |
 | `npm run build` | erfolgreich |
+
+Eine frühere Gesamtabnahme auf `badfea6` (vor Design-Nachzügler und Mini-Baustein) ergab
+dieselben Zahlen bis auf die Workflow-Suite (3156) und war Grundlage der Browserabnahme unten.
+Browser-Tests der Design-Sitzung gegen den Build `b1c6627` (AKRO-Vorschau, Playwright mit
+Chrome): `tests/ui-quality.mjs` 16/16, `tests/ui-shift-location.mjs` bestanden,
+`tests/ui-design.mjs` 71/71 nach der Testkorrektur `2c1658c` (siehe „Bekannte Einschränkungen“).
+Eine Wiederholung der drei Läufe auf dem Endstand-Build steht aus, solange Port 3337 durch
+die AKRO-Vorschau belegt ist.
 
 ### Browserabnahme (12.10.2026, 17:25–17:35)
 
@@ -127,8 +141,11 @@ eingefrorene Sicht 1477, UI: Rendertests 45/17/45 und `next build` erfolgreich.
 
 ## Bekannte Einschränkungen und offene Punkte
 
-- Hinweis für Mitarbeitende, warum Anträge während EDITING gesperrt sind, fehlt noch in der
-  Oberfläche (Flag `requestsPaused` + Satz; Mini-Baustein nach der Abnahme).
+- Betrifft auch das Original: `tests/ui-design.mjs` scheiterte an Zeile 174 (Kandidat
+  „Last Test 100“), weil seit `24000f5 fix(names)` (Original, 11.10.) die Kandidatenliste das
+  Namensformat der Organisation („Test 100, Last“) verwendet. Keine Regression der Bausteine; der
+  Test ist seit `2c1658c` namensformat-fest (Helfer `displayName`, Format aus `GET /api/me`) und
+  bestand damit 71/71. Dieselbe Testkorrektur braucht das Original, sobald es `24000f5` enthält.
 - Verwerfen lehnt auch dann mit 409 ab, wenn die Überschneidung schon im veröffentlichten Stand
   bestand (sichere Seite; fachlich zu entscheiden, ob nur neue Überschneidungen zählen sollen).
 - Eine Schicht, die aus einem EDITING-Plan an einen veröffentlichten anderen Standort verschoben
