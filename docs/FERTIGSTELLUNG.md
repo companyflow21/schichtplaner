@@ -5,6 +5,37 @@ Status: `bestanden` · `fehlgeschlagen` · `nicht geprüft` · `offen` (fachlich
 Nachweise sind lokal (PGlite-Workflowtests, isolierte Docker-Testinstallation), soweit nicht anders vermerkt.
 Auf Netcup eingespielt: `9eabd44` am 28.09.2026, `b5efa55` am 29.09.2026 (Löschen, Qualifikationen bearbeiten, Push).
 
+## Smartplan-Abgleich: P0 und P1 (12.10.2026)
+
+Branch `claude/wizardly-cerf-cxbutc`, Basis `a9f5b9d`. Plan, Funktionskatalog und Paketliste: `docs/SMARTPLAN-ABGLEICH.md`.
+Noch nicht eingespielt.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P1 | CSV: negative Werte – `lib/csv.ts`, `api/reporting/export` | „-1,50“ bleibt Zahl, Formeln weiter neutralisiert | bestanden | `tests/payroll-unit.ts` |
+| P2 | „Reaktivieren“ im Profilmenü – `employees/employee-detail.tsx` | Menüpunkt reaktiviert über die bestehende Schnittstelle (nur Admin) | bestanden | `tests/abgleich-fixes.ts` |
+| P1 | Abwesenheit durch Leitung – `employees/absence-form.tsx` | „Direkt genehmigen“ (vorbelegt) für fremde zugeordnete Personen und eigene bei Admins; Mitarbeitende können nicht selbst genehmigen | bestanden | `tests/abgleich-fixes.ts` |
+| P1 | Abwesenheiten deaktivierter Personen – `api/absences` | Bleiben sichtbar, nicht entscheidbar, nicht neu eintragbar; nach Reaktivieren wieder entscheidbar | bestanden | `tests/abgleich-fixes.ts` |
+| P2 | Nachricht als ungelesen – `portal/message-list.tsx` | Knopf „Ungelesen“ für ausgewählte Nachrichten | bestanden | `tests/abgleich-fixes.ts` |
+| P0 | Lohn nur für die Administration – `api/payroll/**` | Manager und Mitarbeitende 403; fremde Organisation 404 | bestanden | `tests/payroll.ts` |
+| P1 | Lohnarten, Personalnummer, Lohnart je Person/Arbeitsbereich | Titel und Personalnummer eindeutig (409), fremde Lohnart 404, genutzte Lohnart nicht löschbar, inaktive fällt auf die Person zurück | bestanden | `tests/payroll.ts`, `tests/migration.ts` |
+| P1 | Zuschläge – `lib/payroll.ts`, `lib/payroll-input.ts` | Wochentage, Feiertage, Sonderdaten, Block über Mitternacht, Prozent/Betrag, Personen/Arbeitsbereiche, addierend; Zeitumstellung März/Oktober; anteilige Pause | bestanden | `tests/payroll-unit.ts` (31) |
+| P1 | Lohn je Buchung über echte Schicht – `lib/payroll-service.ts` | Buchung in veröffentlichter Schicht erhält Lohnart des Arbeitsbereichs; ohne Schicht die der Person; Standortfilter | bestanden | `tests/payroll.ts` |
+| P1 | Lohnexport CSV – `api/payroll/export` | Zeile je Person und Lohnart/Zuschlag mit Personalnummer, Code, Stunden, Satz, Betrag; ohne Sätze nur Stunden; Personen abwählbar | bestanden | `tests/payroll.ts` |
+| P1 | Migration `20261012090000_payroll` | Rein additiv, Bestand unverändert | bestanden | `npm run test:migration` (66) |
+| P1 | Oberfläche „Einstellungen › Lohn“ und „Lohn“ | Bedienbar auf Desktop und 375 px ohne Überbreite | siehe unten | Browser |
+| P1 | Steuerliche Behandlung der Zuschläge | Sätze und Vorrangregeln mit Steuerbüro abgestimmt | offen | Fachliche Entscheidung AKRO |
+
+### Prüfungen am 12.10.2026 (lokal)
+
+| Prüfung | Ergebnis |
+|---|---|
+| `npx tsc --noEmit --incremental false` | 0 Fehler |
+| `npx eslint` (geänderte Dateien) | 0 Fehler; 1 Warnung in unverändertem Altcode (`absence-form.tsx`, ungenutzter Import) |
+| `npm run test:workflows` | 1368/1368 |
+| `npm run test:migration` | 66/66 |
+| `npm run test:payroll` | 31/31 |
+
 ## Erweiterung Kommunikation, Tausch, GPS-Check-in
 
 | Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
