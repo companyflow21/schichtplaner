@@ -119,8 +119,13 @@ Tagen, Statusbadge, Bestätigungsdialoge mit Folgen, „Offene Aufgaben“ mit L
 - Schicht-Dialog zusätzlich im Browser geprüft (Chrome, 1280 px und 375×812): Auswahl
   schließt bei voller Besetzung, „Prüfen“ → „1 Schicht anlegen“ mit 3 Zuweisungen, Bearbeiten
   behält Einsatzort, kein waagerechter Überlauf.
-- Nicht ausgeführt: `npm run build`, `tests/ui-*.mjs` (Playwright ist auf diesem Rechner nicht
-  installiert; `tests/ui-quality.mjs:141` wurde um den neuen Bestätigungsklick ergänzt).
+- Browser-Tests (12.10.2026, 21:23–21:28, Playwright 1.64 global installiert, Chrome, Vorschau
+  `load-local --serve` auf Build `b1c6627`): `ui-quality.mjs` 16/16 (inkl. des neuen
+  Bestätigungsklicks in Zeile 141), `ui-shift-location.mjs` bestanden, `ui-design.mjs` 71/71 –
+  letzterer erst nach der Testkorrektur `2c1658c`: Seit `24000f5` (Original-Chat, 11.10.) zeigen
+  die Planansichten Namen im Organisationsformat (Default „Nachname, Vorname“); der Test erwartete
+  noch „Vorname Nachname“. Keine Design-Änderung war die Ursache. Dieselbe Korrektur braucht das
+  Original. Nicht ausgeführt: `npm run build` (liegt bei der integrierenden Sitzung).
 
 ## Agentenarbeit
 Audit (lesend) und drei Umsetzungsagenten in eigenen Worktrees mit disjunkten Dateien;
