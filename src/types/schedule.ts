@@ -61,6 +61,8 @@ export type ShiftData = {
   /** Geplante Nettozeit in echten Minuten (nach Pausenregel), vom Server berechnet. */
   plannedMinutes?: number;
   isPublic?: boolean;
+  /** Plan in Bearbeitung: Antraege, Tausch und Bestaetigen ruhen bis zur Veroeffentlichung. */
+  requestsPaused?: boolean;
   can?: { edit: boolean; handle: boolean; request: boolean; manageContractors?: boolean };
   id: string;
   scheduleId: string;

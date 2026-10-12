@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowRight, Building2, ChevronRight, Clock, EyeOff, MapPin } from "lucide-react";
+import { AlertTriangle, ArrowRight, Building2, ChevronRight, Clock, EyeOff, Lock, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
 import { monthLinkForOpen } from "@/components/schedule/month-grid";
+import { BEARBEITUNG_HINWEIS } from "@/components/schedule/employee-grid";
 import { dateLabel, ErrorMessage, json, useAction } from "./client";
 import { Requests } from "./requests";
 import { CheckinUebersicht, EigenerCheckin } from "./checkins";
@@ -24,6 +25,8 @@ type Shift = {
   maxEmployees: number;
   missing: number;
   isPublic: boolean;
+  /** Plan in Bearbeitung: Bestaetigen und Antraege ruhen. */
+  requestsPaused?: boolean;
   description: string | null;
   branch: {
     name: string;
@@ -394,8 +397,15 @@ function MitarbeiterStart({ data, action }: { data: EmployeeData; action: Return
                 <Button variant="outline" size="sm" onClick={adresseKopieren}>Adresse kopieren</Button>
               </div>
             )}
+            {/* Plan in Bearbeitung: Bestaetigen ruht - der Grund statt des Knopfs. */}
+            {!bestätigt && nächste.requestsPaused && (
+              <p className="flex items-start gap-1.5 text-[13px] leading-5 text-muted-foreground">
+                <Lock className="mt-1 size-3.5 shrink-0" aria-hidden="true" />
+                <span>{BEARBEITUNG_HINWEIS}</span>
+              </p>
+            )}
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              {!bestätigt && (
+              {!bestätigt && !nächste.requestsPaused && (
                 <Button
                   disabled={action.isPending}
                   onClick={() => action.mutate({ url: "/api/bookings", method: "PATCH", data: { shiftId: nächste.id }, message: "Schicht bestätigt" })}

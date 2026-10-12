@@ -4,7 +4,7 @@ import { addDate, overlaps, rangeMinutes, shiftRange } from "./berlin";
 import { branchIds, can, type Access } from "./access";
 import { normalizeBranchRights } from "./access-shared";
 import { CHECKED_IN, wallToUtcMinutes } from "./checkin";
-import { notifiesEmployees, scheduleStatus } from "./schedule-status";
+import { isEditing, notifiesEmployees, scheduleStatus } from "./schedule-status";
 
 type Tx = Prisma.TransactionClient;
 
@@ -422,6 +422,8 @@ export function shiftView(shift: ShiftWithRelations, a: Access, ineffective: Set
     date: range.date, endsAt: new Date(wallToUtcMinutes(range.end) * 60000).toISOString(), endsNextDay: rangeMinutes(shift.shiftFrom, shift.shiftTo) + Number(shift.shiftFrom.slice(0, 2)) * 60 + Number(shift.shiftFrom.slice(3)) > 1440,
     plannedMinutes: plannedMinutes(shift),
     isPublic: shift.schedule.isPublic,
+    // Plan in Bearbeitung: Antraege, Tausch und Bestaetigen ruhen - fuer alle Leser, ohne Angaben zur Bearbeitung.
+    requestsPaused: isEditing(shift.schedule),
     branchId,
     branch: branch ? { id: branch.id, name: branch.name, address: branch.address, meetingPoint: branch.meetingPoint, notes: branch.notes, customer: branch.customer } : null,
     division: shift.division ? { id: shift.division.id, title: shift.division.title, color: shift.division.color } : null,

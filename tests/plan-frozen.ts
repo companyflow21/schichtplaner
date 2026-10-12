@@ -16,9 +16,9 @@ import { dayOfWeek, newPerson, type Sess } from "./people";
 
 const EDITING_REQUESTS = "Diese Woche wird gerade überarbeitet. Anträge sind nach der Veröffentlichung wieder möglich.";
 
-/** JSON zum Vergleich: Buchungen nach id, ohne Erzeugungszeit des Exports; loose ignoriert can.request (ruht waehrend der Bearbeitung). */
+/** JSON zum Vergleich: Buchungen nach id, ohne Erzeugungszeit des Exports; loose ignoriert can.request und requestsPaused (Antraege ruhen waehrend der Bearbeitung). */
 function norm(value: unknown, loose = false): string {
-  return JSON.stringify(value, (key, v) => key === "generatedAt" ? undefined
+  return JSON.stringify(value, (key, v) => key === "generatedAt" || (loose && key === "requestsPaused") ? undefined
     : loose && key === "can" && v ? { ...v, request: "*" }
     : key === "bookings" && Array.isArray(v) ? [...v].sort((x: any, y: any) => x.id < y.id ? -1 : 1)
     : v);
@@ -82,6 +82,10 @@ export async function planFrozenTests(t: TestContext) {
   check(own(before, S1.id)?.bookings[0]?.userId === users.staffA.id && own(before, S2.id)?.can.request === true && before.planB.schedule.shifts.length === 3, "published plan: staffA sees own and open shifts, staffB the full plan");
   check(before.dashA.own.some((s: any) => s.id === S1.id) && before.dashA.open.some((s: any) => s.id === S2.id), "published plan: own shift and requestable open shift on staffA's home page");
   check(before.inboxA.reference.includes("03:10–05:10") && before.refsA.shifts.some((s: any) => s.id === S1.id), "published plan: message reference and referencable own shift");
+  // requestsPaused: Schichten des Plans in Standortplan, Mein Dienstplan und auf der Startseite der Mitarbeitenden.
+  const planShifts = (v: any) => [v.planA, v.planB, v.mergedA, v.mergedB].flatMap((r: any) => r.schedule.shifts).concat(v.dashA.own, v.dashB.own).filter((s: any) => s.scheduleId === plan.id);
+  const paused = (v: any, value: boolean) => planShifts(v).length > 0 && planShifts(v).every((s: any) => s.requestsPaused === value);
+  check(paused(before, false) && before.dashA.own.some((s: any) => s.id === S1.id && s.requestsPaused === false), "published plan: employee views report requestsPaused false");
 
   // --- Bearbeitung: Zeit aendern, neu anlegen, loeschen, Zuweisung wechseln ------
   await admin.request(editing, "POST");
@@ -95,6 +99,8 @@ export async function planFrozenTests(t: TestContext) {
   const strip = (v: any) => ({ ...v, dashA: { ...v.dashA, open: null }, dashB: { ...v.dashB, open: null } });
   for (const key of Object.keys(before)) check(norm((strip(before) as any)[key], true) === norm((strip(during) as any)[key], true), "while editing, employee view unchanged: " + key);
   check(during.planA.schedule.shifts.every((s: any) => s.can.request === false) && during.planB.schedule.shifts.every((s: any) => s.can.request === false), "while editing, requests rest (can.request false)");
+  check(paused(during, true) && during.dashA.own.some((s: any) => s.id === S1.id && s.requestsPaused === true) && during.mergedA.schedule.shifts.some((s: any) => s.id === S1.id && s.requestsPaused === true), "while editing, employee views report requestsPaused true (site plan, merged view, home page)");
+  check(!/"editing(Since|By)"|"status":"EDITING"/.test(JSON.stringify(during)), "while editing, employee responses name neither editingSince/editingBy nor the status");
   check(![...during.dashA.open, ...during.dashB.open].some((s: any) => s.scheduleId === plan.id), "while editing, the home page offers no shift of the plan for requests");
   check(own(during, S3.id).shiftFrom === "03:10" && own(during, S1.id)?.bookings[0]?.userId === users.staffA.id && !own(during, S4.id) && !!own(during, S2.id), "staffA still sees the published state (old time, own assignment, deleted shift, no new shift)");
   check(!during.dashB.own.some((s: any) => s.id === S1.id) && !during.refsB.shifts.some((s: any) => s.id === S1.id), "staffB's new live assignment stays invisible to staffB");
@@ -102,6 +108,7 @@ export async function planFrozenTests(t: TestContext) {
   const live = await planOf(admin), ids = (p: any) => p.shifts.map((s: any) => s.id).sort().join();
   const liveS1 = live.shifts.find((s: any) => s.id === S1.id);
   check(live.shifts.find((s: any) => s.id === S3.id).shiftFrom === "03:40" && live.shifts.some((s: any) => s.id === S4.id) && !live.shifts.some((s: any) => s.id === S2.id) && liveS1.bookings.map((b: any) => b.userId).join() === users.staffB.id, "admin sees the live state");
+  check(live.status === "EDITING" && !!live.editingSince && !!live.editingBy?.name && live.shifts.every((s: any) => s.requestsPaused === true && s.can.edit === true), "planner response keeps the lifecycle fields; its shifts carry requestsPaused with edit rights (no employee hint)");
   const mgrPlan = await planOf(mgr.session);
   check(ids(mgrPlan) === ids(live) && mgrPlan.shifts.find((s: any) => s.id === S3.id).shiftFrom === "03:40", "manager with Dienstplan ansehen (planner) sees the live state");
   check((await mgr.session.request(mergedPath)).schedule.shifts.some((s: any) => s.id === S4.id), "planner's merged view is live too");
@@ -125,6 +132,7 @@ export async function planFrozenTests(t: TestContext) {
   const discarded = await employeeViews();
   for (const key of Object.keys(before)) check(norm((before as any)[key]) === norm((discarded as any)[key]), "after discard, employee view unchanged: " + key);
   check(norm(await planOf(admin)) === norm(adminBefore), "after discard the live state equals the published state");
+  check(paused(discarded, false), "after discard, employee views report requestsPaused false again");
   await sA.request("/api/bookings", "PATCH", { shiftId: S3.id });
 
   // --- Erneut bearbeiten und veroeffentlichen: der neue Stand gilt ----------------
@@ -138,6 +146,7 @@ export async function planFrozenTests(t: TestContext) {
   const after = await employeeViews();
   check(own(after, S3.id).shiftFrom === "03:40" && !own(after, S1.id) && !own(after, S2.id) && own(after, S5.id)?.can.request === true, "after publishing, staffA sees the new state (new time, no longer assigned, new open shift)");
   check(after.planB.schedule.shifts.find((s: any) => s.id === S1.id).bookings.map((b: any) => b.userId).join() === users.staffB.id && after.dashB.own.some((s: any) => s.id === S1.id), "after publishing, staffB sees the new assignment");
+  check(paused(after, false) && after.dashB.own.some((s: any) => s.id === S1.id && s.requestsPaused === false), "after publishing, employee views report requestsPaused false");
   check(!after.dashA.own.some((s: any) => s.id === S1.id) && after.dashA.own.find((s: any) => s.id === S3.id)?.shiftFrom === "03:40" && after.mergedA.schedule.shifts.find((s: any) => s.id === S3.id)?.shiftFrom === "03:40", "after publishing, staffA's home page and merged view follow");
   const plannedA = (views: any) => views.reportA.employees.find((e: any) => e.userId === users.staffA.id).plannedMinutes;
   check(plannedA(after) === plannedA(before) - 90, "after publishing, staffA's planned hours drop by the released shift (90 net minutes)");
