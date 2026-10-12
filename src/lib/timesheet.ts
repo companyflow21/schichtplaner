@@ -72,15 +72,16 @@ export async function siteReport(a: Access, branchId: string, from: string, to: 
     db.branch.findFirst({ where: { id: branchId, organizationId: a.orgId }, select: { name: true, customer: { select: { name: true } } } }),
   ]);
   if (!branch) throw new ApiError("Nicht gefunden.", 404);
-  const rows = report.people.flatMap((p) => p.rows.flatMap((row) => row.records.filter((r) => !r.running).map((r) => ({
+  const records = report.people.flatMap((p) => p.rows.flatMap((row) => row.records.filter((r) => !r.running).map((r) => ({ p, row, r }))));
+  const rows = records.map(({ p, row, r }) => ({
     date: r.date, person: p.firstName + " " + p.lastName, activity: row.shift?.title ?? row.shift?.division?.title ?? null,
-    timeFrom: r.timeFrom, timeTo: r.timeTo, breakMinutes: Math.round(r.breakSeconds / 60), minutes: r.minutes, status: recordStatus(r), approved: r.approved,
-  })))).sort((x, y) => x.date.localeCompare(y.date) || (x.timeFrom ?? "").localeCompare(y.timeFrom ?? "") || x.person.localeCompare(y.person, "de"));
+    timeFrom: r.timeFrom, timeTo: r.timeTo, breakMinutes: Math.round(r.breakSeconds / 60), minutes: r.minutes, status: recordStatus(r),
+  })).sort((x, y) => x.date.localeCompare(y.date) || (x.timeFrom ?? "").localeCompare(y.timeFrom ?? "") || x.person.localeCompare(y.person, "de"));
   const perPerson = new Map<string, number>();
   for (const r of rows) perPerson.set(r.person, (perPerson.get(r.person) ?? 0) + r.minutes);
   return {
     organization: org?.name ?? "", customer: branch.customer?.name ?? null, site: branch.name, from, to, generatedAt: new Date().toISOString(),
-    rows: rows.map(({ approved: _approved, ...r }) => r), perPerson: [...perPerson].map(([name, minutes]) => ({ name, minutes })),
-    totalMinutes: rows.reduce((s, r) => s + r.minutes, 0), openCount: rows.filter((r) => !r.approved).length,
+    rows, perPerson: [...perPerson].map(([name, minutes]) => ({ name, minutes })),
+    totalMinutes: rows.reduce((s, r) => s + r.minutes, 0), openCount: records.filter(({ r }) => !r.approved).length,
   };
 }

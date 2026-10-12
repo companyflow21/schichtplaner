@@ -36,6 +36,7 @@ import { useCurrentMember } from "@/lib/hooks/use-current-member";
 import { summaryCan } from "@/lib/access-shared";
 import { json, useAction } from "@/components/workforce/client";
 import { TimeRecordForm } from "./time-record-form";
+import { TimesheetButton } from "@/components/reporting/timesheet-button";
 import { Stopwatch } from "./stopwatch";
 import { AnomalyBadge, EmployeeAnomalyIndicator } from "./anomaly-badge";
 
@@ -302,7 +303,8 @@ export function TimeList() {
             Arbeitszeiten erfassen und verwalten
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <TimesheetButton from={monthKey + "-01"} to={format(endOfMonth(currentMonth), "yyyy-MM-dd")} label="Mein Stundenzettel" />
           <Button
             variant="outline"
             size="sm"
