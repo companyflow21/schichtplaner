@@ -10,6 +10,7 @@ import {
   BadgeCheck,
   ListChecks,
   Wallet,
+  Scale,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +59,11 @@ const sections = [
     key: "rules",
     label: "Planungsregeln",
     icon: ListChecks,
+  },
+  {
+    key: "accounts",
+    label: "Zeitkonten",
+    icon: Scale,
   },
 ] as const;
 

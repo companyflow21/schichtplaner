@@ -92,6 +92,9 @@ model Organization {
   planningRuleOverrides PlanningRuleOverride[]
   payTypes          PayType[]
   surcharges        Surcharge[]
+  timeAccounts      TimeAccount[]
+  targetHours       TargetHours[]
+  timeCompensations TimeCompensation[]
 
   @@map("organizations")
 }
@@ -131,6 +134,9 @@ model OrganizationMember {
   assignedIssues BranchIssue[]
   planningRuleOverride PlanningRuleOverride?
   payType        PayType?          @relation(fields: [payTypeId], references: [id], onDelete: Restrict)
+  timeAccount    TimeAccount?
+  targetHours    TargetHours[]
+  compensations  TimeCompensation[]
 
   @@unique([organizationId, userId])
   @@unique([id, organizationId])
@@ -666,6 +672,10 @@ model TimeSettings {
   useCategories    Boolean  @default(false)
   /// Selbst erfasste Zeiten (Stoppuhr, Check-in, manuell) gelten ohne Pruefung als genehmigt.
   autoApprove      Boolean  @default(false)
+  /// Zeitkonten (Ueberstundensaldo): an/aus, Berechnungsart und Sichtbarkeit fuer Mitarbeitende.
+  accountsEnabled  Boolean  @default(false)
+  accountMethod    AccountMethod @default(ACTUAL_MINUS_TARGET)
+  accountVisible   Boolean  @default(false)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -1058,4 +1068,70 @@ model Surcharge {
 
   @@index([organizationId])
   @@map("surcharges")
+}
+
+enum AccountMethod {
+  /// Ist - Soll (kuenftige Tage mit Planstunden)
+  ACTUAL_MINUS_TARGET
+  /// Plan - Soll
+  PLAN_MINUS_TARGET
+  /// Ist - Plan (ohne Soll)
+  ACTUAL_MINUS_PLAN
+}
+
+enum TargetPeriod {
+  WEEK
+  MONTH
+}
+
+/// Zeitkonto einer Person: einbezogen und Abweichungen von den allgemeinen Einstellungen.
+model TimeAccount {
+  id             String   @id @default(cuid())
+  organizationId String
+  memberId       String   @unique
+  included       Boolean  @default(true)
+  /// null = allgemeine Berechnungsart bzw. Sichtbarkeit
+  method         AccountMethod?
+  visible        Boolean?
+  updatedAt      DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("time_accounts")
+}
+
+/// Sollstunden ab einem Startdatum bis zum naechsten Eintrag der Person.
+model TargetHours {
+  id             String       @id @default(cuid())
+  organizationId String
+  memberId       String
+  startDate      DateTime     @db.Date
+  minutes        Int
+  period         TargetPeriod
+  createdAt      DateTime     @default(now())
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, startDate])
+  @@map("target_hours")
+}
+
+/// Ausgleich auf dem Zeitkonto (z. B. -30 h ausbezahlt, +12 h Anfangssaldo).
+model TimeCompensation {
+  id             String   @id @default(cuid())
+  organizationId String
+  memberId       String
+  date           DateTime @db.Date
+  minutes        Int
+  description    String
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, date])
+  @@map("time_compensations")
 }

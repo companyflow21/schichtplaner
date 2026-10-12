@@ -8,6 +8,7 @@ import { payrollReport } from "./payroll-service";
 import { plannedMinutes } from "./planning";
 import { wallToUtcMinutes } from "./checkin";
 import { frozenPlans } from "./schedule-frozen";
+import { balancesFor } from "./time-account-service";
 import type { PayLine } from "./payroll";
 
 export type HoursStatus = "APPROVED" | "OPEN" | "MISSING" | "PLANNED" | "RUNNING";
@@ -175,8 +176,11 @@ export async function hoursReport(a: Access, from: string, to: string, branchId:
     };
   }).filter((p) => p.isActive || p.rows.length)
     .sort((x, y) => x.lastName.localeCompare(y.lastName, "de") || x.firstName.localeCompare(y.firstName, "de"));
+  // Zeitkonto: Saldo zum letzten Tag der Abfrage, nur fuer sichtbare, aktive Konten.
+  const balances = await balancesFor(a, result.flatMap((p) => (p.userId ? [p.userId] : [])), to);
   return {
-    from, to, branchId, showPay: a.isAdmin, people: result,
+    from, to, branchId, showPay: a.isAdmin, showBalance: balances.size > 0,
+    people: result.map((p) => ({ ...p, balanceMinutes: p.userId && balances.has(p.userId) ? balances.get(p.userId)! : null })),
     /** Nur Administration: Hinweise zu Feiertagszuschlaegen und Einrichtung des Lohns (wie bisher die Lohnseite). */
     notices: payroll?.notices ?? [], setup: payroll?.setup ?? null,
     totals: { plannedMinutes: result.reduce((s, p) => s + p.plannedMinutes, 0), istMinutes: result.reduce((s, p) => s + p.istMinutes, 0), openCount: result.reduce((s, p) => s + p.openCount, 0), totalCents: a.isAdmin ? result.reduce((s, p) => s + (p.totalCents ?? 0), 0) : null },

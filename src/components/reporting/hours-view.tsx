@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ErrorMessage, json, selectClass } from "@/components/workforce/client";
 import { TimeRecordForm } from "@/components/time/time-record-form";
 import { SiteReportButton, TimesheetButton } from "./timesheet-button";
+import { TimeAccountDialog, signedHours } from "./time-account-dialog";
 import { addDate, berlinDate } from "@/lib/berlin";
 import { useNameFormat } from "@/lib/hooks/use-current-member";
 import { formatName } from "@/lib/names";
@@ -38,11 +39,11 @@ type Row = {
 /** key: userId, bei geloeschten Personen "former:" + Id (userId null). pay nur fuer die Administration. */
 type Person = {
   key: string; userId: string | null; former: boolean; firstName: string; lastName: string; isActive: boolean; personnelNumber: string | null;
-  plannedMinutes: number; istMinutes: number; openCount: number; missingCount: number; approvable: string[]; totalCents: number | null;
+  plannedMinutes: number; istMinutes: number; openCount: number; missingCount: number; approvable: string[]; totalCents: number | null; balanceMinutes: number | null;
   pay: { payType: { title: string; hourlyRateCents: number } | null; lines: PayLine[]; warnings: string[] } | null; rows: Row[];
 };
 type Report = {
-  from: string; to: string; showPay: boolean; people: Person[]; notices: string[]; setup: { payTypes: number; surcharges: number } | null;
+  from: string; to: string; showPay: boolean; showBalance: boolean; people: Person[]; notices: string[]; setup: { payTypes: number; surcharges: number } | null;
   totals: { plannedMinutes: number; istMinutes: number; openCount: number; totalCents: number | null };
 };
 type BranchOption = { id: string; name: string; customer?: { name: string } | null };
@@ -94,6 +95,7 @@ export function HoursView() {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
   const [editing, setEditing] = useState<RecordView | null>(null);
+  const [account, setAccount] = useState<Person | null>(null);
   const [entering, setEntering] = useState<{ userId: string; date: string; timeFrom: string; timeTo: string; breakMinutes: number } | null>(null);
   const wholeMonth = from === monthStart(from) && to === monthEnd(from);
   const params = "from=" + from + "&to=" + to + (standort ? "&standort=" + encodeURIComponent(standort) : "");
@@ -108,7 +110,7 @@ export function HoursView() {
   const people = useMemo(() => (data?.people ?? []).filter((p) => (!onlyOpen || p.openCount > 0 || p.missingCount > 0) && (formatName(p, nameFormat).toLowerCase().includes(search.trim().toLowerCase()) || (p.personnelNumber ?? "").includes(search.trim()))), [data, search, onlyOpen, nameFormat]);
   const shiftMonth = (delta: -1 | 1) => { const start = delta < 0 ? monthStart(addDate(monthStart(from), -1)) : addDate(monthEnd(from), 1); setFrom(start); setTo(monthEnd(start)); setCustom(false); };
   const toggle = (id: string) => setOpen((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
-  const cols = data?.showPay ? 7 : 6;
+  const cols = 6 + (data?.showPay ? 1 : 0) + (data?.showBalance ? 1 : 0);
 
   return (
     <div className="space-y-4">
@@ -211,6 +213,7 @@ export function HoursView() {
                   <th className="hidden px-3 py-2 text-right font-medium sm:table-cell">Plan</th>
                   <th className="px-3 py-2 text-right font-medium">Ist</th>
                   <th className="hidden px-3 py-2 text-right font-medium sm:table-cell">Abw.</th>
+                  {data.showBalance && <th className="hidden px-3 py-2 text-right font-medium sm:table-cell">Saldo</th>}
                   {data.showPay && <th className="px-3 py-2 text-right font-medium">Lohn</th>}
                   <th className="px-3 py-2 text-right font-medium">Status</th>
                 </tr>
@@ -234,6 +237,12 @@ export function HoursView() {
                         <td className="hidden px-3 py-2 text-right tabular-nums sm:table-cell">{hours(p.plannedMinutes)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{hours(p.istMinutes)}</td>
                         <td className="hidden px-3 py-2 text-right tabular-nums sm:table-cell">{signed(p.istMinutes - p.plannedMinutes)}</td>
+                        {data.showBalance && (
+                          <td className="hidden px-3 py-2 text-right sm:table-cell">
+                            {p.balanceMinutes === null ? <span className="text-xs text-muted-foreground">–</span>
+                              : <button type="button" className={cn("rounded-md px-2 py-0.5 tabular-nums hover:bg-muted", p.balanceMinutes < 0 && "text-destructive")} onClick={(e) => { e.stopPropagation(); setAccount(p); }}>{signedHours(p.balanceMinutes)}</button>}
+                          </td>
+                        )}
                         {data.showPay && <td className="whitespace-nowrap px-3 py-2 text-right font-medium tabular-nums">{euro(p.totalCents ?? 0)}</td>}
                         <td className="whitespace-nowrap px-3 py-2 text-right">
                           {p.openCount > 0 ? <span className="rounded-full bg-warn/10 px-2 py-0.5 text-xs text-warn">{p.openCount} offen</span>
@@ -247,6 +256,7 @@ export function HoursView() {
                             <div className="space-y-2">
                               <div className="flex flex-wrap justify-end gap-2 print:hidden">
                                 {p.userId && <TimesheetButton userId={p.userId} from={from} to={to} />}
+                                {p.userId && p.balanceMinutes !== null && <Button size="sm" variant="outline" onClick={() => setAccount(p)}>Zeitkonto {signedHours(p.balanceMinutes)} h</Button>}
                                 {p.approvable.length > 0 && <Button size="sm" disabled={approve.isPending} onClick={() => approve.mutate({ ids: p.approvable, approved: true })}><Check className="size-4" />Alle offenen genehmigen ({p.approvable.length})</Button>}
                               </div>
                               {p.former && <p className="text-xs text-muted-foreground">Gelöschte Person: Die Zeiten bleiben als Historie unverändert und lassen sich nur genehmigen; nachgetragen wird nichts.</p>}
@@ -270,6 +280,7 @@ export function HoursView() {
           </div>
         </Card>
       )}
+      {account?.userId && <TimeAccountDialog userId={account.userId} name={name(account)} from={from} to={to} onClose={() => setAccount(null)} />}
       {exporting && data && <ExportDialog report={data} standort={standort} onClose={() => setExporting(false)} />}
       {/* record: bearbeitbar sind nur Buchungen mit Konto (canEdit), userId ist dort gesetzt. */}
       <TimeRecordForm open={!!editing} onOpenChange={(v) => { if (!v) setEditing(null); }} record={editing ? { ...editing, userId: editing.userId ?? "" } : null} direct />
