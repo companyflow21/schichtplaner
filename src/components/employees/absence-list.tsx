@@ -179,7 +179,7 @@ export function AbsenceList() {
   });
 
   const LOESCH_HINWEIS =
-    "Der Eintrag wird entfernt. Ein genehmigter Zeitraum gilt danach nicht mehr als Abwesenheit.";
+    "Der Eintrag wird endgültig entfernt; die Person wird darüber nicht benachrichtigt. Ein genehmigter Zeitraum gilt danach nicht mehr als Abwesenheit.";
 
   function handleEdit(absence: AbsenceData) {
     setEditingAbsence(absence);

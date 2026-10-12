@@ -14,6 +14,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -189,24 +190,27 @@ export function LiveMode({ scheduleId, isManager }: LiveModeProps) {
                 Live starten
               </Button>
             ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => {
-                  if (confirm("Live-Modus wirklich stoppen?")) {
-                    stopMutation.mutate();
-                  }
-                }}
+              <ConfirmDialog
+                title="Live-Modus stoppen?"
+                description="Die Live-Sitzung wird beendet und die LIVE-Markierung am Plan verschwindet. Schichten und Besetzungen bleiben unverändert; ein neuer Start beginnt mit leerem Aktivitätsprotokoll."
+                confirmLabel="Live stoppen"
                 disabled={isPending}
+                onConfirm={() => stopMutation.mutate()}
               >
-                {stopMutation.isPending ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <Square className="size-3.5" />
-                )}
-                Live stoppen
-              </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  disabled={isPending}
+                >
+                  {stopMutation.isPending ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Square className="size-3.5" />
+                  )}
+                  Live stoppen
+                </Button>
+              </ConfirmDialog>
             )}
           </>
         )}

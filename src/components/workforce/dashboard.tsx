@@ -70,6 +70,8 @@ type Reports = {
 type Base = { firstName: string; userId: string; today: string; unread: number; own: Shift[]; reports: Reports };
 type ManagerData = Base & {
   manager: true;
+  // Offene Aufgaben aus src/lib/dashboard-tasks.ts; null: ohne Zustaendigkeit.
+  tasks: { notActivated: number | null; draftWeeks: number | null; draftHref: string | null };
   overview: {
     horizon: { from: string; to: string; days: number };
     customers: { id: string; name: string; isActive: boolean; branches: BranchCard[] }[];
@@ -168,10 +170,12 @@ function ManagerStart({ data }: { data: ManagerData }) {
       <OffeneAufgaben
         eintraege={[
           { zahl: counts.openSlots, label: "offene Plätze", zusatz: `nächste ${overview.horizon.days} Tage`, href: "#kunden", dringend: true },
+          { zahl: data.tasks.draftWeeks, label: data.tasks.draftWeeks === 1 ? "Woche im Entwurf" : "Wochen im Entwurf", zusatz: `nächste ${overview.horizon.days} Tage · für Mitarbeitende unsichtbar`, href: data.tasks.draftHref ?? "/schedule/month" },
           { zahl: counts.unconfirmed, label: "Bestätigungen offen", zusatz: "ältere Zuweisungen", href: "/schedule/month" },
           { zahl: anträge, label: "Anträge offen", href: "#antraege" },
           { zahl: counts.pendingAbsences, label: "Abwesenheiten zur Freigabe", href: "/employees/absences" },
           { zahl: counts.openIssues, label: "Standortmeldungen offen", href: "#kunden" },
+          { zahl: data.tasks.notActivated, label: data.tasks.notActivated === 1 ? "Person nicht freigeschaltet" : "Mitarbeitende nicht freigeschaltet", zusatz: "jetzt einladen", href: "/employees?status=not_activated" },
           { zahl: data.unread, label: "neue Nachrichten", href: "/portal/inbox" },
         ]}
       />

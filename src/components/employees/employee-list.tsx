@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Search,
   Users,
@@ -135,8 +135,19 @@ function getRoleBadge(role: string) {
   }
 }
 
+// useSearchParams verlangt eine Suspense-Grenze (wie Einstellungen und Postfach).
 export function EmployeeList() {
-  const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  return (
+    <Suspense fallback={null}>
+      <Mitarbeiterliste />
+    </Suspense>
+  );
+}
+
+function Mitarbeiterliste() {
+  // ?status=not_activated (Link aus den offenen Aufgaben) waehlt den Reiter vor.
+  const status = useSearchParams().get("status");
+  const [activeTab, setActiveTab] = useState<FilterTab>(() => tabs.find((t) => t.key === status)?.key ?? "all");
   const [search, setSearch] = useState("");
   const [aktion, setAktion] = useState<Aktion>(null);
   const router = useRouter();

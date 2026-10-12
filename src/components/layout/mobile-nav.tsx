@@ -15,11 +15,22 @@ import {
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
 import { useUnreadCount } from "@/lib/hooks/use-unread-count";
 import {
-  isNavActive,
+  isNavItemActive,
   mobileNavItems,
   navFooterItems,
   navGroups,
+  type NavItem,
 } from "./nav-config";
+
+/** Schmale Markenkante am oberen Rand des aktiven Eintrags. */
+function AktivKante() {
+  return (
+    <span
+      aria-hidden="true"
+      className="absolute inset-x-5 top-0 h-[2px] rounded-full bg-primary"
+    />
+  );
+}
 
 /**
  * Feste untere Navigation auf dem Handy: vier haeufige Ziele plus "Mehr".
@@ -35,6 +46,12 @@ export function MobileNav() {
   const groups = navGroups(me);
   const footer = navFooterItems(me);
   const hauptZiele = new Set(items.map((item) => item.href));
+  const istAktiv = (item: NavItem) => isNavItemActive(item, pathname, me?.role);
+  // "Mehr" leuchtet, wenn das aktuelle Ziel nur im Sheet liegt.
+  const mehrAktiv =
+    groups.some((group) =>
+      group.items.some((item) => !hauptZiele.has(item.href) && istAktiv(item))
+    ) || footer.some(istAktiv);
 
   const eintragKlasse = (active: boolean) =>
     cn(
@@ -49,7 +66,7 @@ export function MobileNav() {
     >
       {items.map((item) => {
         const Icon = item.icon;
-        const active = isNavActive(item.href, pathname);
+        const active = istAktiv(item);
         return (
           <Link
             key={item.key}
@@ -58,12 +75,7 @@ export function MobileNav() {
             className={eintragKlasse(active)}
           >
             {/* Aktiv: schmale Markenkante, kein farbiger Kasten. */}
-            {active && (
-              <span
-                aria-hidden="true"
-                className="absolute inset-x-5 top-0 h-[2px] rounded-full bg-primary"
-              />
-            )}
+            {active && <AktivKante />}
             <Icon className="size-5" />
             {item.label}
           </Link>
@@ -71,7 +83,8 @@ export function MobileNav() {
       })}
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger className={cn(eintragKlasse(false), "relative")}>
+        <SheetTrigger className={eintragKlasse(mehrAktiv)}>
+          {mehrAktiv && <AktivKante />}
           <MoreHorizontal className="size-5" />
           Mehr
           {unread > 0 && (
@@ -99,7 +112,7 @@ export function MobileNav() {
                   <ul>
                     {weitere.map((item) => {
                       const Icon = item.icon;
-                      const active = isNavActive(item.href, pathname);
+                      const active = istAktiv(item);
                       const count = item.badge === "unread" ? unread : 0;
                       return (
                         <li key={item.key}>
@@ -131,12 +144,17 @@ export function MobileNav() {
 
             {footer.map((item) => {
               const Icon = item.icon;
+              const active = istAktiv(item);
               return (
                 <Link
                   key={item.key}
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className="flex min-h-11 items-center gap-3 border-t px-3 py-3 text-[14px] font-medium"
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex min-h-11 items-center gap-3 border-t px-3 py-3 text-[14px] font-medium",
+                    active && "bg-accent text-accent-foreground"
+                  )}
                 >
                   <Icon className="size-5 text-muted-foreground" />
                   {item.label}

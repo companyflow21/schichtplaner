@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -222,12 +223,6 @@ export function AbsenceSettings({
     });
   }
 
-  function handleDelete(id: string) {
-    if (confirm("Kategorie wirklich löschen?")) {
-      deleteMutation.mutate(id);
-    }
-  }
-
   return (
     <div className="space-y-6">
       <div>
@@ -334,14 +329,22 @@ export function AbsenceSettings({
                   >
                     <Pencil className="size-3" />
                   </Button>
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={() => handleDelete(cat.id)}
+                  <ConfirmDialog
+                    title="Kategorie löschen?"
+                    description={`Die Kategorie „${cat.name}“ wird gelöscht. Das geht nur, solange noch keine Abwesenheit sie verwendet.`}
+                    confirmLabel="Löschen"
                     disabled={deleteMutation.isPending}
+                    onConfirm={() => deleteMutation.mutate(cat.id)}
                   >
-                    <Trash2 className="size-3 text-destructive" />
-                  </Button>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      title="Löschen"
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="size-3 text-destructive" />
+                    </Button>
+                  </ConfirmDialog>
                 </div>
               </div>
             )

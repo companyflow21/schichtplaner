@@ -334,8 +334,8 @@ Fensters erzeugt einen Hinweis.
   Korrekturentscheidungen, Check-in-Entscheidungen. Push-Hinweise ohne Inhalt, wenn der Server Push-Schlüssel hat.
 - Grenzen: **keine E-Mails**.
 
-**Dateien** – Teilweise: alle sehen Ordner, nur A legt Ordner an; **Datei-Upload nicht umgesetzt** („kommt bald“),
-obwohl die README ihn nennt.
+**Dateien** – Teilweise: alle sehen Ordner, nur A legt Ordner an; **Datei-Upload nicht umgesetzt** (kein Upload-Endpunkt; der
+deaktivierte Knopf „Datei hochladen“ wurde entfernt), obwohl die README ihn nennt.
 
 **Themen (Forum)** – UI: jede Person kann Themen und Beiträge anlegen (organisationsweit sichtbar); löschen nur A.
 
