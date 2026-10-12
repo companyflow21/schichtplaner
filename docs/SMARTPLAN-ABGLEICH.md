@@ -75,8 +75,8 @@ Jedes Paket wird wie bisher mit Tests, Browserprüfung und Eintrag in `FERTIGSTE
 |---|---|---|---|---|
 | P0 | Fehler aus dem Abgleich: Admin-Abwesenheit bleibt „ausstehend“, Abwesenheiten deaktivierter Personen verschwinden, „Reaktivieren“ ohne Funktion, E-Mail nach Aktivierung änderbar, „als ungelesen markieren“ ohne Knopf, negative Werte im CSV als Text | C76, C41, C44, C24, D27, B69 | S | umgesetzt (`9ee9618`); C24 (E-Mail-Sperre) erst mit P9, weil Mitarbeitende ihre E-Mail heute nicht selbst ändern können |
 | P1 | Lohn: Lohnarten, Personalnummer, Lohnart je Person und Arbeitsbereich, Zuschläge (Tage, Feiertage, Sonderdaten, Zeitblock auch über Mitternacht, Prozent oder Betrag), Lohn je Buchung mit Rechenweg, Lohnexport CSV mit und ohne Sätze | B47–B58, B63–B67 | L | umgesetzt (`8e6e865`); offen: Excel-Datei, Lohnexport-Verlauf, Lohnrecht für Manager, DATEV-Format |
-| P2 | Stunden prüfen und genehmigen: Buchung ↔ Schicht, Genehmigungsstatus, „Stunden und Lohn“ als ein Bildschirm (aufklappbar, Bearbeiten-Dialog, Rot/Grün, Dezimalstunden), freier Zeitraum, Drucken | B28–B42 | L | offen |
-| P3 | Stundenzettel und Leistungsnachweis je Kunde/Einsatzort als PDF, Monatsabschluss | B42, Teil B „Stundenzettel“ | M | offen |
+| P2 | Stunden prüfen und genehmigen: Buchung ↔ Schicht, Genehmigungsstatus, „Stunden und Lohn“ als ein Bildschirm (aufklappbar, Bearbeiten-Dialog, Rot/Grün, Dezimalstunden), freier Zeitraum, Drucken | B28–B42 | L | umgesetzt (`0ff8e24`); offen: „Ist = Plan“ ohne Erfassung (Entscheidung), „nicht erschienen“, Pausen mit Uhrzeit, Aktivitätsprotokoll im Dialog |
+| P3 | Stundenzettel und Leistungsnachweis je Kunde/Einsatzort als PDF, Monatsabschluss | B42, Teil B „Stundenzettel“ | M | umgesetzt (`5f4e78d`); offen: Monatsabschluss, elektronische Bestätigung |
 | P4 | Zeitkonten: Soll mit Startdatum, laufender Saldo, Ausgleich, Ansicht für Mitarbeitende | B77–B88 | M | offen |
 | P5 | Abwesenheit wirkt auf Schichten, Stunden und Lohn; Abwesenheitsvergütung; Urlaubskonto | B59–B62, B87, C77–C81, C98–C112 | L | offen |
 | P6 | Planungsregeln je Person mit Verstoßliste (Höchststunden, Ruhezeit, Tage am Stück …), Veröffentlichungsdialog mit Änderungsliste, Bearbeitungsmodus | A42–A60, A70, A72 | L | offen |
@@ -111,10 +111,27 @@ Jedes Paket wird wie bisher mit Tests, Browserprüfung und Eintrag in `FERTIGSTE
 - Zeitumstellung: Stoppuhr und Check-in zählen die echte Dauer, manuelle Von/Bis-Zeiten die Wanduhr.
 - Lohndaten sieht und exportiert nur die Administration. Lohnkosten ohne Arbeitgeberanteile.
 
+## Stunden prüfen (P2) und Stundenzettel (P3) – so arbeitet der Schichtplaner
+
+- Jede Buchung gehört zu höchstens einer geplanten Schicht: über den Check-in oder als einzige veröffentlichte
+  Schicht der Person, mit der sie sich überschneidet. „Stunden und Lohn“ zeigt je Schicht Plan, Ist, Abweichung
+  und Status; Buchungen ohne Schicht stehen als eigene Zeile.
+- Status: **genehmigt**, **offen** (noch nicht genehmigt), **nicht erfasst** (Schicht vorbei, keine Buchung),
+  **geplant** (Schicht in der Zukunft), **läuft** (Stoppuhr). Anders als Smartplan zählt eine Schicht ohne Buchung
+  nicht als gearbeitet; „Zeit wie geplant nachtragen“ erfasst sie mit einem Klick.
+- Genehmigen dürfen Admins und Manager mit „Zeiterfassung bearbeiten“ am Standort und „Stunden einsehen“ für die
+  Person; eigene Buchungen nur Admins. Ändern Prüfende eine fremde Buchung, gilt das sofort und bleibt mit
+  Vorher/Nachher im Verlauf. Mitarbeitende beantragen Korrekturen wie bisher.
+- Einstellung „Selbst erfasste Zeiten automatisch genehmigen“ (Einstellungen › Zeiterfassung), Vorgabe aus.
+  Bei Einführung gelten alle abgeschlossenen Altbuchungen als genehmigt.
+- Stundenzettel (PDF) je Person und Zeitraum mit Zuschlagsstunden, Nachweis (GPS, Stoppuhr, manuell), Status und
+  Unterschriftsfeldern; Mitarbeitende erstellen ihren eigenen unter „Zeiterfassung“. Leistungsnachweis (PDF) je
+  Einsatzort für den Kunden.
+
 ## Nächster Schritt
 
-P2 (Stunden prüfen und genehmigen) und P3 (Stundenzettel). Parallel, sobald die Zugangsdaten gesetzt sind:
-Erfassung im Konto nach den Regeln oben, offene Punkte der Katalogteile klären, Layout für P12 festhalten.
+P4 (Zeitkonten) und P5 (Abwesenheit wirkt auf Stunden und Lohn, Urlaubskonto). Parallel, sobald die
+Zugangsdaten gesetzt sind: Erfassung im Konto nach den Regeln oben, offene Punkte klären, Layout für P12 festhalten.
 
 ## Quellen (öffentlich, abgerufen 12.10.2026)
 

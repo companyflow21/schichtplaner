@@ -5,6 +5,35 @@ Status: `bestanden` · `fehlgeschlagen` · `nicht geprüft` · `offen` (fachlich
 Nachweise sind lokal (PGlite-Workflowtests, isolierte Docker-Testinstallation), soweit nicht anders vermerkt.
 Auf Netcup eingespielt: `9eabd44` am 28.09.2026, `b5efa55` am 29.09.2026 (Löschen, Qualifikationen bearbeiten, Push).
 
+## Smartplan-Abgleich: P2 und P3 (12.10.2026)
+
+Branch `claude/wizardly-cerf-cxbutc`. Noch nicht eingespielt. Migration `20261013090000_time_approval` vorher auf einer Kopie prüfen.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P1 | Schichtbezug je Buchung – `lib/time-service.ts` (`shiftForTime`), `api/time`, `api/time/watch`, Check-in | Buchung wird der einzigen überschneidenden veröffentlichten Schicht zugeordnet; Check-in setzt die Schicht direkt; ohne eindeutige Schicht kein Bezug | bestanden | `tests/hours.ts` |
+| P0 | Genehmigung – `api/time/approve` | Nur Prüfende (Admin; Manager mit „Zeiterfassung bearbeiten“ am Standort und „Stunden einsehen“); eigene nur Admin; fremde Organisation 404; laufende Stoppuhr 409; Rücknahme möglich | bestanden | `tests/hours.ts` |
+| P1 | Anfangsstatus – `initialApproval` | Einträge der Prüfenden für andere und der Administration genehmigt; eigene offen, mit „automatisch genehmigen“ genehmigt | bestanden | `tests/hours.ts` |
+| P1 | Direkte Änderung durch Prüfende – `api/time/[id]` | Sofort wirksam, genehmigt, als entschiedene Korrektur mit Vorher/Nachher im Verlauf; Mitarbeitende beantragen weiter | bestanden | `tests/hours.ts`; bestehende Korrekturtests unverändert grün |
+| P1 | Stundenbericht – `lib/hours.ts`, `api/hours` | Plan/Ist/Abweichung je Schicht; Status genehmigt/offen/nicht erfasst/geplant/läuft; Buchungen ohne Schicht als eigene Zeile; Sichtbarkeit wie Auswertung; Lohn nur Admin | bestanden | `tests/hours.ts` |
+| P1 | Migration `20261013090000_time_approval` | Additiv; abgeschlossene Altbuchungen gelten als genehmigt, laufende nicht; Schicht nur aus dem Check-in übernommen | bestanden | `npm run test:migration` (69) |
+| P1 | Stundenzettel – `lib/timesheet.ts`, `api/timesheet` | Eigene immer, fremde mit Rechten; Zuschlagsstunden ohne Beträge; Personalnummer und Soll nur für Person und Administration | bestanden | `tests/timesheet.ts` |
+| P1 | Leistungsnachweis je Einsatzort – `api/timesheet/site` | Nur mit „Zeiterfassung einsehen“ am Standort; Summe je Person; Einsatzort ist Pflicht | bestanden | `tests/timesheet.ts` |
+| P1 | PDF – `lib/timesheet-pdf.ts` | Stundenzettel und Leistungsnachweis als A4-PDF mit Summen und Unterschriftsfeldern | bestanden | `npm run test:pdf` (14); Browser: Download beider PDFs, Sichtprüfung |
+| P1 | Oberfläche „Stunden und Lohn“ (`/hours`, ersetzt `/payroll`) | Genehmigen, Alle genehmigen, Bearbeiten, „Zeit wie geplant nachtragen“, Drucken ohne Navigation, 375 px ohne Überbreite | bestanden | Browser (Produktions-Build): Genehmigen, Nachtragen-Dialog mit Planzeiten, Druckansicht, Stundenzettel 18 KB, Leistungsnachweis 11 KB, `/payroll` → `/hours` |
+| P1 | „Ist = Plan“ ohne Erfassung (Smartplan B35) | Geplante Schicht zählt ohne Buchung als gearbeitet | offen | Fachliche Entscheidung AKRO; heute „nicht erfasst“ mit „Zeit wie geplant nachtragen“ |
+
+### Prüfungen (lokal)
+
+| Prüfung | Ergebnis |
+|---|---|
+| `npx tsc --noEmit --incremental false` | 0 Fehler |
+| `npx eslint` (geänderte Dateien) | 0 Fehler; Warnungen nur in unverändertem Altcode |
+| `npm run test:workflows` | 1483/1483 |
+| `npm run test:migration` | 69/69 |
+| `npm run test:payroll` / `test:pdf` | 31/31, 14/14 |
+| `npm run build` | erfolgreich |
+
 ## Smartplan-Abgleich: P0 und P1 (12.10.2026)
 
 Branch `claude/wizardly-cerf-cxbutc`, Basis `a9f5b9d`. Plan, Funktionskatalog und Paketliste: `docs/SMARTPLAN-ABGLEICH.md`.
