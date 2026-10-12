@@ -45,6 +45,24 @@ Konfliktprüfung als Lesedienst ohne Schemaänderung, Severity im Konfliktpanel 
 (Überschneidung/Abwesenheit/inaktiv/nicht verfügbar = rot; Qualifikation/Tätigkeit/
 Arbeitsbereich/Verfügbarkeitsfenster = orange).
 
+## Zuständigkeiten (zwei Sitzungen, Stand 12.10.2026)
+
+- **Sitzung „Dienstplan App“ (Integration):** Bausteine 1–3 inkl. Oberfläche
+  (Statusbalken mit Bearbeiten/Veröffentlichen/Verwerfen, Veröffentlichen-Dialog mit
+  Diff und Benachrichtigungs-Checkbox, Konfliktpanel/-markierung), eingefrorene
+  Mitarbeitersicht, Überschneidung → Hinweis. Merges in
+  `feat/plan-lifecycle-diff-conflicts` nur durch diese Sitzung, nacheinander, mit
+  gemeinsamen Prüfungen.
+- **Sitzung „Design Baustein“:** Design-Stufe 1 ausschließlich auf
+  `feat/design-stufe-1` (Hauptnavigation, Wochenraster mit Heute-Markierung,
+  Schicht-Dialog, Bestätigungsdialoge mit Folgen, Erklärtexte, Schrift/Kontrast),
+  Ports ab 3409/55543, Vorschau ab 3448. Berührungspunkte in `schedule-toolbar.tsx`,
+  `schedule-grid.tsx`, `shift-card.tsx`, `api/dashboard/route.ts` und
+  `workforce/dashboard.tsx` werden vor dem Merge gemeldet.
+- Keine direkten Dateiänderungen im Hauptarbeitsbaum; Umsetzung nur in
+  Worktrees/Branches. Nichts aus dem Klon ins Original oder nach Netcup einspielen,
+  bevor AKRO die Übergabe freigibt.
+
 ## Reihenfolge
 
 1. Plan-Lebenszyklus (DRAFT / PUBLISHED / EDITING, eingefrorene Mitarbeitersicht, Verwerfen)
