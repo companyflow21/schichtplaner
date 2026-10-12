@@ -60,6 +60,7 @@ function faehigkeiten(me?: CurrentMember) {
     plans: summaryCan(access, "VIEW_SCHEDULE"),
     staff: admin || Object.keys(access?.staff ?? {}).length > 0,
     locations: admin || Object.keys(access?.branches ?? {}).length > 0,
+    hours: admin || summaryCan(access, "VIEW_TIME"),
   };
 }
 
@@ -111,7 +112,7 @@ export function navGroups(me?: CurrentMember): NavGroup[] {
       items: [
         ...(can.locations ? [{ key: "divisions", href: "/divisions", label: "Einsatzorte", icon: Building2 }] : []),
         { key: "reporting", href: "/reporting", label: "Auswertung", icon: BarChart3 },
-        ...(can.admin ? [{ key: "payroll", href: "/payroll", label: "Lohn", icon: Wallet }] : []),
+        ...(can.hours ? [{ key: "hours", href: "/hours", label: "Stunden und Lohn", icon: Wallet }] : []),
         { key: "portal", href: "/portal/inbox", label: "Nachrichten", icon: MessageSquare, badge: "unread" as const },
       ],
     },

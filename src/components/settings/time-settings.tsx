@@ -19,6 +19,7 @@ interface TimeSettingsData {
   warningsEnabled: boolean;
   warningsMaxHours: number;
   useCategories: boolean;
+  autoApprove: boolean;
 }
 
 interface TimeSettingsProps {
@@ -146,6 +147,27 @@ export function TimeSettings({
               handleTimeSettingsChange({ useCategories: checked })
             }
             disabled={isSaving}
+          />
+        </div>
+
+        <Separator />
+
+        {/* Genehmigung */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <Label>Selbst erfasste Zeiten automatisch genehmigen</Label>
+            <p className="text-xs text-muted-foreground">
+              Stoppuhr, Check-in und eigene Einträge gelten ohne Prüfung in „Stunden und Lohn“ als genehmigt.
+              Einträge und Änderungen der Prüfenden sind immer genehmigt.
+            </p>
+          </div>
+          <Switch
+            checked={timeSettings.autoApprove}
+            onCheckedChange={(checked) =>
+              handleTimeSettingsChange({ autoApprove: checked })
+            }
+            disabled={isSaving}
+            aria-label="Selbst erfasste Zeiten automatisch genehmigen"
           />
         </div>
       </Card>

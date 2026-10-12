@@ -24,6 +24,7 @@ import { pushApiTests } from "./push-api";
 import { qualificationEditTests } from "./qualification-edit";
 import { abgleichFixTests } from "./abgleich-fixes";
 import { payrollTests } from "./payroll";
+import { hoursTests } from "./hours";
 import webpush from "web-push";
 
 async function main() {
@@ -246,6 +247,7 @@ try {
   await pushApiTests(context);
   await abgleichFixTests(context);
   await payrollTests(context);
+  await hoursTests(context);
   console.log("FINAL SUCCESS: " + checks + " assertions / HTTP checks passed.");
   if (process.argv.includes("--serve")) {
     console.log("BROWSER_PREVIEW " + base + " — admin@akro-test.invalid / " + password);

@@ -55,6 +55,10 @@ interface TimeRecordFormProps {
   record?: TimeRecordData | null;
   employees?: EmployeeOption[];
   defaultDate?: string; // "2026-03-15"
+  /** Vorbelegung fuer einen neuen Eintrag, z. B. aus der geplanten Schicht. */
+  defaults?: { userId: string; date: string; timeFrom: string; timeTo: string; breakMinutes: number };
+  /** Pruefende aendern fremde Buchungen direkt (gilt sofort als genehmigt). */
+  direct?: boolean;
 }
 
 type CategoryData = {
@@ -74,26 +78,28 @@ function TimeEditor({
   record,
   employees = [],
   defaultDate,
+  defaults,
+  direct = false,
 }: TimeRecordFormProps) {
   const isEdit = !!record;
   const queryClient = useQueryClient();
   const { data: currentMember } = useCurrentMember();
   // Form state
-  const [userId, setUserId] = useState(record?.userId || currentMember?.user.id || "");
+  const [userId, setUserId] = useState(record?.userId || defaults?.userId || currentMember?.user.id || "");
   const [date, setDate] = useState(
-    record?.date.slice(0,10) || defaultDate || berlinDate()
+    record?.date.slice(0,10) || defaults?.date || defaultDate || berlinDate()
   );
   const [entryType, setEntryType] = useState<"MANUAL" | "MANUAL_DURATION">(
     record?.type === "MANUAL_DURATION" ? "MANUAL_DURATION" : "MANUAL"
   );
-  const [timeFrom, setTimeFrom] = useState(record?.timeFrom || "08:00");
-  const [timeTo, setTimeTo] = useState(record?.timeTo || "17:00");
+  const [timeFrom, setTimeFrom] = useState(record?.timeFrom || defaults?.timeFrom || "08:00");
+  const [timeTo, setTimeTo] = useState(record?.timeTo || defaults?.timeTo || "17:00");
   const [durationHours, setDurationHours] = useState(record?.durationHours || 0);
   const [durationMinutes, setDurationMinutes] = useState(record?.durationMinutes || 0);
   const [categoryId, setCategoryId] = useState<string>(record?.categoryId || "none");
   const [comment, setComment] = useState(record?.comment || "");
   const [reason, setReason] = useState("");
-  const [breakMinutes, setBreakMinutes] = useState(Math.round((record?.breakSeconds || 0) / 60));
+  const [breakMinutes, setBreakMinutes] = useState(record ? Math.round((record.breakSeconds || 0) / 60) : defaults?.breakMinutes ?? 0);
 
   // Fetch categories
   const { data: categoriesData } = useQuery<{ categories: CategoryData[] }>({
@@ -147,6 +153,7 @@ function TimeEditor({
     onSuccess: () => {
       toast.success("Zeiterfassung gespeichert");
       queryClient.invalidateQueries({ queryKey: ["time-records"] });
+      queryClient.invalidateQueries({ queryKey: ["hours"] });
       onOpenChange(false);
     },
     onError: (error: Error) => {
@@ -184,9 +191,10 @@ function TimeEditor({
       }
       return res.json();
     },
-    onSuccess: () => {
-      toast.success("Korrektur zur Freigabe eingereicht");
+    onSuccess: (result: { pending?: boolean } | undefined) => {
+      toast.success(result?.pending === false ? "Änderung gespeichert und genehmigt" : "Korrektur zur Freigabe eingereicht");
       queryClient.invalidateQueries({ queryKey: ["time-records"] });
+      queryClient.invalidateQueries({ queryKey: ["hours"] });
       onOpenChange(false);
     },
     onError: (error: Error) => {
@@ -380,7 +388,7 @@ function TimeEditor({
 
             {/* Comment */}
             <label className="block text-sm">Pause in Minuten<Input type="number" min={0} max={1440} value={breakMinutes} onChange={e => setBreakMinutes(Number(e.target.value))} required /></label>
-            {isEdit && <><label className="block text-sm">Begründung der Korrektur<Textarea value={reason} onChange={e => setReason(e.target.value)} minLength={5} maxLength={1000} required /></label><p className="text-xs text-muted-foreground">Die Änderung wird erst nach Bestätigung durch die Administration wirksam.</p></>}
+            {isEdit && <><label className="block text-sm">Begründung der Korrektur<Textarea value={reason} onChange={e => setReason(e.target.value)} minLength={5} maxLength={1000} required /></label><p className="text-xs text-muted-foreground">{direct ? "Die Änderung gilt sofort als genehmigt; die bisherigen Werte bleiben im Verlauf." : "Die Änderung wird erst nach Bestätigung durch die Administration wirksam."}</p></>}
             <div className="space-y-1.5">
               <Label htmlFor="record-comment">Kommentar (optional)</Label>
               <Textarea

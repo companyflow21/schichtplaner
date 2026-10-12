@@ -278,6 +278,29 @@ async function main() {
   check(surcharge.weekdays.length === 0 && surcharge.allPeople && surcharge.timeFrom === "00:00" && surcharge.timeTo === "00:00", "surcharge defaults: no days, everyone, whole day");
   await pay.close();
 
+  // Genehmigung: abgeschlossene Altbuchungen gelten als genehmigt, laufende nicht; Schicht aus dem Check-in.
+  const APPROVAL = "20261013090000_time_approval";
+  const ap = await database(APPROVAL);
+  await ap.exec(`
+    INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('a1','Org Zeit',${now});
+    INSERT INTO "users" ("id","email","firstName","lastName","updatedAt") VALUES ('aa','aa@akro-test.invalid','Anna','Alt',${now});
+    INSERT INTO "branches" ("id","organizationId","name") VALUES ('ab','a1','Objekt');
+    INSERT INTO "schedules" ("id","organizationId","branchId","weekNumber","year","updatedAt") VALUES ('ap','a1','ab',40,2026,${now});
+    INSERT INTO "shifts" ("id","scheduleId","dayOfWeek","shiftFrom","shiftTo") VALUES ('as','ap',1,'08:00','16:00');
+    INSERT INTO "time_records" ("id","userId","organizationId","date","type","timeFrom","timeTo","updatedAt") VALUES
+      ('t1','aa','a1','2026-09-28','MANUAL','08:00','16:00',${now}),
+      ('t2','aa','a1','2026-09-28','WATCH','08:00',null,${now}),
+      ('t3','aa','a1','2026-09-28','WATCH','08:00','16:00',${now});
+    INSERT INTO "checkins" ("id","organizationId","userId","shiftId","branchId","method","status","lateMinutes","timeRecordId") VALUES ('ac','a1','aa','as','ab','GPS','CONFIRMED',0,'t3');
+  `);
+  await ap.exec(await readFile("prisma/migrations/" + APPROVAL + "/migration.sql", "utf8"));
+  const approvals = await rows<{ id: string; approvedAt: Date | null; shiftId: string | null; timeTo: string | null }>(ap, `SELECT "id","approvedAt","shiftId","timeTo" FROM "time_records" ORDER BY "id"`);
+  check(approvals[0].approvedAt !== null && approvals[0].timeTo === "16:00" && approvals[1].approvedAt === null && approvals[2].approvedAt !== null, "finished legacy records count as approved, a running stopwatch stays open");
+  check(approvals[0].shiftId === null && approvals[1].shiftId === null && approvals[2].shiftId === "as", "the shift is taken over from the check-in only");
+  const autoDefault = await rows<{ d: string }>(ap, `SELECT column_default AS "d" FROM information_schema.columns WHERE table_name='time_settings' AND column_name='autoApprove'`);
+  check(autoDefault.length === 1 && autoDefault[0].d === "false", "auto-approval setting exists and defaults to off");
+  await ap.close();
+
   console.log("SUCCESS: " + checks + " migration checks passed.");
 }
 
