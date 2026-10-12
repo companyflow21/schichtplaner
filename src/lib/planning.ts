@@ -45,17 +45,27 @@ export function lastShiftDate(shift: { dayOfWeek: number; shiftFrom: string; shi
 
 /**
  * Pruefung einer Einteilung, getrennt nach Wirkung:
- * - blocks: harte Sperren, die keine Bestaetigung aufhebt. "Frei" ist, wer
- *   keine zeitliche Ueberschneidung, keine genehmigte Abwesenheit und keine
- *   ausdruecklich eingetragene Nichtverfuegbarkeit hat; dazu kommen inaktives
+ * - blocks: harte Sperren, die keine Bestaetigung aufhebt: genehmigte
+ *   Abwesenheit, ausdruecklich eingetragene Nichtverfuegbarkeit, inaktives
  *   Konto und inaktiver Einsatzort.
  * - warnings: kurze Hinweise, die die Planung mit einer Bestaetigung
- *   uebersteuert (fehlende Qualifikation, Taetigkeit, Arbeitsbereich, Schicht
- *   ausserhalb der eingetragenen Verfuegbarkeit).
+ *   uebersteuert (zeitliche Ueberschneidung, fehlende Qualifikation,
+ *   Taetigkeit, Arbeitsbereich, Schicht ausserhalb der eingetragenen
+ *   Verfuegbarkeit). "Frei" ist, wer weder Sperre noch Ueberschneidung hat.
  * - declared: fuer den Schichtzeitraum ist ausdruecklich Verfuegbarkeit
  *   eingetragen. Ohne Eintrag gilt eine Person als frei.
  */
 export type Assessment = { blocks: string[]; warnings: string[]; declared: boolean };
+
+/*
+ * Doppelbelegung derselben Person oder desselben Platzhalters zur selben Zeit
+ * (organisationsweit, ueber alle Standorte): seit der AKRO-Entscheidung vom
+ * 12.10.2026 ein Hinweis, den die Planung ausdruecklich bestaetigt, keine
+ * Sperre mehr. Antraege von Mitarbeitenden lehnt checkAssignment weiterhin
+ * ab. serial() verhindert weiterhin nur die doppelte Buchung derselben
+ * Schicht (und Ueberbesetzung), keine bestaetigte Ueberschneidung.
+ */
+const OVERLAP = "Zeitliche Überschneidung mit einer anderen Schicht.";
 
 /*
  * Reine Vergleiche der Einteilungspruefung - gemeinsam fuer assessAssignment
@@ -126,7 +136,7 @@ export async function assessAssignment(tx: Tx, shift: PlannedShift, userId: stri
   // Die Art der Abwesenheit bleibt Personaldaten; die Planung erfaehrt nur, dass sie genehmigt ist.
   if (absences) blocks.push("Genehmigte Abwesenheit.");
   const bookings = await tx.booking.findMany({ where: { userId, shiftId: { not: excludeShiftId }, shift: { deletedAt: null, schedule: { deletedAt: null, organizationId: shift.schedule.organizationId, year: { gte: shift.schedule.year - 1, lte: shift.schedule.year + 1 } } } }, include: { shift: { include: { schedule: true } } } });
-  if (bookings.some(b => overlaps(range, shiftRange(b.shift)))) blocks.push("Zeitliche Überschneidung mit einer anderen Schicht.");
+  if (bookings.some(b => overlaps(range, shiftRange(b.shift)))) warnings.push(OVERLAP);
   const windows = await tx.availability.findMany({ where: { organizationId: shift.schedule.organizationId, userId, date: { gte: new Date(addDate(range.date, -1)), lte: new Date(addDate(range.date, 1)) } } });
   const availability = availabilityState(range, lastDate, windows);
   if (availability.unavailable) blocks.push("Als nicht verfügbar eingetragen.");
@@ -134,7 +144,7 @@ export async function assessAssignment(tx: Tx, shift: PlannedShift, userId: stri
   return { blocks, warnings, declared: availability.declared && !availability.outside && !blocks.length };
 }
 
-/** Alle Einwaende ohne Unterscheidung - fuer Antraege von Mitarbeitenden, die nichts uebersteuern koennen. */
+/** Alle Einwaende ohne Unterscheidung (auch die Ueberschneidung) - fuer Antraege von Mitarbeitenden, die nichts uebersteuern koennen. */
 export async function checkAssignment(tx: Tx, shift: PlannedShift, userId: string, excludeShiftId = shift.id): Promise<string[]> {
   const { blocks, warnings } = await assessAssignment(tx, shift, userId, excludeShiftId);
   return [...blocks, ...warnings];
@@ -158,7 +168,7 @@ export async function assessContractorAssignment(tx: Tx, shift: PlannedShift, co
   }
   const range = shiftRange(shift);
   const bookings = await tx.booking.findMany({ where: { contractorWorkerId, shiftId: { not: excludeShiftId }, shift: { deletedAt: null, schedule: { deletedAt: null, organizationId: shift.schedule.organizationId, year: { gte: shift.schedule.year - 1, lte: shift.schedule.year + 1 } } } }, include: { shift: { include: { schedule: true } } } });
-  if (bookings.some(b => overlaps(range, shiftRange(b.shift)))) blocks.push("Zeitliche Überschneidung mit einer anderen Schicht.");
+  if (bookings.some(b => overlaps(range, shiftRange(b.shift)))) warnings.push(OVERLAP);
   return { blocks, warnings, declared: false };
 }
 
@@ -224,13 +234,14 @@ export async function planningPool(tx: Tx, a: Access, branchId: string | null): 
 /**
  * Auswahl fuer eine Schicht in genau dieser Reihenfolge:
  * 1 frei, Standort der Schicht
- * 2 belegt oder abwesend, Standort der Schicht (sichtbar, nicht waehlbar)
+ * 2 belegt oder abwesend, Standort der Schicht (belegt = Ueberschneidung,
+ *   waehlbar nach Bestaetigung; Gesperrte sichtbar, nicht waehlbar)
  * 3 frei, andere verwaltete Standorte desselben Kunden
  * 4 belegt oder abwesend, andere verwaltete Standorte desselben Kunden
  * 5 uebrige einplanbare Personen (freie waehlbar, gesperrte sichtbar)
- * Innerhalb einer Gruppe stehen ausdruecklich Verfuegbare zuerst. Hinweise
- * (etwa fehlende Qualifikation) aendern Gruppe und Reihenfolge nicht.
- * Ausgegeben werden nur Namen und kurze Gruende.
+ * Innerhalb einer Gruppe stehen waehlbare vor gesperrten, dann ausdruecklich
+ * Verfuegbare zuerst. Andere Hinweise (etwa fehlende Qualifikation) aendern
+ * Gruppe und Reihenfolge nicht. Ausgegeben werden nur Namen und kurze Gruende.
  */
 export async function shiftCandidates(tx: Tx, a: Access, shift: ShiftWithRelations) {
   const pool = await planningPool(tx, a, shift.schedule.branchId);
@@ -246,14 +257,15 @@ export async function shiftCandidates(tx: Tx, a: Access, shift: ShiftWithRelatio
     if (shift.bookings.some(b => b.userId === p.userId)) continue;
     const entry = pool.get(p.userId)!;
     const r = await assessAssignment(tx, shift, p.userId);
-    const free = r.blocks.length === 0;
+    const selectable = r.blocks.length === 0;
+    const free = selectable && !r.warnings.includes(OVERLAP);
     const group = entry.tier === "site" ? (free ? 1 : 2) : entry.tier === "customer" ? (free ? 3 : 4) : 5;
     const origin = entry.tier === "customer" ? ["Standort " + entry.sites.join(", ") + "."] : entry.tier === "rest" && !a.isAdmin ? ["Persönlich zugeordnet."] : [];
     const state = free ? [r.declared ? "Verfügbar eingetragen." : "Frei."] : r.blocks;
-    const hints = free ? r.warnings : [];
-    candidates.push({ userId: p.userId, firstName: p.user.firstName, lastName: p.user.lastName, group, selectable: free, confirm: hints.length > 0, declared: r.declared, reasons: [...origin, ...state], hints });
+    const hints = selectable ? r.warnings : [];
+    candidates.push({ userId: p.userId, firstName: p.user.firstName, lastName: p.user.lastName, group, selectable, confirm: hints.length > 0, declared: r.declared, reasons: [...origin, ...state], hints });
   }
-  // Stabil: Gruppe, dann waehlbar vor gesperrt (Gruppe 5), dann eingetragene Verfuegbarkeit, dann Name.
+  // Stabil: Gruppe, dann waehlbar vor gesperrt (Gruppen 2, 4, 5), dann eingetragene Verfuegbarkeit, dann Name.
   candidates.sort((x, y) => x.group - y.group || Number(y.selectable) - Number(x.selectable) || Number(y.declared) - Number(x.declared));
   const contractorWorkers: { id: string; name: string; subcontractor: { id: string; name: string }; selectable: boolean; confirm: boolean; reasons: string[]; hints: string[] }[] = [];
   if (a.isAdmin) {
@@ -261,8 +273,8 @@ export async function shiftCandidates(tx: Tx, a: Access, shift: ShiftWithRelatio
     for (const worker of workers) {
       if (shift.bookings.some(b => b.contractorWorkerId === worker.id)) continue;
       const r = await assessContractorAssignment(tx, shift, worker.id);
-      const free = r.blocks.length === 0;
-      contractorWorkers.push({ ...worker, selectable: free, confirm: free && r.warnings.length > 0, reasons: free ? ["Frei."] : r.blocks, hints: free ? r.warnings : [] });
+      const selectable = r.blocks.length === 0;
+      contractorWorkers.push({ ...worker, selectable, confirm: selectable && r.warnings.length > 0, reasons: selectable && !r.warnings.includes(OVERLAP) ? ["Frei."] : r.blocks, hints: selectable ? r.warnings : [] });
     }
   }
   return {

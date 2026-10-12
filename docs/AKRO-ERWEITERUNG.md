@@ -274,10 +274,11 @@ Verknüpfungen über Organisationsgrenzen.
 Voraussetzung ist „Schichten erstellen und bearbeiten“ am Standort der Schicht. Die Auswahl hat genau diese
 Reihenfolge; der Grund steht an der Person:
 1. Freie Mitarbeitende des Standorts der Schicht.
-2. Belegte oder abwesende Mitarbeitende dieses Standorts – sichtbar, nicht wählbar.
+2. Belegte oder abwesende Mitarbeitende dieses Standorts – sichtbar; Belegte (Überschneidung) nach Bestätigung
+   wählbar, Abwesende und Gesperrte nicht.
 3. Freie Mitarbeitende anderer Standorte desselben Kunden, die die planende Person mit „Schichten erstellen und
    bearbeiten“ verwaltet.
-4. Belegte oder abwesende Mitarbeitende dieser Standorte – sichtbar, nicht wählbar.
+4. Belegte oder abwesende Mitarbeitende dieser Standorte – wie Gruppe 2.
 5. Übrige: bei Managern persönlich mit „In Schichten einplanen“ zugeordnete Personen, bei Admins alle weiteren.
    Freie sind wählbar, gesperrte sichtbar.
 
@@ -291,7 +292,10 @@ Reihenfolge; der Grund steht an der Person:
   unpassende Tätigkeit, fremder Arbeitsbereich, Schicht außerhalb der eingetragenen Verfügbarkeit. API:
   `POST /api/bookings` antwortet ohne `confirm: true` mit 409 und `{ confirm: true, warnings }`. Eine bestätigte
   Einteilung sperrt auch spätere Änderungen der Schicht nicht, solange kein neuer Hinweis entsteht.
-- Gesperrt, auch mit Bestätigung: Überschneidung, genehmigte Abwesenheit, eingetragene Nichtverfügbarkeit,
+- Zeitliche Überschneidung (organisationsweit, auch über Standorte): Hinweis mit Bestätigung durch die Planung
+  (Entscheidung vom 12.10.2026); die Person steht als „belegt“ in Gruppe 2 bzw. 4. Mitarbeitende können sich nicht
+  selbst überschneidend einteilen: Übernahme- und Tauschanträge mit Überschneidung werden abgelehnt.
+- Gesperrt, auch mit Bestätigung: genehmigte Abwesenheit, eingetragene Nichtverfügbarkeit,
   inaktives Konto, inaktiver Standort, fehlende Rechte, volle Schicht.
 - Eine Einteilung an einem anderen Standort ändert die Standortzuordnung der Person nicht. Mitarbeitende tragen
   sich nie selbst ein; sie stellen Übernahme- oder Tauschanträge.
@@ -306,8 +310,9 @@ Reihenfolge; der Grund steht an der Person:
   die Besetzung mit Unternehmensname und Platzhalter; Entwürfe bleiben Mitarbeitern verborgen.
 - Ein Platzhalter zählt als ein belegter Platz. Kapazität, doppelte Einteilung, Aktivstatus und
   zeitliche Überschneidung werden in derselben serialisierbaren Transaktion wie die Buchung geprüft.
-  Bei geforderter Qualifikation, Tätigkeit oder einem nicht allgemeinen Arbeitsbereich weist die
-  Auswahl auf die fehlenden Angaben hin und verlangt die Bestätigung der Planung.
+  Eine Überschneidung ist ein Hinweis mit Bestätigung durch die Planung. Bei geforderter Qualifikation,
+  Tätigkeit oder einem nicht allgemeinen Arbeitsbereich weist die Auswahl auf die fehlenden Angaben hin und
+  verlangt ebenfalls die Bestätigung der Planung.
   Urlaub und Verfügbarkeit werden für diese kontolosen Platzhalter nicht geführt.
 - Kopieren mit Zuweisungen übernimmt auch Platzhalter und prüft den Zieltermin erneut.
   Änderungen einer belegten Schicht prüfen Konflikte und neu entstehende fachliche Hinweise.

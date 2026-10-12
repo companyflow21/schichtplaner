@@ -2,9 +2,13 @@
  * Parallelzugriffe gegen echtes PostgreSQL ueber die laufende App (mehrere
  * Verbindungen im Pool, mehrere Sitzungen, gleichzeitige HTTP-Anfragen).
  * Prueft je Runde: letzter Platz, derselbe Sub-Platzhalter in ueberlappenden
- * Schichten, doppeltes Stellen/Genehmigen desselben Antrags und Start/Pause/
- * Fortsetzen derselben Stoppuhr. Erwartung jeweils genau
- * ein Erfolg, Endzustand in der Datenbank korrekt.
+ * Schichten (ohne Bestaetigung), doppeltes Stellen/Genehmigen desselben
+ * Antrags und Start/Pause/Fortsetzen derselben Stoppuhr. Erwartung jeweils
+ * genau ein Erfolg, Endzustand in der Datenbank korrekt.
+ *
+ * Stand 12.10.2026: Ueberschneidung ist ein bestaetigbarer Hinweis (AKRO-
+ * Entscheidung); Teil B erwartet deshalb ohne confirm 200/409 mit confirm.
+ * Diese Anpassung wurde noch nicht gegen PostgreSQL ausgefuehrt.
  *
  * Nur gegen eine Testinstallation: Datenbankname mit "test", keine akro-group-Adresse.
  * Legt eine eigene Organisation "Parallelitaet Test …" an und loescht nichts.
@@ -119,11 +123,13 @@ async function main() {
     const storedA = Number((await q(`SELECT count(*) AS n FROM bookings WHERE "shiftId" = $1`, [last]))[0].n);
     check(a.filter((r) => r.status === 200).length === 1 && a.every((r) => r.status === 200 || r.status === 409) && storedA === 1, `Runde ${round} letzter Platz: genau 1 Einteilung gespeichert (${stat(a)})`);
 
-    // B: derselbe Platzhalter gleichzeitig in zwei ueberlappende Schichten.
+    // B: derselbe Platzhalter gleichzeitig in zwei ueberlappende Schichten, ohne
+    // Bestaetigung: genau einer gelingt, der andere sieht ihn und fragt nach
+    // (409 mit confirm). Mit confirm waeren beide Einsaetze gewollt.
     const left = await shift(day, `${h}:40`, `${h}:55`, 2), right = await shift(day, `${h}:45`, `${String(Number(h) + 1).padStart(2, "0")}:00`, 2);
-    const b = await Promise.all([left, right].map((s, i) => adminSessions[i].raw("/api/contractor-bookings", "POST", { shiftId: s, contractorWorkerId: worker, confirm: true })));
+    const b = await Promise.all([left, right].map((s, i) => adminSessions[i].raw("/api/contractor-bookings", "POST", { shiftId: s, contractorWorkerId: worker })));
     const storedB = Number((await q(`SELECT count(*) AS n FROM bookings WHERE "contractorWorkerId" = $1 AND "shiftId" IN ($2, $3)`, [worker, left, right]))[0].n);
-    check(stat(b) === "200,409" && storedB === 1, `Runde ${round} Platzhalter-Ueberschneidung: genau 1 Einsatz gespeichert (${stat(b)})`);
+    check(stat(b) === "200,409" && b.find((r) => r.status === 409)?.body.confirm === true && storedB === 1, `Runde ${round} Platzhalter-Ueberschneidung ohne Bestaetigung: genau 1 Einsatz gespeichert, der andere fragt nach (${stat(b)})`);
 
     // C: Dieselbe Person stellt denselben Antrag aus zwei offenen Sitzungen.
     // Nicht jedes 409 zaehlt: nach Wiederholung muss der bestehende Antrag erkannt werden.

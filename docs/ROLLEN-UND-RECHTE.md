@@ -265,8 +265,10 @@ fallen dann auseinander).
 - Wo: Schichtkarte – „Mitarbeiter zuweisen“, X, Wechsel-Symbol ⇆ [Neu].
 - Wer: „bearbeiten“; Person im Planungskreis.
 - Auswahl in Gruppen: frei am Standort → belegt/abwesend am Standort → frei an anderen Standorten desselben Kunden →
-  belegt/abwesend dort → übrige einplanbare Personen. Hinweise (z. B. fehlende Qualifikation) einmal bestätigen; harte
-  Sperren (Überschneidung, genehmigte Abwesenheit, „nicht verfügbar“, inaktiv) nicht übergehbar.
+  belegt/abwesend dort → übrige einplanbare Personen. Hinweise (z. B. fehlende Qualifikation) einmal bestätigen; eine
+  zeitliche Überschneidung ist ein Hinweis mit Bestätigung durch die Planung („belegt“, aber wählbar); Mitarbeitende
+  können sich nicht selbst überschneidend einteilen. Harte Sperren (genehmigte Abwesenheit, „nicht verfügbar“,
+  inaktiv) nicht übergehbar.
 - Danach: je eine Nachricht an jede betroffene Person.
 - Grenzen: kein Entfernen/Wechseln nach Schichtende oder nach dem Check-in der Person [Neu].
 

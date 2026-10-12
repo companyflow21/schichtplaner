@@ -78,9 +78,11 @@ function getInitials(firstName: string, lastName: string): string {
 /**
  * Auswahl beim Besetzen: zuerst der Standort der Schicht, dann andere
  * verwaltete Standorte desselben Kunden, dann persönlich zugeordnete
- * Personen. Belegte und abwesende Personen stehen mit Grund in ihrer Gruppe,
- * sind aber nicht wählbar. Hinweise wie eine fehlende Qualifikation ändern
- * die Reihenfolge nicht und verlangen genau eine Bestätigung.
+ * Personen. Abwesende und gesperrte Personen stehen mit Grund in ihrer
+ * Gruppe, sind aber nicht wählbar. Belegte (zeitliche Überschneidung) stehen
+ * ebenfalls dort und sind nach genau einer Bestätigung wählbar. Andere
+ * Hinweise wie eine fehlende Qualifikation ändern die Reihenfolge nicht und
+ * verlangen genau eine Bestätigung.
  */
 export function EmployeePicker({
   bookedUserIds,

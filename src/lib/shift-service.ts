@@ -214,6 +214,9 @@ export function pauseText(shift: { pauseOption: string; pauseValue: number }) {
   return shift.pauseValue ? shift.pauseValue + " Min." + (shift.pauseOption === "PER_HOUR" ? " pro Stunde" : "") : "keine";
 }
 
+/** shiftPatch kennt kein confirm: neue Hinweise aus einer Aenderung (etwa eine Ueberschneidung) erklaeren den Weg. */
+const RELEASE_FIRST = " Zum Bestätigen die Zuweisung zuerst lösen und danach neu einteilen.";
+
 export async function updateShift(tx: Tx, a: Access, id: string, data: z.output<typeof shiftPatch>) {
   const existing = await tx.shift.findFirst({ where: { id, deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null } }, include: shiftInclude });
   if (!existing) throw new ApiError("Schicht nicht gefunden.", 404);
@@ -239,18 +242,19 @@ export async function updateShift(tx: Tx, a: Access, id: string, data: z.output<
       const before = after.warnings.length ? (await assessContractorAssignment(tx, existing, booking.contractorWorkerId)).warnings : [];
       // Deaktivierte Stammdaten loesen bestehende Zuweisungen nicht auf.
       const problems = [...after.blocks.filter(b => b !== "Subunternehmer oder Platzhalter ist nicht aktiv."), ...after.warnings.filter(w => !before.includes(w))];
-      if (problems.length) throw new ApiError(booking.contractorWorker.subcontractor.name + " · " + booking.contractorWorker.name + ": " + problems.join(" "), 409);
+      if (problems.length) throw new ApiError(booking.contractorWorker.subcontractor.name + " · " + booking.contractorWorker.name + ": " + problems.join(" ") + (after.blocks.length ? "" : RELEASE_FIRST), 409);
       continue;
     }
     // Historie geloeschter Personen wird nicht neu geprueft.
     if (!booking.userId || !booking.user) continue;
-    // Harte Sperren gelten immer. Ein Qualifikationshinweis, der schon vor der
-    // Aenderung bestand, wurde beim Einteilen bestaetigt und blockiert nicht
-    // erneut; erst durch die Aenderung entstehende Hinweise blockieren.
+    // Harte Sperren gelten immer. Ein Hinweis (etwa Qualifikation oder
+    // Ueberschneidung), der schon vor der Aenderung bestand, wurde beim
+    // Einteilen bestaetigt und blockiert nicht erneut; erst durch die
+    // Aenderung entstehende Hinweise blockieren.
     const after = await assessAssignment(tx, effective, booking.userId);
     const before = after.warnings.length ? (await assessAssignment(tx, existing, booking.userId)).warnings : [];
     const problems = [...after.blocks, ...after.warnings.filter(w => !before.includes(w))];
-    if (problems.length) throw new ApiError(booking.user.firstName + ": " + problems.join(" "), 409);
+    if (problems.length) throw new ApiError(booking.user.firstName + ": " + problems.join(" ") + (after.blocks.length ? "" : RELEASE_FIRST), 409);
   }
   const shift = await tx.shift.update({ where: { id }, data: { ...fields, scheduleId: schedule.id }, include: shiftInclude });
   // Zuweisungen bleiben verbindlich; Information nur bei relevanter Aenderung.
