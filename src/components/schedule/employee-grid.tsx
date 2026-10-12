@@ -7,10 +7,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { dayNames, formatDateShort } from "@/lib/utils/calendar";
 import { cn } from "@/lib/utils";
-import type { ScheduleData, ShiftData, BookingUser } from "@/types/schedule";
+import type { ScheduleResponse, ShiftData, BookingUser } from "@/types/schedule";
 import { formatName } from "@/lib/names";
 import { useNameFormat } from "@/lib/hooks/use-current-member";
 import { useWorkTimeHints, WorkTimeHints } from "./worktime-hints";
+import { PlanStatusBanner } from "./plan-status-banner";
 
 interface EmployeeGridProps {
   weekNumber: number;
@@ -45,7 +46,7 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
   const nameFormat = useNameFormat();
   const worktime = useWorkTimeHints(weekNumber, year, standort);
   const hintCount = (key: string) => worktime.data?.hints.filter((h) => h.userId === key).length ?? 0;
-  const { data, isLoading } = useQuery<{ schedule: ScheduleData }>({
+  const { data, isLoading } = useQuery<ScheduleResponse>({
     queryKey: ["schedule", weekNumber, year, standort ?? "alle"],
     queryFn: async () => {
       const res = await fetch(`/api/schedules?kw=${weekNumber}&year=${year}${standort ? "&standort=" + encodeURIComponent(standort) : ""}`);
@@ -88,16 +89,23 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
     return <EmployeeGridSkeleton />;
   }
 
+  // Statusbalken (Entwurf, in Bearbeitung) nur im Plan eines Standorts.
+  const balken = standort ? <PlanStatusBanner schedule={data?.schedule ?? null} access={data?.access} standort={standort} /> : null;
+
   if (employees.length === 0) {
     return (
-      <div className="akro-panel p-6 text-[14px] text-muted-foreground">
-        Keine eingeplanten Mitarbeitenden in dieser Woche.
-      </div>
+      <>
+        {balken}
+        <div className="akro-panel p-6 text-[14px] text-muted-foreground">
+          Keine eingeplanten Mitarbeitenden in dieser Woche.
+        </div>
+      </>
     );
   }
 
   return (
     <>
+      {balken}
       {/* Ab Tablet: Tabelle, Zeilen = Personen, Spalten = Mo-So */}
       <div className="akro-panel hidden overflow-x-auto md:block">
         <table className="w-full border-collapse">

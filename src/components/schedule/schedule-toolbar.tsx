@@ -4,16 +4,17 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getISOWeek } from "date-fns";
-import { ChevronLeft, ChevronRight, Clock3, Download, EyeOff, FileText, MoreHorizontal, Plus, Table2, Users, type LucideIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock3, Download, FileText, MoreHorizontal, Plus, Table2, Users, type LucideIcon } from "lucide-react";
 import { ExportModal } from "@/components/reporting/export-modal";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { Separator } from "@/components/ui/separator";
 import { formatDateShort, formatKW, getCurrentKW, getWeekDates } from "@/lib/utils/calendar";
 import type { ScheduleAccess, ScheduleData, ScheduleResponse } from "@/types/schedule";
 import { AISuggestButton } from "./ai-suggest-button";
 import { LiveMode } from "./live-mode";
 import { PdfExportDialog } from "./pdf-export-dialog";
+import { BearbeitungStarten, PlanStatusBadge, planStatus } from "./plan-status-banner";
 import { BriefingButton, DivisionFilter, OptionsMenu, VisibilityToggle } from "./schedule-options";
 import { ViewSwitcher } from "./view-switcher";
 import { WishFilterToggle } from "./wish-plan";
@@ -57,8 +58,9 @@ function Kennwert({ zahl, label, icon: Icon, hinweis = false }: { zahl: number; 
  * Kopf des Wochenplans eines Standorts in drei ruhigen Zeilen:
  * wo (Kunde, Standort), wann (Woche) und wie es steht (Status, Aktionen).
  * Die jeweils wichtigste Aktion ist blau: bei einem Entwurf mit Schichten
- * "Veröffentlichen", sonst "Schicht hinzufügen". Werkzeuge erscheinen nur
- * mit dem passenden Recht - geprueft wird trotzdem auf dem Server.
+ * oder in Bearbeitung das Veröffentlichen im Statusbalken, sonst "Schicht
+ * hinzufügen". Werkzeuge erscheinen nur mit dem passenden Recht - geprueft
+ * wird trotzdem auf dem Server.
  */
 export function ScheduleToolbar({
   weekNumber,
@@ -101,8 +103,9 @@ export function ScheduleToolbar({
   const offenePlätze = shifts.reduce((summe, shift) => summe + (shift.missing ?? Math.max(0, shift.maxEmployees - (shift.occupiedCount ?? shift.bookings.length))), 0);
   const fehlendeBestätigungen = shifts.reduce((summe, shift) => summe + shift.bookings.filter((b) => !b.confirmedAt && !b.former).length, 0);
   const darfVeröffentlichen = !!access?.publish && !!schedule?.id;
-  // Ein Entwurf mit Schichten wartet aufs Veroeffentlichen - das ist dann die Hauptaktion.
-  const veröffentlichenZuerst = darfVeröffentlichen && !schedule?.isPublic && shifts.length > 0;
+  const status = schedule ? planStatus(schedule) : null;
+  // Ein Entwurf mit Schichten oder eine Bearbeitung wartet aufs Veroeffentlichen (Statusbalken) - das ist dann die Hauptaktion.
+  const veröffentlichenZuerst = darfVeröffentlichen && ((status === "DRAFT" && shifts.length > 0) || status === "EDITING");
 
   const filter = schedule?.id ? (
     <>
@@ -149,7 +152,7 @@ export function ScheduleToolbar({
         </div>
         {!istAktuelleWoche && <Button variant="outline" size="sm" onClick={() => geheZu(current.weekNumber, current.year)}>Diese Woche</Button>}
         <Button variant="outline" size="sm" asChild><Link href="/schedule/month">Standort wechseln</Link></Button>
-        {schedule && (schedule.isPublic ? <StatusBadge ton="ok">Veröffentlicht</StatusBadge> : <StatusBadge ton="hinweis" icon={EyeOff}>Entwurf</StatusBadge>)}
+        {schedule && <PlanStatusBadge schedule={schedule} />}
 
         {schedule?.id && (
           <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
@@ -166,8 +169,9 @@ export function ScheduleToolbar({
                 Schicht hinzufügen
               </Button>
             )}
-            {darfVeröffentlichen && !schedule.isPublic && (
-              <VisibilityToggle scheduleId={schedule.id} isPublic={false} wochenLabel={wochenLabel} hauptaktion={veröffentlichenZuerst || !onAddShift} />
+            {/* Veroeffentlichen und Verwerfen stehen im Statusbalken; hier nur der Einstieg in die Bearbeitung. */}
+            {access?.edit && status === "PUBLISHED" && (
+              <BearbeitungStarten scheduleId={schedule.id} wochenLabel={wochenLabel + "/" + year} wochenbeginn={weekDates[0]} />
             )}
 
             <Popover open={moreOpen} onOpenChange={setMoreOpen}>
@@ -199,8 +203,15 @@ export function ScheduleToolbar({
                 <BriefingButton scheduleId={schedule.id} isManager={!!access?.edit} />
                 {access?.edit && <LiveMode scheduleId={schedule.id} isManager />}
                 {isAdmin && <AISuggestButton scheduleId={schedule.id} />}
+                {/* Gefaehrliche Aktion abgesetzt am Ende; waehrend der Bearbeitung gesperrt. */}
                 {darfVeröffentlichen && schedule.isPublic && (
-                  <VisibilityToggle scheduleId={schedule.id} isPublic wochenLabel={wochenLabel} className="w-full justify-start" />
+                  <>
+                    <Separator className="my-1" />
+                    <VisibilityToggle scheduleId={schedule.id} isPublic wochenLabel={wochenLabel} disabled={status === "EDITING"} className="w-full justify-start text-destructive hover:text-destructive" />
+                    {status === "EDITING" && (
+                      <p className="text-[13px] leading-5 text-muted-foreground">Während der Bearbeitung nicht möglich – zuerst die Änderungen veröffentlichen oder verwerfen.</p>
+                    )}
+                  </>
                 )}
               </PopoverContent>
             </Popover>
