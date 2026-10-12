@@ -73,8 +73,8 @@ Jedes Paket wird wie bisher mit Tests, Browserprüfung und Eintrag in `FERTIGSTE
 
 | Paket | Inhalt | Katalog | Aufwand | Status |
 |---|---|---|---|---|
-| P0 | Fehler aus dem Abgleich: Admin-Abwesenheit bleibt „ausstehend“, Abwesenheiten deaktivierter Personen verschwinden, „Reaktivieren“ ohne Funktion, E-Mail nach Aktivierung änderbar, „als ungelesen markieren“ ohne Knopf, negative Werte im CSV als Text | C76, C41, C44, C24, D27, B69 | S | offen |
-| P1 | Lohn: Lohnarten, Personalnummer, Lohnart je Person und Arbeitsbereich, Zuschläge (Tage, Feiertage, Sonderdaten, Zeitblock auch über Mitternacht, Prozent oder Betrag), Lohn je Buchung mit Rechenweg, Lohnexport CSV mit und ohne Sätze | B47–B58, B63–B67 | L | offen |
+| P0 | Fehler aus dem Abgleich: Admin-Abwesenheit bleibt „ausstehend“, Abwesenheiten deaktivierter Personen verschwinden, „Reaktivieren“ ohne Funktion, E-Mail nach Aktivierung änderbar, „als ungelesen markieren“ ohne Knopf, negative Werte im CSV als Text | C76, C41, C44, C24, D27, B69 | S | umgesetzt (`9ee9618`); C24 (E-Mail-Sperre) erst mit P9, weil Mitarbeitende ihre E-Mail heute nicht selbst ändern können |
+| P1 | Lohn: Lohnarten, Personalnummer, Lohnart je Person und Arbeitsbereich, Zuschläge (Tage, Feiertage, Sonderdaten, Zeitblock auch über Mitternacht, Prozent oder Betrag), Lohn je Buchung mit Rechenweg, Lohnexport CSV mit und ohne Sätze | B47–B58, B63–B67 | L | umgesetzt (`8e6e865`); offen: Excel-Datei, Lohnexport-Verlauf, Lohnrecht für Manager, DATEV-Format |
 | P2 | Stunden prüfen und genehmigen: Buchung ↔ Schicht, Genehmigungsstatus, „Stunden und Lohn“ als ein Bildschirm (aufklappbar, Bearbeiten-Dialog, Rot/Grün, Dezimalstunden), freier Zeitraum, Drucken | B28–B42 | L | offen |
 | P3 | Stundenzettel und Leistungsnachweis je Kunde/Einsatzort als PDF, Monatsabschluss | B42, Teil B „Stundenzettel“ | M | offen |
 | P4 | Zeitkonten: Soll mit Startdatum, laufender Saldo, Ausgleich, Ansicht für Mitarbeitende | B77–B88 | M | offen |
@@ -97,10 +97,24 @@ Jedes Paket wird wie bisher mit Tests, Browserprüfung und Eintrag in `FERTIGSTE
 - Handy-App: Reicht die Web-App mit Push, oder ist eine Store-App nötig?
 - Welcher Smartplan-Tarif ist im AKRO-Konto aktiv? Davon hängt ab, was dort sichtbar ist.
 
+## Lohn (P1) – so rechnet der Schichtplaner
+
+- Grundlage sind die erfassten Zeitbuchungen (Ist) im Zeitraum, nach Buchungsdatum wie die Monatsauswertung.
+  Ohne Buchung gibt es keinen Lohn; „Ist = Plan, solange nichts geändert ist“ (Smartplan, B35) folgt mit P2.
+- Lohnart: die des Arbeitsbereichs der Schicht, sonst die der Person. Die Schicht ergibt sich aus dem Check-in
+  oder aus der einzigen veröffentlichten Schicht der Person, die sich mit der Buchung überschneidet.
+- Zuschlag: Minuten der Buchung im Zeitblock an passenden Tagen (Wochentag, Feiertag der Organisation oder
+  Sonderdatum); ein Block gehört zu dem Tag, an dem er beginnt. Prozent beziehen sich auf die geltende Lohnart.
+  Mehrere Zuschläge werden addiert – Vorrangregeln (z. B. Feiertag auf Sonntag) bildet AKRO über die Einstellungen ab.
+- Pausen sind nur als Summe erfasst und werden anteilig auf die Zeitblöcke verteilt. Buchungen nur mit Dauer
+  erhalten nur ganztägige Zuschläge.
+- Zeitumstellung: Stoppuhr und Check-in zählen die echte Dauer, manuelle Von/Bis-Zeiten die Wanduhr.
+- Lohndaten sieht und exportiert nur die Administration. Lohnkosten ohne Arbeitgeberanteile.
+
 ## Nächster Schritt
 
-P0 und P1 umsetzen. Parallel, sobald die Zugangsdaten gesetzt sind: Erfassung im Konto nach den Regeln oben,
-offene Punkte der Katalogteile klären, Layout für P12 festhalten.
+P2 (Stunden prüfen und genehmigen) und P3 (Stundenzettel). Parallel, sobald die Zugangsdaten gesetzt sind:
+Erfassung im Konto nach den Regeln oben, offene Punkte der Katalogteile klären, Layout für P12 festhalten.
 
 ## Quellen (öffentlich, abgerufen 12.10.2026)
 

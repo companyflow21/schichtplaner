@@ -17,7 +17,7 @@ export const surchargeInput = z.object({
   name: z.string().trim().min(1, "Bitte einen Namen eingeben.").max(100),
   code,
   isActive: z.boolean().optional(),
-  weekdays: z.array(z.number().int().min(1).max(7)).max(7).default([]).transform((v) => [...new Set(v)].sort()),
+  weekdays: z.array(z.number().int().min(1).max(7)).max(50).default([]).transform((v) => [...new Set(v)].sort()),
   holidays: z.boolean().default(false),
   dates: z.array(z.string().regex(/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, "Sonderdaten als MM-TT, z. B. 12-24.")).max(50).default([]).transform((v) => [...new Set(v)].sort()),
   timeFrom: timeSchema.default("00:00"),
