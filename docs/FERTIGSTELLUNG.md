@@ -7,7 +7,7 @@ Auf Netcup eingespielt: `9eabd44` am 28.09.2026, `b5efa55` am 29.09.2026 (Lösch
 
 ## Smartplan-Abgleich: P6 (12.10.2026)
 
-Branch `claude/wizardly-cerf-cxbutc`. Noch nicht eingespielt. Migrationen `20261017090000_planning_rules` und
+Branch `claude/wizardly-cerf-cxbutc` (`b8cca24`, `8572300` und Folgekorrekturen). Noch nicht eingespielt. Migrationen `20261017090000_planning_rules` und
 `20261018090000_publishing` sind additiv (veröffentlichte Pläne erhalten `publishedAt`); vorher auf einer Kopie prüfen.
 
 | Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
@@ -18,7 +18,7 @@ Branch `claude/wizardly-cerf-cxbutc`. Noch nicht eingespielt. Migrationen `20261
 | P0 | Bearbeitungsmodus – `api/schedules/[id]/edit` | Nur kommende Wochen (laufende 409); Mitarbeitende sehen den alten Stand (Wochenplan, eigener Plan); Anfragen und Bestätigen 409; keine Einzelnachrichten; Wiederveröffentlichen benachrichtigt nur Betroffene mit ihren Änderungen | bestanden | `tests/publishing.ts` |
 | P1 | Zurückziehen | Stand bleibt für die Änderungsliste; erneutes Veröffentlichen informiert alle wie bisher | bestanden | `tests/publishing.ts` |
 | P1 | Migrationen | Additiv; ohne Eintrag alle Regeln aus; eine Regelzeile je Organisation, eine Abweichung je Person; ein gespeicherter Stand je Plan, Löschen kaskadiert | bestanden | `npm run test:migration` (84) |
-| P1 | Oberfläche | Einstellungen › Planungsregeln, Kasten „Regelverstöße“ mit Sprung zur Schicht, Dialog „Änderungen veröffentlichen?“, „Plan bearbeiten“, Status „Wird bearbeitet“, Hinweis für Mitarbeitende, 375 px | nicht geprüft | Browser (Produktions-Build, `npm run preview:test`) |
+| P1 | Oberfläche | Einstellungen › Planungsregeln, Kasten „Regelverstöße“ mit Sprung zur Schicht, Dialog „Änderungen veröffentlichen?“, „Plan bearbeiten“, Status „Wird bearbeitet“, Hinweis für Mitarbeitende, 375 px | bestanden | Browser (Produktions-Build, `npm run preview:test`, 1366 und 375 px): „1 Regelverstoß“ (Ruhezeit 2 h) mit Sprung zur Schicht; Regel je Person aus und wieder „allgemein“; Ruhezeit auf 12 h geändert; KW 43 in Bearbeitung, Mitarbeiterin sieht 08:00–16:00 ohne Anfrage-Knopf, nach „Änderungen veröffentlichen“ 09:00–17:00, Hinweis „1 Person benachrichtigt“; erste Veröffentlichung KW 44 mit drei Schichten; keine Überbreite. Dabei behoben: Häkchen schaltete erst nach der Antwort um, eigene ausgeschaltete Regel verschwand aus der Liste, Anfrage-, Abgabe- und Bestätigen-Knöpfe während der Bearbeitung |
 
 ### Prüfungen (lokal)
 
