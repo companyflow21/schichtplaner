@@ -62,7 +62,7 @@ export async function planFrozenTests(t: TestContext) {
   const message = (await admin.request("/api/messages", "POST", { subject: "Eingefroren Bezug", body: "Bitte Tor 3 nutzen.", recipientIds: [users.staffA.id], shiftId: S3.id }, 201)).message;
   await sA.request("/api/messages/" + message.id); // gelesen - der Zaehler bleibt danach stabil
 
-  const range = "from=" + day(1) + "&to=" + day(7);
+  const range = "from=" + day(1) + "&to=" + day(7), period = "month=" + Number(day(1).slice(5, 7)) + "&year=" + day(1).slice(0, 4);
   /** Alle Leseansichten der Mitarbeitenden, die der Plan beruehrt. */
   const employeeViews = async () => ({
     planA: await sA.request(sitePath(nord.id, day(1))), planB: await sB.request(sitePath(nord.id, day(1))),
@@ -73,6 +73,8 @@ export async function planFrozenTests(t: TestContext) {
     refsA: await sA.request("/api/messages/references"), refsB: await sB.request("/api/messages/references"),
     inboxA: (await sA.request("/api/messages?folder=inbox")).messages.find((m: any) => m.id === message.id),
     detailA: (await sA.request("/api/messages/" + message.id)).message,
+    // Monatsauswertung und Stunden-CSV: Planstunden laut veroeffentlichtem Stand.
+    reportA: await sA.request("/api/reporting?" + period), csvA: await sA.request("/api/reporting/export?" + period),
   });
   const before = await employeeViews();
   const adminBefore = await planOf(admin);
@@ -137,6 +139,8 @@ export async function planFrozenTests(t: TestContext) {
   check(own(after, S3.id).shiftFrom === "03:40" && !own(after, S1.id) && !own(after, S2.id) && own(after, S5.id)?.can.request === true, "after publishing, staffA sees the new state (new time, no longer assigned, new open shift)");
   check(after.planB.schedule.shifts.find((s: any) => s.id === S1.id).bookings.map((b: any) => b.userId).join() === users.staffB.id && after.dashB.own.some((s: any) => s.id === S1.id), "after publishing, staffB sees the new assignment");
   check(!after.dashA.own.some((s: any) => s.id === S1.id) && after.dashA.own.find((s: any) => s.id === S3.id)?.shiftFrom === "03:40" && after.mergedA.schedule.shifts.find((s: any) => s.id === S3.id)?.shiftFrom === "03:40", "after publishing, staffA's home page and merged view follow");
+  const plannedA = (views: any) => views.reportA.employees.find((e: any) => e.userId === users.staffA.id).plannedMinutes;
+  check(plannedA(after) === plannedA(before) - 90, "after publishing, staffA's planned hours drop by the released shift (90 net minutes)");
   check(after.inboxA.reference.includes("03:40–05:40") && !after.refsA.shifts.some((s: any) => s.id === S1.id) && after.exportA.rows.some((r: any) => r.branch === nord.name && r.shiftFrom === "03:40"), "after publishing, message reference, references and export follow");
 
   // --- Check-in bleibt live, zeigt aber keine erst in der Bearbeitung angelegte Schicht
