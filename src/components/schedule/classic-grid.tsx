@@ -120,7 +120,7 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
                   )}
                 >
                   <div>{dayNames[idx]}</div>
-                  <div className="text-[10px] text-muted-foreground font-normal">
+                  <div className="text-xs text-muted-foreground font-normal">
                     {formatDateShort(date)}
                   </div>
                 </th>
@@ -144,10 +144,10 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
                       {slot.from}–{slot.to}
                     </div>
                     {slot.branchName && (
-                      <div className="text-[10px] text-muted-foreground truncate max-w-[100px]">{slot.branchName}</div>
+                      <div className="text-xs text-muted-foreground truncate max-w-[100px]">{slot.branchName}</div>
                     )}
                     {slot.divisionTitle && (
-                      <div className="text-[10px] text-muted-foreground truncate max-w-[100px]">
+                      <div className="text-xs text-muted-foreground truncate max-w-[100px]">
                         {slot.divisionTitle}
                       </div>
                     )}
@@ -171,7 +171,7 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
                     )}
                   >
                     {cellShifts.length === 0 ? (
-                      <span className="text-[10px] text-muted-foreground/40">--</span>
+                      <span className="text-xs text-muted-foreground/40">--</span>
                     ) : (
                       <div className="space-y-0.5">
                         {cellShifts.flatMap((shift) => {
@@ -181,7 +181,7 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
                             ...shift.bookings.map((booking) => (
                               <div
                                 key={booking.id}
-                                className="text-[11px] truncate"
+                                className="text-xs truncate"
                               >
                                 {formatName(booking.user, nameFormat, { contractor: !!booking.contractorWorkerId })}
                               </div>

@@ -130,7 +130,7 @@ export function AppSidebar() {
                 aria-hidden="true"
               />
             ) : (
-              <p className="mb-1.5 px-3 text-[11px] font-semibold tracking-[0.06em] text-[color:var(--schiene-gedimmt)] uppercase opacity-70">
+              <p className="mb-1.5 px-3 text-xs font-semibold tracking-[0.06em] text-[color:var(--schiene-gedimmt)] uppercase opacity-70">
                 {group.title}
               </p>
             )}
@@ -160,7 +160,7 @@ export function AppSidebar() {
                       {count > 0 && (
                         <span
                           className={cn(
-                            "akro-kennzahl flex min-w-5 items-center justify-center rounded-full bg-[var(--brand)] px-1.5 py-0.5 text-[11px] text-white",
+                            "akro-kennzahl flex min-w-5 items-center justify-center rounded-full bg-[var(--brand)] px-1.5 py-0.5 text-xs text-white",
                             collapsed ? "absolute top-0.5 right-2 min-w-4 px-1" : "ml-auto"
                           )}
                         >

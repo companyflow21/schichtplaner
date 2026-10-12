@@ -71,7 +71,7 @@ export function UserMenu({
               {member?.role && (
                 <span
                   className={cn(
-                    "block truncate text-[11px] leading-tight font-normal",
+                    "block truncate text-xs leading-tight font-normal",
                     dunkel
                       ? "text-[color:var(--schiene-gedimmt)]"
                       : "text-muted-foreground"

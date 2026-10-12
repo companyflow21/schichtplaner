@@ -199,14 +199,16 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
       />
 
       {canEdit && branch && !branch.plannable && (
-        <p className="mb-4 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
+        <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
           {branch.isActive ? "Standort ohne Kunde: neue Schichten erst nach der Zuordnung unter Einsatzorte." : "Standort inaktiv: keine neuen Schichten möglich."}
+          {branch.isActive && <Link href="/divisions" className="font-medium text-primary underline-offset-4 hover:underline">Jetzt zuordnen</Link>}
         </p>
       )}
       <PlanStatusBanner schedule={schedule} access={access} standort={standort} />
       {canEdit && branch && !branch.holidayState && (
-        <p className="mb-4 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
+        <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
           Für diesen Einsatzort ist kein Bundesland festgelegt. Angezeigt werden nur bundesweite Feiertage; landesrechtliche (z. B. Reformationstag in Thüringen, Allerheiligen in NRW) fehlen. Festlegen unter Einsatzorte → Bearbeiten.
+          <Link href="/divisions" className="font-medium text-primary underline-offset-4 hover:underline">Bundesland festlegen</Link>
         </p>
       )}
       {standort === "ohne" && (
@@ -321,11 +323,11 @@ function TagesKopf({ kuerzel, datum, anzahl, offen, heute, feiertag, breit = fal
   return (
     <div className={cn("border-b px-3 py-3", heute ? "bg-[var(--flaeche-heute)] text-primary" : "bg-card", !breit && "text-center")}>
       <div className={cn("flex gap-2", breit ? "items-center justify-between" : "flex-col items-center gap-0.5")}>
-        <span className="text-[14px] font-semibold">{kuerzel}{heute && <span className="ml-1.5 text-[11px] font-medium">heute</span>}</span>
+        <span className="text-[14px] font-semibold">{kuerzel}{heute && <span className="ml-1.5 text-xs font-medium">heute</span>}</span>
         <span className={cn("tabular text-[12px]", !heute && "text-muted-foreground")}>{datum}</span>
       </div>
-      {feiertag && <p className="mt-1 text-[11px] font-medium text-warn">Feiertag: {feiertag}</p>}
-      <div className={cn("mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground", !breit && "justify-center")}>
+      {feiertag && <p className="mt-1 text-xs font-medium text-warn">Feiertag: {feiertag}</p>}
+      <div className={cn("mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground", !breit && "justify-center")}>
         <span>{anzahl} {anzahl === 1 ? "Schicht" : "Schichten"}</span>
         {offen > 0 && <span className="font-medium text-warn">{offen} offen</span>}
       </div>

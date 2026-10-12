@@ -165,7 +165,7 @@ export function WishRequestButton({
       <div className="flex items-center gap-1.5">
         <Badge
           variant="secondary"
-          className={cn("text-[9px] px-1.5 py-0 gap-1", config.color, config.bg)}
+          className={cn("text-xs px-1.5 py-0 gap-1", config.color, config.bg)}
         >
           <Icon className="size-2.5" />
           {config.label}
@@ -200,7 +200,7 @@ export function WishRequestButton({
     <>
       <button
         type="button"
-        className="flex items-center gap-1 text-[10px] text-warn hover:text-warn transition-colors"
+        className="flex items-center gap-1 text-xs text-warn hover:text-warn transition-colors"
         onClick={() => setDialogOpen(true)}
       >
         <Star className="size-3" />
@@ -287,7 +287,7 @@ export function WishCountBadge({ shiftId, scheduleId }: WishCountBadgeProps) {
         >
           <Badge
             variant="secondary"
-            className="text-[9px] px-1.5 py-0 gap-1 bg-warn/10 text-warn hover:bg-warn/10 cursor-pointer"
+            className="text-xs px-1.5 py-0 gap-1 bg-warn/10 text-warn hover:bg-warn/10 cursor-pointer"
           >
             <Star className="size-2.5 fill-warn text-warn" />
             {shiftRequests.length}
@@ -416,7 +416,7 @@ function WishRequestsList({ requests, scheduleId }: WishRequestsListProps) {
           <Button
             variant="ghost"
             size="xs"
-            className="text-[10px] gap-1 text-ok"
+            className="text-xs gap-1 text-ok"
             onClick={() => bulkAcceptMutation.mutate()}
             disabled={isPending}
           >
@@ -438,8 +438,8 @@ function WishRequestsList({ requests, scheduleId }: WishRequestsListProps) {
               isPending && "opacity-60 pointer-events-none"
             )}
           >
-            <Avatar size="sm" className="mt-0.5">
-              <AvatarFallback className="text-[9px]">
+            <Avatar size="sm" className="mt-0.5 data-[size=sm]:size-7">
+              <AvatarFallback className="text-xs">
                 {req.user ? getInitials(req.user.firstName, req.user.lastName) : "?"}
               </AvatarFallback>
             </Avatar>
@@ -452,7 +452,7 @@ function WishRequestsList({ requests, scheduleId }: WishRequestsListProps) {
               {req.note && (
                 <div className="flex items-start gap-1 mt-0.5">
                   <MessageSquare className="size-2.5 text-muted-foreground mt-0.5 shrink-0" />
-                  <span className="text-[10px] text-muted-foreground line-clamp-2">
+                  <span className="text-xs text-muted-foreground line-clamp-2">
                     {req.note}
                   </span>
                 </div>
@@ -523,7 +523,7 @@ export function WishFilterToggle({
       <Badge
         variant="secondary"
         className={cn(
-          "text-[10px] px-1 py-0 ml-0.5",
+          "text-xs px-1 py-0 ml-0.5",
           enabled ? "bg-primary-foreground/20 text-primary-foreground" : "bg-warn/10 text-warn"
         )}
       >

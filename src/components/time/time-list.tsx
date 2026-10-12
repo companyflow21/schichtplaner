@@ -518,7 +518,7 @@ export function TimeList() {
                                         {record.category && (
                                           <Badge
                                             variant="outline"
-                                            className="text-[10px] px-1.5 py-0"
+                                            className="text-xs px-1.5 py-0"
                                           >
                                             {record.category.name}
                                           </Badge>
@@ -599,7 +599,7 @@ export function TimeList() {
                                   {record.category && (
                                     <Badge
                                       variant="outline"
-                                      className="text-[10px] px-1.5 py-0"
+                                      className="text-xs px-1.5 py-0"
                                     >
                                       {record.category.name}
                                     </Badge>

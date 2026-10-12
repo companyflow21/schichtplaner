@@ -146,11 +146,11 @@ export function ScheduleToolbar({
           <button type="button" onClick={zurueck} aria-label="Vorherige Woche" className="flex size-10 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><ChevronLeft className="size-4" /></button>
           <h1 className="min-w-0 px-1 text-[14px] leading-5 font-semibold tracking-normal sm:px-3">
             <span className="tabular whitespace-nowrap">{formatDateShort(weekDates[0])}.–{formatDateShort(weekDates[6])}.{year}</span>
-            <span className="ml-2 text-[11px] font-normal text-muted-foreground">{wochenLabel}</span>
+            <span className="ml-2 text-xs font-normal text-muted-foreground">{wochenLabel}</span>
           </h1>
           <button type="button" onClick={vor} aria-label="Nächste Woche" className="flex size-10 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><ChevronRight className="size-4" /></button>
         </div>
-        {!istAktuelleWoche && <Button variant="outline" size="sm" onClick={() => geheZu(current.weekNumber, current.year)}>Diese Woche</Button>}
+        <Button variant="outline" size="sm" disabled={istAktuelleWoche} onClick={() => geheZu(current.weekNumber, current.year)}>Heute</Button>
         <Button variant="outline" size="sm" asChild><Link href="/schedule/month">Standort wechseln</Link></Button>
         {schedule && <PlanStatusBadge schedule={schedule} />}
 

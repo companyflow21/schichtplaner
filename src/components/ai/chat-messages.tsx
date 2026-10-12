@@ -130,7 +130,7 @@ export function ChatMessages({ messages }: ChatMessagesProps) {
           {/* Timestamp */}
           <div
             className={cn(
-              "mt-0.5 text-[10px] text-muted-foreground",
+              "mt-0.5 text-xs text-muted-foreground",
               msg.role === "user" ? "text-right mr-9" : "ml-9"
             )}
           >
@@ -157,7 +157,7 @@ function ToolResultCard({ tool }: { tool: ToolResultInfo }) {
         )}
         <span className="font-medium">{label}</span>
         {tool.requiresConfirmation && (
-          <span className="text-warn dark:text-warn text-[10px]">
+          <span className="text-warn dark:text-warn text-xs">
             (Aktion ausgeführt)
           </span>
         )}

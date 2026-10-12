@@ -64,7 +64,7 @@ export function StandortAuswahl({
     <div className="max-h-56 space-y-3 overflow-y-auto rounded-[var(--radius)] border p-3">
       {nachKunde(sites).map((group) => (
         <fieldset key={group.name} className="space-y-1.5">
-          <legend className="text-[11.5px] font-medium tracking-[0.02em] text-muted-foreground uppercase">{group.name}</legend>
+          <legend className="text-xs font-medium tracking-[0.02em] text-muted-foreground uppercase">{group.name}</legend>
           {group.sites.map((site) => {
             const id = idPrefix + "-" + site.id;
             return (
@@ -76,9 +76,9 @@ export function StandortAuswahl({
                   onCheckedChange={(on) => toggle(site.id, on === true)}
                 />
                 <span className="min-w-0 flex-1 truncate">{site.name}</span>
-                {!site.isActive && <span className="text-[11.5px] text-muted-foreground">inaktiv</span>}
+                {!site.isActive && <span className="text-xs text-muted-foreground">inaktiv</span>}
                 {site.locked && (
-                  <span className="inline-flex items-center gap-1 text-[11.5px] text-muted-foreground" title="Diese Freigabe umfasst mehr als die Zuordnung. Ändern kann sie nur die Administration.">
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title="Diese Freigabe umfasst mehr als die Zuordnung. Ändern kann sie nur die Administration.">
                     <Lock className="size-3" aria-hidden="true" />
                     Administration
                   </span>
