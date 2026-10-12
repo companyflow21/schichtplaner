@@ -26,6 +26,8 @@ export default function AbsencesPage() {
             variant={viewMode === "list" ? "default" : "ghost"}
             size="xs"
             onClick={() => setViewMode("list")}
+            aria-label="Liste"
+            aria-pressed={viewMode === "list"}
           >
             <List className="size-3.5" />
             <span className="hidden sm:inline">Liste</span>
@@ -34,6 +36,8 @@ export default function AbsencesPage() {
             variant={viewMode === "calendar" ? "default" : "ghost"}
             size="xs"
             onClick={() => setViewMode("calendar")}
+            aria-label="Kalender"
+            aria-pressed={viewMode === "calendar"}
           >
             <CalendarDays className="size-3.5" />
             <span className="hidden sm:inline">Kalender</span>
@@ -43,6 +47,8 @@ export default function AbsencesPage() {
               variant={viewMode === "vacation" ? "default" : "ghost"}
               size="xs"
               onClick={() => setViewMode("vacation")}
+              aria-label="Urlaubskonten"
+              aria-pressed={viewMode === "vacation"}
             >
               <Palmtree className="size-3.5" />
               <span className="hidden sm:inline">Urlaubskonten</span>

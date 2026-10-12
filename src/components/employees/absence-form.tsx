@@ -220,7 +220,7 @@ function AbsenceEditor({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!categoryId) {
-      toast.error("Bitte eine Kategorie waehlen");
+      toast.error("Bitte eine Kategorie wählen");
       return;
     }
     if (days <= 0) {
@@ -299,7 +299,7 @@ function AbsenceEditor({
                 <Label>Mitarbeiter</Label>
                 <Select value={userId} onValueChange={setUserId}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Mitarbeiter waehlen" />
+                    <SelectValue placeholder="Mitarbeiter wählen" />
                   </SelectTrigger>
                   <SelectContent>
                     {employees.map((emp) => (
@@ -317,7 +317,7 @@ function AbsenceEditor({
               <Label>Kategorie</Label>
               <Select value={categoryId} onValueChange={setCategoryId}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Kategorie waehlen" />
+                  <SelectValue placeholder="Kategorie wählen" />
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map((cat) => (
