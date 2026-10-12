@@ -85,6 +85,8 @@ model Organization {
   qualificationCatalog Qualification[]
   checkins          Checkin[]
   pushSubscriptions PushSubscription[]
+  payTypes          PayType[]
+  surcharges        Surcharge[]
 
   @@map("organizations")
 }
@@ -109,6 +111,10 @@ model OrganizationMember {
   /// Wer das Konto angelegt hat. Manager erhalten den Aktivierungslink nur
   /// fuer selbst angelegte Konten.
   createdByMemberId String?
+  /// Personalnummer fuer den Lohnexport; eindeutig je Organisation.
+  personnelNumber String?
+  /// Standard-Lohnart ("Normalstunden"); eine Lohnart am Arbeitsbereich der Schicht geht vor.
+  payTypeId      String?
 
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -118,9 +124,11 @@ model OrganizationMember {
   managedStaff   StaffAssignment[] @relation("StaffManager")
   staffManagers  StaffAssignment[] @relation("StaffEmployee")
   assignedIssues BranchIssue[]
+  payType        PayType?          @relation(fields: [payTypeId], references: [id], onDelete: Restrict)
 
   @@unique([organizationId, userId])
   @@unique([id, organizationId])
+  @@unique([organizationId, personnelNumber])
   @@map("organization_members")
 }
 
@@ -301,10 +309,13 @@ model Division {
   isSystem       Boolean  @default(false)
   createdAt      DateTime @default(now())
   deletedAt      DateTime?
+  /// Abweichende Lohnart fuer Schichten dieses Arbeitsbereichs (Smartplan: Lohnart je Position).
+  payTypeId      String?
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   members      DivisionMember[]
   shifts       Shift[]
+  payType      PayType?           @relation(fields: [payTypeId], references: [id], onDelete: Restrict)
 
   @@map("divisions")
 }
@@ -836,4 +847,63 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscriptions")
+}
+
+/// Lohnart mit Stundenlohn. Der Code ist der Schluessel der Lohnsoftware (z. B. DATEV-Lohnart).
+model PayType {
+  id              String   @id @default(cuid())
+  organizationId  String
+  title           String
+  /// Stundenlohn in Cent
+  hourlyRateCents Int
+  code            String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members      OrganizationMember[]
+  divisions    Division[]
+
+  @@unique([organizationId, title])
+  @@map("pay_types")
+}
+
+enum SurchargeRateKind {
+  /// Prozent der Lohnart, die fuer die Stunden gilt
+  PERCENT
+  /// Fester Betrag je Stunde
+  AMOUNT
+}
+
+/// Zuschlag fuer Stunden in einem Zeitblock an bestimmten Tagen. Mehrere
+/// zutreffende Zuschlaege werden addiert.
+model Surcharge {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  code           String?
+  isActive       Boolean  @default(true)
+  /// ISO-Wochentage 1 (Montag) bis 7 (Sonntag)
+  weekdays       Int[]    @default([])
+  /// Feiertage der Organisation (Einstellungen > Abwesenheiten)
+  holidays       Boolean  @default(false)
+  /// Sonderdaten jedes Jahres als MM-TT, z. B. 12-24
+  dates          String[] @default([])
+  /// Zeitblock in Ortszeit ab dem passenden Tag. Ende <= Beginn reicht in
+  /// den Folgetag; 00:00 bis 00:00 ist der ganze Tag.
+  timeFrom       String   @default("00:00")
+  timeTo         String   @default("00:00")
+  allPeople      Boolean  @default(true)
+  userIds        String[] @default([])
+  allDivisions   Boolean  @default(true)
+  divisionIds    String[] @default([])
+  rateKind       SurchargeRateKind
+  /// PERCENT: Hundertstel Prozent (2500 = 25 %); AMOUNT: Cent je Stunde
+  rate           Int
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("surcharges")
 }

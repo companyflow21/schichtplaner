@@ -24,6 +24,7 @@
   "scripts": {
     "test:workflows": "tsx tests/workflows.ts",
     "test:checkin": "tsx tests/checkin-unit.ts",
+    "test:payroll": "tsx tests/payroll-unit.ts",
     "test:login-throttle": "tsx tests/login-throttle.ts",
     "test:push": "tsx tests/push-outbox.ts",
     "test:migration": "tsx tests/migration.ts",
