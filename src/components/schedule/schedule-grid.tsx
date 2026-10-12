@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, Plus } from "lucide-react";
@@ -15,8 +15,10 @@ import { ShiftCard } from "./shift-card";
 import { ShiftForm } from "./shift-form";
 import { EmployeeNav } from "./employee-nav";
 import { LiveBorder } from "./live-mode";
+import { ConflictPanel, useWeekConflicts } from "./conflict-panel";
 import type { WishRequest } from "./wish-plan";
 import type { ScheduleResponse, ShiftData } from "@/types/schedule";
+import type { ConflictItem } from "@/types/conflicts";
 
 interface ScheduleGridProps {
   weekNumber: number;
@@ -52,6 +54,32 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
   const showPauses = schedule?.showPauses ?? true;
   const canEdit = !!access?.edit;
   const canAdd = canEdit && (standort === "ohne" ? false : !!branch?.plannable);
+
+  // Konfliktpruefung der Woche (nur Planung), je Schicht fuer die Karten.
+  const planner = !!access?.planner;
+  const conflicts = useWeekConflicts(weekNumber, year, standort, planner);
+  const conflictsByShift = useMemo(() => {
+    const map = new Map<string, ConflictItem[]>();
+    for (const c of conflicts.data?.items ?? []) map.set(c.shiftId, [...(map.get(c.shiftId) ?? []), c]);
+    return map;
+  }, [conflicts.data]);
+
+  // Sprung aus dem Konfliktpanel: Filter loesen, zur sichtbaren Karte (Raster oder Handy-Liste) scrollen, kurz hervorheben.
+  // Je Klick ein neues Objekt: auch ein zweiter Klick auf dieselbe Schicht springt erneut.
+  const [sprung, setSprung] = useState<{ shiftId: string } | null>(null);
+  useEffect(() => {
+    if (!sprung) return;
+    const ziel = [document.getElementById("schicht-" + sprung.shiftId), document.getElementById("schicht-mobil-" + sprung.shiftId)].find((el) => el && el.offsetParent !== null);
+    ziel?.scrollIntoView({ block: "center", inline: "nearest" });
+    ziel?.focus({ preventScroll: true });
+    const timer = setTimeout(() => setSprung(null), 2000);
+    return () => clearTimeout(timer);
+  }, [sprung]);
+  function springeZuSchicht(shiftId: string) {
+    setDivisionFilter(null);
+    setWishFilterEnabled(false);
+    setSprung({ shiftId });
+  }
 
   // Live-Sitzung: markiert das Board waehrend der gemeinsamen Planung
   const { data: liveData } = useQuery<{ session: { isActive: boolean } | null }>({
@@ -190,6 +218,9 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
         </p>
       )}
 
+      {planner && conflicts.data && <ConflictPanel data={conflicts.data} shifts={shifts} standort={standort} onSprung={springeZuSchicht} />}
+      {planner && conflicts.isError && <p className="mb-4 text-[13px] text-muted-foreground">Konfliktprüfung konnte nicht geladen werden.</p>}
+
       {/* Employee filter bar */}
       {shifts.some((s) => s.bookings.length) && (
         <div className="mb-4">
@@ -223,6 +254,9 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
                         showPauses={showPauses}
                         userWishRequest={userWishMap.get(shift.id) ?? null}
                         zeigeStandort={false}
+                        conflicts={conflictsByShift.get(shift.id)}
+                        ankerId={"schicht-" + shift.id}
+                        hervorheben={sprung?.shiftId === shift.id}
                       />
                     ))}
                     {canAdd && <SchichtHinzufuegen onClick={() => handleAddShift(dayOfWeek)} label="Schicht" />}
@@ -259,6 +293,9 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
                       showPauses={showPauses}
                       userWishRequest={userWishMap.get(shift.id) ?? null}
                       zeigeStandort={false}
+                      conflicts={conflictsByShift.get(shift.id)}
+                      ankerId={"schicht-mobil-" + shift.id}
+                      hervorheben={sprung?.shiftId === shift.id}
                     />
                   ))}
                   {canAdd && <SchichtHinzufuegen onClick={() => handleAddShift(dayOfWeek)} label="Schicht hinzufügen" />}
