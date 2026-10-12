@@ -118,6 +118,8 @@ export async function bookedShifts(tx: Tx, orgId: string, userId: string, now: D
     include: { shift: { include: { schedule: { include: { branch: true } } } } },
   });
   return bookings
+    // Erst waehrend der Bearbeitung des Plans angelegte Schichten sind noch nicht veroeffentlicht.
+    .filter((b) => !b.shift.schedule.editingSince || b.shift.createdAt < b.shift.schedule.editingSince)
     .map((b) => ({ shift: b.shift, branch: b.shift.schedule.branch!, window: checkinWindow(b.shift, now) }))
     .sort((a, b) => shiftRange(a.shift).start - shiftRange(b.shift).start);
 }

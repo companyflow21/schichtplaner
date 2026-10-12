@@ -30,6 +30,16 @@ export function mergedScope(a: Access): Prisma.ShiftWhereInput[] {
   ];
 }
 
+/**
+ * mergedScope fuer Schichten im Speicher - fuer die Momentaufnahme eines
+ * Plans in Bearbeitung (immer veroeffentlicht, siehe lib/schedule-frozen.ts):
+ * eigene Buchung oder Standort mit "Dienstplan ansehen" bzw. "Offene Schichten sehen".
+ */
+export function inMergedScope(a: Access) {
+  return (s: { schedule: { branchId: string | null }; bookings: { userId: string | null }[] }) =>
+    s.bookings.some(b => b.userId === a.userId) || can(a, "VIEW_SCHEDULE", s.schedule.branchId) || can(a, "REQUEST_SHIFTS", s.schedule.branchId);
+}
+
 /** Unwirksame Zuweisungen (inaktiv, abwesend) zaehlen nur fuer die Planung - sonst leer. */
 export async function ineffectiveFor(tx: Tx, a: Access, shifts: ShiftWithRelations[]): Promise<Set<string>> {
   const manager = a.role === "MANAGER";
