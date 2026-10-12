@@ -4,7 +4,7 @@ import { api, body, ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { recordMinutes, berlinDate, validDate } from "@/lib/berlin";
 import { branchIds, can, canStaff, requireAccess, staffIds, timeScope } from "@/lib/access";
-import { branchForTime } from "@/lib/time-service";
+import { branchForTime, initialApproval, shiftForTime } from "@/lib/time-service";
 
 const person = { select: { id: true, firstName: true, lastName: true, profileImage: true } } as const;
 
@@ -88,9 +88,11 @@ export async function POST(request: NextRequest) {
       branchId = data.branchId;
     }
     if (data.userId !== a.userId && !a.isAdmin && !(branchId && can(a, "EDIT_TIME", branchId) && canStaff(a, "VIEW_HOURS", data.userId))) throw new ApiError("Nicht gefunden.", 404);
+    const shiftId = await shiftForTime(db, a.orgId, data.userId, { date: data.date, ...times });
+    const approval = await initialApproval(db, a.orgId, a, data.userId, data.userId !== a.userId);
     const record = await db.timeRecord.create({
       data: {
-        organizationId: a.orgId, userId: data.userId, branchId, date: new Date(data.date + "T00:00:00.000Z"), type: data.type, breakSeconds: data.breakMinutes * 60,
+        organizationId: a.orgId, userId: data.userId, branchId, shiftId, ...approval, date: new Date(data.date + "T00:00:00.000Z"), type: data.type, breakSeconds: data.breakMinutes * 60,
         ...times,
         durationHours: data.type === "MANUAL_DURATION" ? data.durationHours : null,
         durationMinutes: data.type === "MANUAL_DURATION" ? data.durationMinutes : null,

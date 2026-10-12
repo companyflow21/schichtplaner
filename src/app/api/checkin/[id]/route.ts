@@ -32,7 +32,7 @@ export async function PATCH(request: Request, context: Context) {
       let timeRecordId: string | null = null;
       if (data.status === "APPROVED") {
         if (await tx.timeRecord.findFirst({ where: { organizationId: a.orgId, userId, type: "WATCH", timeTo: null } })) throw new ApiError("Für diese Person läuft bereits eine Zeiterfassung.", 409);
-        timeRecordId = (await tx.timeRecord.create({ data: watchRecord(a.orgId, userId, c.branchId, c.createdAt) })).id;
+        timeRecordId = (await tx.timeRecord.create({ data: watchRecord(a.orgId, userId, c.branchId, c.shiftId, c.createdAt) })).id;
       }
       const checkin = await tx.checkin.update({ where: { id: c.id }, data: { status: data.status, reviewedById: a.userId, reviewedAt: new Date(), decisionNote: data.note || null, timeRecordId } });
       const approved = data.status === "APPROVED";

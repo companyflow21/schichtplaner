@@ -132,7 +132,7 @@ export async function POST(request: Request) {
         throw new ApiError(message, 422, { failure: position.failure, message, canRequestManual: true });
       }
       if (await tx.timeRecord.findFirst({ where: { organizationId: a.orgId, userId: a.userId, type: "WATCH", timeTo: null } })) throw new ApiError("Deine Zeiterfassung läuft bereits. Bitte zuerst beenden.", 409);
-      const record = await tx.timeRecord.create({ data: watchRecord(a.orgId, a.userId, branch.id, now) });
+      const record = await tx.timeRecord.create({ data: watchRecord(a.orgId, a.userId, branch.id, shift.id, now) });
       // Ein offener manueller Antrag ist damit erledigt - er bleibt nachvollziehbar stehen.
       if (existing?.status === "PENDING") await tx.checkin.update({ where: { id: existing.id }, data: { status: "SUPERSEDED", reviewedAt: now, decisionNote: "Durch GPS-Check-in erledigt." } });
       const checkin = await tx.checkin.create({ data: { ...base, method: "GPS", status: "CONFIRMED", distanceM: position.distanceM, accuracyM: position.accuracyM, positionAgeS: position.positionAgeS, timeRecordId: record.id } });

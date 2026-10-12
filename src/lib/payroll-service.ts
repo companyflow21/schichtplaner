@@ -42,11 +42,12 @@ function byPersonKey<T extends { userId: string | null; formerEmployeeId: string
 const FORMER_WARNING = "Gelöschte Person: Personalnummer, Lohnart und personenbezogene Zuschläge sind nicht mehr hinterlegt.";
 
 /**
- * Arbeitsbereich je Buchung: ueber den Check-in die Schicht selbst, sonst die
- * einzige veroeffentlichte Schicht der Person, mit der sich die Buchung
- * zeitlich ueberschneidet (dieselbe Regel wie branchForTime). Mehrdeutig oder
- * ohne Schicht: kein Arbeitsbereich. Geloeschte Personen werden ueber ihre
- * historischen Zuweisungen (formerEmployeeId) zugeordnet.
+ * Arbeitsbereich je Buchung: ueber die gespeicherte Schicht (bzw. den
+ * Check-in), sonst die einzige veroeffentlichte Schicht der Person, mit der
+ * sich die Buchung zeitlich ueberschneidet (Altbestand, Regel wie
+ * branchForTime). Mehrdeutig oder ohne Schicht: kein Arbeitsbereich.
+ * Geloeschte Personen werden ueber ihre historischen Zuweisungen
+ * (formerEmployeeId) zugeordnet.
  */
 async function divisionsFor(orgId: string, records: RecordRow[], from: string, to: string): Promise<Map<string, string | null>> {
   const result = new Map<string, string | null>();
@@ -61,12 +62,13 @@ async function divisionsFor(orgId: string, records: RecordRow[], from: string, t
       where: { OR: [{ userId: { in: userIds } }, { formerEmployeeId: { in: formerIds } }], shift: { deletedAt: null, schedule: { organizationId: orgId, deletedAt: null, isPublic: true, OR: [...weeks.values()] } } },
       select: { userId: true, formerEmployeeId: true, shift: { select: { id: true, divisionId: true, dayOfWeek: true, shiftFrom: true, shiftTo: true, schedule: { select: { year: true, weekNumber: true } } } } },
     }),
-    db.shift.findMany({ where: { id: { in: records.flatMap((r) => (r.checkin ? [r.checkin.shiftId] : [])) }, schedule: { organizationId: orgId } }, select: { id: true, divisionId: true } }),
+    db.shift.findMany({ where: { id: { in: records.flatMap((r) => [r.shiftId, r.checkin?.shiftId].filter((id): id is string => !!id)) }, schedule: { organizationId: orgId } }, select: { id: true, divisionId: true } }),
   ]);
   const byShift = new Map(checkinShifts.map((s) => [s.id, s.divisionId]));
   const byPerson = byPersonKey(bookings);
   for (const r of records) {
-    if (r.checkin && byShift.has(r.checkin.shiftId)) { result.set(r.id, byShift.get(r.checkin.shiftId) ?? null); continue; }
+    const known = [r.shiftId, r.checkin?.shiftId].find((id) => id && byShift.has(id));
+    if (known) { result.set(r.id, byShift.get(known) ?? null); continue; }
     const date = r.date.toISOString().slice(0, 10);
     const start = Date.parse(date + "T00:00:00Z") / 60000 + (r.timeFrom ? minuteOfDay(r.timeFrom) : 0);
     const span = r.timeFrom ? { start, end: start + (r.timeTo ? rangeMinutes(r.timeFrom, r.timeTo) || 1440 : 1) } : null;
@@ -94,6 +96,15 @@ export type PayrollPerson = Awaited<ReturnType<typeof payrollReport>>["people"][
 export async function payrollReport(a: Access, from: string, to: string, branchId: string | null) {
   requireAdmin(a);
   if (branchId && !await db.branch.findFirst({ where: { id: branchId, organizationId: a.orgId } })) throw new ApiError("Nicht gefunden.", 404);
+  return payrollData(a.orgId, from, to, branchId);
+}
+
+/**
+ * Rechnung ohne Rechtepruefung - nur fuer Aufrufer, die selbst pruefen und
+ * hoechstens Stunden weitergeben (Stundenzettel: Zuschlagsstunden ohne Betraege).
+ */
+export async function payrollData(orgId: string, from: string, to: string, branchId: string | null) {
+  const a = { orgId };
   // Bloecke ueber Mitternacht koennen am Vortag beginnen oder in den Folgetag reichen.
   const around = { from: addDate(from, -1), to: addDate(to, 1) };
   const [members, payTypes, surcharges, holidays, orgHolidayCount, records] = await Promise.all([

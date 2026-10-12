@@ -451,6 +451,7 @@ model Shift {
   /// Antraege, die diese Schicht als Gegen-Schicht eines Tauschs nennen.
   exchangeRequests ModRequest[] @relation("ModRequestTargetShift")
   checkins    Checkin[]
+  timeRecords TimeRecord[]
 
   @@map("shifts")
 }
@@ -603,6 +604,13 @@ model TimeRecord {
   endedAt        DateTime?
   pauseStartedAt DateTime?
   breakSeconds   Int @default(0)
+  /// Geplante Schicht, zu der die Buchung gehoert (Check-in oder einzige
+  /// zeitlich passende veroeffentlichte Schicht der Person).
+  shiftId        String?
+  /// Genehmigung der Stunden; null = offen. approvedById null bei
+  /// automatischer Genehmigung bzw. Altbestand.
+  approvedAt     DateTime?
+  approvedById   String?
   corrections    TimeCorrection[]
   organization Organization @relation(fields: [organizationId], references: [id])
   date           DateTime     @db.Date
@@ -620,6 +628,7 @@ model TimeRecord {
   formerEmployee FormerEmployee? @relation(fields: [formerEmployeeId], references: [id], onDelete: Restrict)
   category TimeCategory? @relation(fields: [categoryId], references: [id])
   branch   Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  shift    Shift?        @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   checkin  Checkin?
 
   @@index([organizationId, userId, date])
@@ -655,6 +664,8 @@ model TimeSettings {
   warningsMaxHours Int      @default(10)
   whoCanUse        WhoCanUse @default(ALL)
   useCategories    Boolean  @default(false)
+  /// Selbst erfasste Zeiten (Stoppuhr, Check-in, manuell) gelten ohne Pruefung als genehmigt.
+  autoApprove      Boolean  @default(false)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
