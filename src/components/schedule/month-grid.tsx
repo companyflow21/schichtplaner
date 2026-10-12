@@ -164,8 +164,8 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
 
       {/* Kalender ab Tablet */}
       <div className="akro-panel hidden overflow-hidden md:block">
-        <div className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] akro-panel-kopf border-b">
-          <div className="px-2 py-2 text-[11px] font-semibold text-muted-foreground">KW</div>
+        <div className="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] akro-panel-kopf border-b">
+          <div className="px-2 py-2 text-xs font-semibold text-muted-foreground">KW</div>
           {dayNames.map((name) => (
             <div key={name} className="border-l px-2 py-2 text-[12px] font-semibold text-muted-foreground">{name}</div>
           ))}
@@ -175,8 +175,8 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
           const w = isoWeek(firstDate);
           const week = plan.weeks.find((x) => x.year === w.year && x.weekNumber === w.weekNumber);
           return (
-            <div key={index} className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] border-t first:border-t-0">
-              <div className="px-2 py-2 text-[11px] leading-tight text-muted-foreground">
+            <div key={index} className="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] border-t first:border-t-0">
+              <div className="px-2 py-2 text-xs leading-tight text-muted-foreground">
                 <Link href={weekHref(firstDate, standort)} className="tabular font-semibold text-foreground hover:underline">{w.weekNumber}</Link>
                 {plan.access.planner && week?.isPublic === false && <p className="mt-1 font-medium text-warn">Entwurf</p>}
               </div>
@@ -191,7 +191,7 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
         {plan.days.filter((d) => d.shifts.some(sichtbar) || (!nurOffen && d.continuations.length)).map((day) => (
           <div key={day.date} className={cn("akro-panel overflow-hidden", day.isToday && "border-primary/50")}>
             <Link href={weekHref(day.date, standort)} className="akro-panel-kopf flex items-baseline justify-between border-b px-4 py-2">
-              <span className="text-[13px] font-semibold">{dayNames[day.weekday - 1]} {day.date.slice(8)}.{day.date.slice(5, 7)}.{day.isToday && <span className="ml-1.5 text-[11px] font-medium text-primary">heute</span>}</span>
+              <span className="text-[13px] font-semibold">{dayNames[day.weekday - 1]} {day.date.slice(8)}.{day.date.slice(5, 7)}.{day.isToday && <span className="ml-1.5 text-xs font-medium text-primary">heute</span>}</span>
               {day.missing > 0 && <StatusBadge ton="hinweis" klein>{day.missing} offen</StatusBadge>}
             </Link>
             <ul className="divide-y divide-[var(--linie-fein)]">
@@ -212,13 +212,13 @@ function DayCell({ day, plan, standort, sichtbar }: { day: MonthDay; plan: Month
   const shifts = day.shifts.filter(sichtbar);
   return (
     <div className={cn("min-h-[7.5rem] border-l p-1.5", day.isToday ? "bg-[var(--flaeche-heute)]" : "bg-card")}>
-      <Link href={weekHref(day.date, standort)} className="flex items-baseline justify-between gap-1 rounded-sm px-0.5 hover:bg-muted" title="Im Wochenplan öffnen">
+      <Link href={weekHref(day.date, standort)} className="flex flex-wrap items-baseline justify-between gap-x-1 rounded-sm px-0.5 hover:bg-muted" title="Im Wochenplan öffnen">
         <span className={cn("tabular text-[13px] font-semibold", day.isToday && "text-primary")}>{Number(day.date.slice(8))}</span>
         {day.missing > 0 && <StatusBadge ton="hinweis" klein>{day.missing} offen</StatusBadge>}
       </Link>
       <div className="mt-1 space-y-1">
         {day.continuations.map((s) => (
-          <div key={"f" + s.id} className="rounded-[6px] border border-dashed px-1.5 py-0.5 text-[11px] text-muted-foreground" title={"Fortsetzung vom Vortag: " + s.shiftFrom + "–" + s.shiftTo}>
+          <div key={"f" + s.id} className="rounded-[6px] border border-dashed px-1.5 py-0.5 text-xs text-muted-foreground" title={"Fortsetzung vom Vortag: " + s.shiftFrom + "–" + s.shiftTo}>
             <Moon className="mr-1 inline size-3 align-[-2px]" />bis {s.shiftTo} · {s.title || "Schicht"}
           </div>
         ))}
@@ -228,15 +228,15 @@ function DayCell({ day, plan, standort, sichtbar }: { day: MonthDay; plan: Month
             <div
               key={s.id}
               className={cn(
-                "rounded-[6px] border px-1.5 py-1 text-[11px] leading-snug",
+                "rounded-[6px] border px-1.5 py-1 text-xs leading-snug",
                 fehlt > 0 ? "border-warn/50 bg-warn/[0.06]" : "bg-[var(--flaeche-vertieft)]",
                 s.isPublic === false && "border-dashed"
               )}
               title={[s.shiftFrom + "–" + s.shiftTo + (s.endsNextDay ? " (endet am Folgetag)" : ""), s.title, names(s, nameFormat)].filter(Boolean).join(" · ")}
             >
-              <div className="flex items-baseline justify-between gap-1">
-                <span className="tabular font-semibold">{s.shiftFrom}–{s.shiftTo}{s.endsNextDay && <span className="font-normal text-muted-foreground"> +1</span>}</span>
-                <span className={cn("tabular", fehlt > 0 ? "font-medium text-warn" : "text-muted-foreground")}>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-1">
+                <span className="tabular font-semibold"><span className="whitespace-nowrap">{s.shiftFrom}–{s.shiftTo}</span>{s.endsNextDay && <span className="font-normal text-muted-foreground"> +1</span>}</span>
+                <span className={cn("tabular whitespace-nowrap", fehlt > 0 ? "font-medium text-warn" : "text-muted-foreground")}>
                   {(s.occupiedCount ?? s.bookings.length)}/{s.maxEmployees}
                 </span>
               </div>

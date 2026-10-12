@@ -125,7 +125,7 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
                     )}
                   >
                     <div>{dayNames[idx]}</div>
-                    <div className="text-[10px] text-muted-foreground font-normal">
+                    <div className="text-xs text-muted-foreground font-normal">
                       {formatDateShort(date)}
                     </div>
                   </th>
@@ -142,8 +142,8 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
                 {/* Employee name */}
                 <td className="border-r px-3 py-2 align-middle">
                   <div className="flex items-center gap-2">
-                    <Avatar size="sm">
-                      <AvatarFallback className="text-[9px]">
+                    <Avatar size="sm" className="data-[size=sm]:size-7">
+                      <AvatarFallback className="text-xs">
                         {getInitials(emp.user.firstName, emp.user.lastName)}
                       </AvatarFallback>
                     </Avatar>
@@ -151,7 +151,7 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
                       <div className="text-xs font-medium truncate max-w-[120px]">
                         {formatName(emp.user, nameFormat, { contractor: emp.key.startsWith("contractor:") })}
                       </div>
-                      {hintCount(emp.key) > 0 && <a href="#arbeitszeithinweise" className="block text-[11px] font-medium text-warn">⚠ {hintCount(emp.key)} {hintCount(emp.key) === 1 ? "Hinweis" : "Hinweise"}</a>}
+                      {hintCount(emp.key) > 0 && <a href="#arbeitszeithinweise" className="block text-xs font-medium text-warn">⚠ {hintCount(emp.key)} {hintCount(emp.key) === 1 ? "Hinweis" : "Hinweise"}</a>}
                     </div>
                   </div>
                 </td>
@@ -171,7 +171,7 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
                       )}
                     >
                       {dayShifts.length === 0 ? (
-                        <span className="text-[10px] text-muted-foreground/50" aria-label="frei">–</span>
+                        <span className="text-xs text-muted-foreground/50" aria-label="frei">–</span>
                       ) : (
                         <div className="space-y-0.5">
                           {dayShifts.map((shift) => (
@@ -200,8 +200,8 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
         {employees.map((emp) => (
           <section key={emp.key} className="akro-panel overflow-hidden" aria-label={formatName(emp.user, nameFormat, { contractor: emp.key.startsWith("contractor:") })}>
             <div className="akro-panel-kopf flex items-center gap-2 border-b px-4 py-2.5">
-              <Avatar size="sm">
-                <AvatarFallback className="text-[9px]">
+              <Avatar size="sm" className="data-[size=sm]:size-7">
+                <AvatarFallback className="text-xs">
                   {getInitials(emp.user.firstName, emp.user.lastName)}
                 </AvatarFallback>
               </Avatar>
@@ -217,7 +217,7 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
                   <li key={shift.id} className={cn("flex items-baseline gap-3 px-4 py-2.5", isToday(date) && "bg-[var(--flaeche-heute)]")}>
                     <span className="w-16 shrink-0 text-[13px] font-medium">
                       {dayNames[dayIdx]} {formatDateShort(date)}
-                      {isToday(date) && <span className="block text-[11px] font-medium text-primary">heute</span>}
+                      {isToday(date) && <span className="block text-xs font-medium text-primary">heute</span>}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="tabular block text-[14px] font-semibold">{shift.shiftFrom}–{shift.shiftTo}</span>
@@ -242,13 +242,13 @@ function SchichtMarke({ shift, zeigeStandort }: { shift: ShiftData; zeigeStandor
   return (
     <div
       title={shift.branch?.name}
-      className="inline-block rounded-[6px] border border-l-[3px] bg-card px-1.5 py-0.5 text-left text-[11px] leading-snug"
+      className="inline-block rounded-[6px] border border-l-[3px] bg-card px-1.5 py-0.5 text-left text-xs leading-snug"
       style={{ borderLeftColor: shift.division?.color ?? "var(--line)" }}
     >
-      <span className="tabular font-medium text-foreground">{shift.shiftFrom}–{shift.shiftTo}</span>
+      <span className="tabular whitespace-nowrap font-medium text-foreground">{shift.shiftFrom}–{shift.shiftTo}</span>
       {/* In der zusammengefuehrten Sicht steht der Standort dabei. */}
       {zeigeStandort && shift.branch && (
-        <span className="block max-w-[110px] truncate text-[10px] text-muted-foreground">{shift.branch.name}</span>
+        <span className="block max-w-[110px] truncate text-xs text-muted-foreground">{shift.branch.name}</span>
       )}
     </div>
   );

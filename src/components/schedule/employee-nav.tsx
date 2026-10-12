@@ -121,14 +121,14 @@ export function EmployeeNav({
             {selectedEmployee ? (
               <>
                 {formatName(selectedEmployee.user, nameFormat)}
-                <Badge variant="secondary" className="tabular ml-1 px-1.5 py-0 text-[10px]">
+                <Badge variant="secondary" className="tabular ml-1 px-1.5 py-0 text-xs">
                   {(employeeHours[selectedEmployee.user.id] ?? 0).toFixed(1)} h
                 </Badge>
               </>
             ) : (
               <>
                 Alle Mitarbeiter
-                <Badge variant="secondary" className="tabular ml-1 px-1.5 py-0 text-[10px]">
+                <Badge variant="secondary" className="tabular ml-1 px-1.5 py-0 text-xs">
                   {totalHours.toFixed(1)} h
                 </Badge>
               </>
@@ -164,11 +164,11 @@ export function EmployeeNav({
                 setOpen(false);
               }}
             >
-              <div className="size-6 rounded-full bg-muted flex items-center justify-center">
+              <div className="size-7 rounded-full bg-muted flex items-center justify-center">
                 <Users className="size-3" />
               </div>
               <span className="flex-1 text-left">Alle Mitarbeiter</span>
-              <Badge variant="secondary" className="tabular px-1.5 py-0 text-[10px]">
+              <Badge variant="secondary" className="tabular px-1.5 py-0 text-xs">
                 {totalHours.toFixed(1)} h
               </Badge>
             </button>
@@ -193,8 +193,8 @@ export function EmployeeNav({
                     setOpen(false);
                   }}
                 >
-                  <Avatar size="sm">
-                    <AvatarFallback className="text-[9px]">
+                  <Avatar size="sm" className="data-[size=sm]:size-7">
+                    <AvatarFallback className="text-xs">
                       {getInitials(emp.user.firstName, emp.user.lastName)}
                     </AvatarFallback>
                   </Avatar>
@@ -204,7 +204,7 @@ export function EmployeeNav({
                   {hours > 0 && (
                     <Badge
                       variant="secondary"
-                      className="tabular px-1.5 py-0 text-[10px]"
+                      className="tabular px-1.5 py-0 text-xs"
                     >
                       {hours.toFixed(1)} h
                     </Badge>
