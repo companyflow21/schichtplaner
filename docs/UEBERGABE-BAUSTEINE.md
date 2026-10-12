@@ -167,9 +167,15 @@ eingefrorene Sicht 1477, UI: Rendertests 45/17/45 und `next build` erfolgreich.
 
 ## Übernahme in das Original
 
-1. Im Original `git fetch` vom Klon (`git remote add bausteine ../schichtplaner-bausteine`) und
-   den Branch `feat/plan-lifecycle-diff-conflicts` auf den aktuellen Stand mergen; der Branch
-   basiert auf `c36a59f` des Originals, spätere Commits dort vorher einbeziehen.
+1. Im Original den Branch holen – entweder direkt aus dem Klon
+   (`git remote add bausteine ../schichtplaner-bausteine && git fetch bausteine
+   feat/plan-lifecycle-diff-conflicts`) oder aus dem Bundle
+   `uebergabe/schichtplaner-bausteine.bundle` (`git fetch <pfad>.bundle
+   feat/plan-lifecycle-diff-conflicts`), dann `git merge --no-ff FETCH_HEAD`. Der Branch basiert
+   auf `c36a59f` des Originals (51 Commits inkl. Merges, 112 Dateien, +4330/−523); spätere Commits
+   des Originals vorher einbeziehen und Konflikte dort lösen. `uebergabe/patches/` enthält
+   dieselben Änderungen als 40 Einzelpatches ohne Merge-Commits (nur als Rückfallweg,
+   Reihenfolge nach Nummer).
 2. `npm ci`, `npx prisma generate`, `npx tsc --noEmit --incremental false`, `npm run lint`,
    `npm run test:migration`, `npm run test:workflows`, `npm run build`.
 3. Vor dem Einspielen auf Netcup: Sicherung, Migration auf verifizierter Kopie
