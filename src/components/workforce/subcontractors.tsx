@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InfoHint } from "@/components/ui/info-hint";
 import { berlinDate } from "@/lib/berlin";
 import { dateLabel, ErrorMessage, json, selectClass, useAction } from "./client";
 
@@ -43,7 +44,14 @@ export function Subcontractors() {
     <header className="flex flex-wrap items-center justify-between gap-3">
       <div className="space-y-1">
         <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">Subunternehmer</h1>
-        <p className="text-sm text-muted-foreground">Unternehmen und Platzhalter ohne Zugang verwalten und im Dienstplan einsetzen.</p>
+        <p className="text-sm text-muted-foreground">
+          Unternehmen und Platzhalter ohne Zugang verwalten und im Dienstplan einsetzen.{" "}
+          <InfoHint thema="Platzhaltern" titel="Platzhalter ohne Zugang">
+            <p>Platzhalter wie „MA 1“ haben keine E-Mail-Adresse, Einladung, Anmeldung oder eigene Zeiterfassung.</p>
+            <p>Jeder Platzhalter zählt im Plan als ein belegter Platz; Urlaub und Verfügbarkeit werden für ihn nicht geführt.</p>
+            <p>Verlangt eine Schicht Qualifikation, Tätigkeit oder Arbeitsbereich, bestätigt die Planung das beim Einteilen.</p>
+          </InfoHint>
+        </p>
       </div>
       <Button onClick={() => { setEdit(null); setEditWorker(null); }}>Unternehmen anlegen</Button>
     </header>

@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InfoHint } from "@/components/ui/info-hint";
 import {
   Table,
   TableBody,
@@ -412,7 +413,15 @@ export function HoursTable({ month, year }: HoursTableProps) {
                     </button>
                   </TableHead>
                   <TableHead className="text-right" title="Veröffentlichte Schichten nach Pausenabzug. Entwürfe zählen erst nach dem Veröffentlichen.">Plan (veröffentlicht)</TableHead>
-                  <TableHead className="text-right">Soll (Monat)</TableHead>
+                  <TableHead className="text-right">
+                    <span className="inline-flex items-center gap-1">
+                      Soll (Monat)
+                      <InfoHint thema="Soll (Monat)">
+                        <p>Eingetragene Sollstunden pro Monat aus dem Personalprofil; Feiertage, Urlaub, Tarif- oder Lohnregeln werden nicht automatisch verrechnet.</p>
+                        <p>Admins sehen das Soll aller Personen, alle anderen nur ihr eigenes. In der Standortansicht ist es ausgeblendet.</p>
+                      </InfoHint>
+                    </span>
+                  </TableHead>
                   <TableHead className="text-right">Ist − Plan</TableHead>
                 </TableRow>
               </TableHeader>
