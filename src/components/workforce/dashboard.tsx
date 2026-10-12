@@ -23,6 +23,7 @@ type Shift = {
   maxEmployees: number;
   missing: number;
   isPublic: boolean;
+  editing?: boolean;
   description: string | null;
   branch: {
     name: string;
@@ -359,7 +360,7 @@ function MitarbeiterStart({ data, action }: { data: EmployeeData; action: Return
               </p>
             )}
             <div className="flex flex-wrap gap-2">
-              {!bestätigt && (
+              {!bestätigt && !nächste.editing && (
                 <Button
                   disabled={action.isPending}
                   onClick={() => action.mutate({ url: "/api/bookings", method: "PATCH", data: { shiftId: nächste.id }, message: "Schicht bestätigt" })}
@@ -370,9 +371,12 @@ function MitarbeiterStart({ data, action }: { data: EmployeeData; action: Return
               <Button variant="outline" asChild>
                 <Link href="/time"><Clock className="size-4" />Zeiterfassung</Link>
               </Button>
-              <Button variant="ghost" disabled={action.isPending} onClick={() => action.mutate({ url: "/api/mod-requests", data: { shiftId: nächste.id, kind: "SWAP" }, message: "Schicht zur Übernahme angeboten" })}>
-                Zur Übernahme anbieten
-              </Button>
+              {!nächste.editing && (
+                <Button variant="ghost" disabled={action.isPending} onClick={() => action.mutate({ url: "/api/mod-requests", data: { shiftId: nächste.id, kind: "SWAP" }, message: "Schicht zur Übernahme angeboten" })}>
+                  Zur Übernahme anbieten
+                </Button>
+              )}
+              {nächste.editing && <p className="w-full text-[13px] text-muted-foreground">Der Plan wird gerade überarbeitet – Bestätigen und Abgeben sind danach wieder möglich.</p>}
             </div>
           </div>
         ) : (

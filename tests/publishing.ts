@@ -54,6 +54,7 @@ export async function publishingTests(t: TestContext) {
   const seen = (await sA.request("/api/schedules?" + week + "&standort=" + branch.id)).schedule;
   const seenMon = seen.shifts.find((s: any) => s.id === mon.id);
   check(seen.editing && seenMon.shiftFrom === "08:00" && seen.shifts.some((s: any) => s.id === tue.id) && !seen.shifts.some((s: any) => s.id === wed.id), "employee sees the last published state (old time, deleted shift still there, new one not yet)");
+  check(seen.shifts.find((s: any) => s.id === thu.id).can.request === false, "the open shift offers no request while the plan is edited");
   const merged = (await sA.request("/api/schedules?" + week)).schedule;
   check(merged.shifts.some((s: any) => s.id === mon.id && s.shiftFrom === "08:00"), "own plan across sites shows the published state too");
   const planner = (await admin.request("/api/schedules?" + week + "&standort=" + branch.id)).schedule;
@@ -71,7 +72,7 @@ export async function publishingTests(t: TestContext) {
   const toA = await inbox(sA, "Dienstplan geändert"), toB = await inbox(sB, "Dienstplan geändert");
   check(republished.notified === 2 && toA.length === 1 && toA[0].body.includes("Geändert (Zeit)") && toA[0].body.includes("09:00–17:00") && toB.length === 1 && toB[0].body.includes("Neu: 26.07."), "only the people concerned get a message with their changes");
   const after = (await sA.request("/api/schedules?" + week + "&standort=" + branch.id)).schedule;
-  check(!after.editing && after.shifts.find((s: any) => s.id === mon.id).shiftFrom === "09:00", "after publishing everybody sees the new state");
+  check(!after.editing && after.shifts.find((s: any) => s.id === mon.id).shiftFrom === "09:00" && after.shifts.find((s: any) => s.id === thu.id).can.request, "after publishing everybody sees the new state and may request again");
   await sA.request("/api/bookings", "PATCH", { shiftId: mon.id });
   check((await admin.request("/api/schedules/" + plan.id + "/publish")).changes.changed.length === 0, "nothing new since the last publication");
 

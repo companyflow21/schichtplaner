@@ -248,6 +248,8 @@ export function shiftView(shift: ShiftWithRelations, a: Access, ineffective: Set
     requiredQualifications: shift.requiredQualifications, createdAt: shift.createdAt, deletedAt: shift.deletedAt,
     date: range.date, endsNextDay: rangeMinutes(shift.shiftFrom, shift.shiftTo) + Number(shift.shiftFrom.slice(0, 2)) * 60 + Number(shift.shiftFrom.slice(3)) > 1440,
     isPublic: shift.schedule.isPublic,
+    // Plan wird bearbeitet: Anfragen, Tausch und Bestaetigen ruhen.
+    editing: shift.schedule.editing,
     branchId,
     branch: branch ? { id: branch.id, name: branch.name, address: branch.address, meetingPoint: branch.meetingPoint, notes: branch.notes, customer: branch.customer } : null,
     division: shift.division ? { id: shift.division.id, title: shift.division.title, color: shift.division.color } : null,
@@ -261,7 +263,7 @@ export function shiftView(shift: ShiftWithRelations, a: Access, ineffective: Set
     can: {
       edit: can(a, "EDIT_SHIFTS", branchId),
       handle: can(a, "HANDLE_REQUESTS", branchId),
-      request: shift.schedule.isPublic && can(a, "REQUEST_SHIFTS", branchId),
+      request: shift.schedule.isPublic && !shift.schedule.editing && can(a, "REQUEST_SHIFTS", branchId),
     },
   };
 }
