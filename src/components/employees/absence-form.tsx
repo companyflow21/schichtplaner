@@ -27,6 +27,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
+import { AbsenceEffectsDialog, type EffectsInput } from "./absence-effects-dialog";
+import { VacationHint } from "./vacation";
 
 // ---------- Types ----------
 
@@ -135,6 +137,8 @@ function AbsenceEditor({
   );
   const [note, setNote] = useState(absence?.note || "");
   const [approveNow, setApproveNow] = useState(true);
+  // Vor dem Genehmigen: Folgen fuer die Schichten im Zeitraum festlegen.
+  const [effectsFor, setEffectsFor] = useState<"create" | "approve" | null>(null);
   // Wie Smartplan: Eintraege der Leitung fuer andere gelten sofort. Die eigene
   // Abwesenheit genehmigt nur die Administration selbst; der Server prueft erneut.
   const self = userId === currentMember?.user.id;
@@ -156,7 +160,7 @@ function AbsenceEditor({
 
   // Create mutation
   const createMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (effects?: EffectsInput) => {
       const res = await fetch("/api/absences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -166,7 +170,7 @@ function AbsenceEditor({
           dateFrom,
           dateTo,
           note: note.trim() || undefined,
-          ...(approving ? { status: "APPROVED" } : {}),
+          ...(approving ? { status: "APPROVED", effects } : {}),
         }),
       });
       if (!res.ok) {
@@ -230,19 +234,34 @@ function AbsenceEditor({
         dateTo,
         note: note.trim() || null,
       });
+    } else if (approving) {
+      setEffectsFor("create");
     } else {
-      createMutation.mutate();
+      createMutation.mutate(undefined);
     }
   }
 
   function handleApprove() {
     if (!absence) return;
-    updateMutation.mutate({ status: "APPROVED" });
+    setEffectsFor("approve");
   }
 
   function handleDecline() {
     if (!absence) return;
     updateMutation.mutate({ status: "DECLINED" });
+  }
+
+  if (effectsFor) {
+    const person = absence?.user ?? employees.find((e) => e.userId === userId) ?? currentMember?.user;
+    return (
+      <AbsenceEffectsDialog
+        userId={absence?.userId ?? userId} name={person ? person.firstName + " " + person.lastName : ""}
+        from={absence?.dateFrom.slice(0, 10) ?? dateFrom} to={absence?.dateTo.slice(0, 10) ?? dateTo} categoryId={absence?.categoryId ?? categoryId} absenceId={absence?.id}
+        confirmLabel={effectsFor === "create" ? "Abwesenheit eintragen" : "Genehmigen"} pending={isPending}
+        onCancel={() => setEffectsFor(null)}
+        onConfirm={(effects) => effectsFor === "create" ? createMutation.mutate(effects) : updateMutation.mutate({ status: "APPROVED", effects })}
+      />
+    );
   }
 
   return (
@@ -351,6 +370,7 @@ function AbsenceEditor({
                 {days} Tag{days !== 1 ? "e" : ""}
               </p>
             )}
+            {days > 0 && categoryId && <VacationHint userId={absence?.userId ?? userId} categoryId={categoryId} from={dateFrom} to={dateTo} />}
 
             {/* Note */}
             <div className="space-y-1.5">

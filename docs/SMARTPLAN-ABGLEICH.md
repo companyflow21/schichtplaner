@@ -77,8 +77,8 @@ Jedes Paket wird wie bisher mit Tests, Browserprüfung und Eintrag in `FERTIGSTE
 | P1 | Lohn: Lohnarten, Personalnummer, Lohnart je Person und Arbeitsbereich, Zuschläge (Tage, Feiertage, Sonderdaten, Zeitblock auch über Mitternacht, Prozent oder Betrag), Lohn je Buchung mit Rechenweg, Lohnexport CSV mit und ohne Sätze | B47–B58, B63–B67 | L | umgesetzt (`8e6e865`); offen: Excel-Datei, Lohnexport-Verlauf, Lohnrecht für Manager, DATEV-Format |
 | P2 | Stunden prüfen und genehmigen: Buchung ↔ Schicht, Genehmigungsstatus, „Stunden und Lohn“ als ein Bildschirm (aufklappbar, Bearbeiten-Dialog, Rot/Grün, Dezimalstunden), freier Zeitraum, Drucken | B28–B42 | L | umgesetzt (`0ff8e24`); offen: „Ist = Plan“ ohne Erfassung (Entscheidung), „nicht erschienen“, Pausen mit Uhrzeit, Aktivitätsprotokoll im Dialog |
 | P3 | Stundenzettel und Leistungsnachweis je Kunde/Einsatzort als PDF, Monatsabschluss | B42, Teil B „Stundenzettel“ | M | umgesetzt (`5f4e78d`); offen: Monatsabschluss, elektronische Bestätigung |
-| P4 | Zeitkonten: Soll mit Startdatum, laufender Saldo, Ausgleich, Ansicht für Mitarbeitende | B77–B88 | M | offen |
-| P5 | Abwesenheit wirkt auf Schichten, Stunden und Lohn; Abwesenheitsvergütung; Urlaubskonto | B59–B62, B87, C77–C81, C98–C112 | L | offen |
+| P4 | Zeitkonten: Soll mit Startdatum, laufender Saldo, Ausgleich, Ansicht für Mitarbeitende | B77–B88 | M | umgesetzt (`0de1cc7`); offen: Saldo im Lohnexport, Kappungsgrenzen |
+| P5 | Abwesenheit wirkt auf Schichten, Stunden und Lohn; Abwesenheitsvergütung; Urlaubskonto | B59–B62, B87, C77–C81, C98–C112 | L | umgesetzt (P5-Commit); offen: Vergütung nach Durchschnitt statt Planstunden, halbe Urlaubstage im Antrag, Urlaubssperren |
 | P6 | Planungsregeln je Person mit Verstoßliste (Höchststunden, Ruhezeit, Tage am Stück …), Veröffentlichungsdialog mit Änderungsliste, Bearbeitungsmodus | A42–A60, A70, A72 | L | offen |
 | P7 | Vorlagen über mehrere Wochen, Kopieren von Block/Tag/Woche, Person aufnehmen und verteilen | A18–A32 | L | offen |
 | P8 | Regelbasierter Assistent „Besetzung vorschlagen“ | A65–A67 | L | offen |
@@ -128,10 +128,50 @@ Jedes Paket wird wie bisher mit Tests, Browserprüfung und Eintrag in `FERTIGSTE
   Unterschriftsfeldern; Mitarbeitende erstellen ihren eigenen unter „Zeiterfassung“. Leistungsnachweis (PDF) je
   Einsatzort für den Kunden.
 
+## Zeitkonten (P4) – so rechnet der Schichtplaner
+
+- Einstellungen › Zeitkonten: einschalten, Berechnungsart **Ist − Soll** (Vorgabe), **Plan − Soll** oder **Ist − Plan**,
+  je Person abweichend; Personen lassen sich ausnehmen. Sichtbarkeit für Mitarbeitende ist einstellbar (Vorgabe aus).
+- Soll je Person mit Startdatum (Woche oder Monat, z. B. 40 h/Woche ab 01.01.); ein neuer Eintrag gilt ab seinem
+  Datum. Beginnt oder endet ein Soll mitten in der Periode, zählt es anteilig nach Werktagen Mo–Fr.
+- Ist = alle abgeschlossenen Buchungen (genehmigt und offen) plus bezahlte Abwesenheit (P5); Tage nach heute
+  zählen mit Planstunden.
+- Ausgleich (± Stunden mit Datum und Text), z. B. Überstunden ausbezahlt oder Übertrag bei Einführung.
+- Sehen: Administration; Manager mit „Stunden einsehen“ für die Person; die Person selbst, wenn freigegeben.
+  Ändern nur die Administration. Saldo als Spalte in „Stunden und Lohn“, eigener Stand unter „Zeiterfassung“.
+
+## Abwesenheit wirkt (P5) – so arbeitet der Schichtplaner
+
+- Beim Genehmigen (oder sofort genehmigten Eintragen) zeigt ein Dialog die gebuchten Schichten im Zeitraum. Je Schicht:
+  **Stunden zählen** (bezahlt, Planstunden), **0 Stunden** oder **aus der Schicht nehmen** (Schicht wird wieder offen).
+  Vorgabe aus der Abwesenheitsart (bezahlt → Stunden zählen). Optional ein Ausgleich in Stunden aufs Zeitkonto.
+- „Aus der Schicht nehmen“ nur mit „Schichten bearbeiten“ am Standort oder als Administration; die Entscheidung je
+  Schicht ändern Admins und Manager mit „Abwesenheiten entscheiden“.
+- Bezahlte Abwesenheit erscheint in „Stunden und Lohn“ (Status „abwesend“), im Lohn als eigene Zeile mit dem
+  Lohnart-Code der Abwesenheitsart (Einstellungen › Abwesenheiten), im Lohnexport, Stundenzettel und Zeitkonto.
+- Wird die Genehmigung zurückgenommen oder die Abwesenheit gelöscht, entfallen Stunden und Lohn; eine bereits
+  freigegebene Schicht bleibt offen. Altbestand (vor der Migration genehmigt) erscheint als „abwesend“ mit 0 Stunden,
+  bis die Abwesenheit erneut entschieden wird.
+- Genehmigt wird mit Person und Zeitpunkt gespeichert.
+
+## Urlaubskonto (P5) – so rechnet der Schichtplaner
+
+- Einstellungen › Urlaubskonto: einschalten, abgezogene Abwesenheitsart (z. B. „Urlaub“), Tage je Jahr (Vorgabe 30),
+  Beginn des Urlaubsjahres (Vorgabe 01.01.), Zuteilung ganz zu Jahresbeginn oder monatlich ein Zwölftel,
+  Übertrag ins nächste Jahr (optional mit Höchstgrenze), Wochentage ohne Abzug (Vorgabe Sa, So), Feiertage zählen
+  (Vorgabe nein), Sichtbarkeit für Mitarbeitende (Vorgabe ja).
+- Je Person abweichend: Tage je Jahr, Beginn (z. B. Eintritt – dann anteilig nach vollen Monaten), Übertrag,
+  ohne Konto. Das Konto beginnt mit dem Urlaubsjahr, in dem es eingeschaltet wird; Resturlaub per „Saldo anpassen“.
+- Genehmigter Urlaub wird abgezogen (genommen bis heute, geplant danach); beantragter Urlaub wird angezeigt, aber
+  nicht abgezogen. Korrekturen in ganzen oder halben Tagen mit Kommentar, nur durch die Administration.
+- Der Antrag zeigt „verfügbar · dieser Zeitraum · danach“. Kontoauszug je Urlaubsjahr. Übersicht „Urlaubskonten“
+  unter Abwesenheiten für Administration und Manager mit „Abwesenheiten entscheiden“.
+
 ## Nächster Schritt
 
-P4 (Zeitkonten) und P5 (Abwesenheit wirkt auf Stunden und Lohn, Urlaubskonto). Parallel, sobald die
-Zugangsdaten gesetzt sind: Erfassung im Konto nach den Regeln oben, offene Punkte klären, Layout für P12 festhalten.
+P6 (Planungsregeln je Person mit Verstoßliste, Veröffentlichungsdialog mit Änderungsliste, Bearbeitungsmodus).
+Parallel, sobald die Zugangsdaten gesetzt sind: Erfassung im Konto nach den Regeln oben, offene Punkte klären,
+Layout für P12 festhalten.
 
 ## Quellen (öffentlich, abgerufen 12.10.2026)
 

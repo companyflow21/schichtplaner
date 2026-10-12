@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { canStaff, requireAccess, type Access } from "@/lib/access";
 import { validDate } from "@/lib/berlin";
 import { notify } from "@/lib/planning";
+import { applyEffects, effectsSchema } from "@/lib/absence-effects";
 
 type Context = { params: Promise<{ id: string }> };
 const include = {
@@ -28,6 +29,8 @@ const updateAbsenceSchema = z.object({
   dateTo: z.string().refine(validDate).optional(),
   note: z.string().max(2000).nullable().optional(),
   categoryId: z.string().optional(),
+  /** Wirkung auf die Schichten (beim Genehmigen oder fuer eine genehmigte Abwesenheit). */
+  effects: effectsSchema.optional(),
 });
 
 export async function PATCH(request: Request, context: Context) {
@@ -39,6 +42,8 @@ export async function PATCH(request: Request, context: Context) {
     if ((data.status === "APPROVED" || data.status === "DECLINED") && !manages) throw new ApiError("Only admins can approve or decline absences", 403);
     if (!manages && absence.status !== "PENDING") throw new ApiError("Can only edit pending absences");
     if (data.categoryId && !await db.absenceCategory.findFirst({ where: { id: data.categoryId, organizationId: a.orgId } })) throw new ApiError("Category not found", 404);
+    const nextStatus = data.status ?? absence.status;
+    if (data.effects && (!manages || nextStatus !== "APPROVED")) throw new ApiError("Die Wirkung auf Schichten legt fest, wer die Abwesenheit genehmigt.", 400);
     const updated = await db.$transaction(async (tx) => {
       const result = await tx.absence.update({
         where: { id: absence.id },
@@ -48,9 +53,14 @@ export async function PATCH(request: Request, context: Context) {
           ...(data.dateTo !== undefined && { dateTo: new Date(data.dateTo + "T00:00:00.000Z") }),
           ...(data.note !== undefined && { note: data.note }),
           ...(data.categoryId !== undefined && { categoryId: data.categoryId }),
+          ...(nextStatus === "APPROVED" && absence.status !== "APPROVED" ? { approvedById: a.userId, approvedAt: new Date() } : {}),
+          ...(nextStatus !== "APPROVED" ? { approvedById: null, approvedAt: null } : {}),
         },
         include,
       });
+      // Genehmigt: Wirkung (neu) anwenden; nicht mehr genehmigt: Wirkung entfaellt (freigegebene Schichten bleiben offen).
+      if (nextStatus === "APPROVED" && (absence.status !== "APPROVED" || data.effects || data.dateFrom || data.dateTo || data.categoryId)) await applyEffects(tx, a, result, result.category, data.effects);
+      if (nextStatus !== "APPROVED" && absence.status === "APPROVED") await tx.absenceShift.deleteMany({ where: { absenceId: absence.id, handling: { not: "RELEASED" } } });
       if (data.status && data.status !== absence.status) await notify(tx, a.orgId, a.userId, [absence.userId], "Abwesenheitsantrag " + (data.status === "APPROVED" ? "genehmigt" : data.status === "DECLINED" ? "abgelehnt" : "zur Prüfung"), result.dateFrom.toISOString().slice(0, 10) + " bis " + result.dateTo.toISOString().slice(0, 10));
       return result;
     });

@@ -3,7 +3,8 @@ import { db } from "./db";
 import { ApiError } from "./errors";
 import { addDate, isoWeek, minuteOfDay, overlaps, rangeMinutes, shiftRange, validDate } from "./berlin";
 import { requireAdmin, type Access } from "./access";
-import { effectivePayType, payForRecord, sumLines, type PayTypeLite, type RecordPay, type SurchargeLite } from "./payroll";
+import { effectivePayType, payForAbsence, payForRecord, sumLines, type PayTypeLite, type RecordPay, type SurchargeLite } from "./payroll";
+import { paidAbsenceShifts } from "./absence-effects";
 
 /** Zeitraum aus ?from=&to= (YYYY-MM-DD), sonst ?month=&year=, sonst aktueller Monat. */
 export function payrollPeriod(request: Request, today: string) {
@@ -97,6 +98,9 @@ export async function payrollData(orgId: string, from: string, to: string, branc
   const holidaySet = new Set(holidays.map((h) => h.date.toISOString().slice(0, 10)));
   const recordDivision = await divisionsFor(a.orgId, records, from, to);
   const lite = surcharges as SurchargeLite[];
+  // Bezahlte Abwesenheit nur fuer Schichten, fuer die keine Zeit erfasst wurde (sonst doppelt bezahlt).
+  const worked = new Set(records.flatMap((r) => [r.shiftId, r.checkin?.shiftId]).filter((id): id is string => !!id));
+  const absences = (await paidAbsenceShifts(a.orgId, members.map((m) => m.userId), from, to)).filter((x) => (!branchId || x.branchId === branchId) && !worked.has(x.shiftId));
 
   const people = members
     .map((m) => {
@@ -106,17 +110,28 @@ export async function payrollData(orgId: string, from: string, to: string, branc
         const pay = payForRecord(r, { payType: effectivePayType(typeById, division?.payTypeId, m.payTypeId), divisionId, surcharges: lite, holidays: holidaySet });
         return { ...pay, record: r, divisionTitle: division?.title ?? null };
       });
-      const warnings = [...new Set([...pays.flatMap((p) => p.warnings), ...(own.length && !m.personnelNumber ? ["Keine Personalnummer."] : [])])];
+      const absent = absences.filter((x) => x.userId === m.userId).map((x) => {
+        const division = x.divisionId ? divisionById.get(x.divisionId) : undefined;
+        return { ...payForAbsence(x, effectivePayType(typeById, division?.payTypeId, m.payTypeId)), absence: x, divisionTitle: division?.title ?? null };
+      });
+      const all: RecordPay[] = [...pays, ...absent];
+      const warnings = [...new Set([...all.flatMap((p) => p.warnings), ...(all.length && !m.personnelNumber ? ["Keine Personalnummer."] : [])])];
       return {
         userId: m.userId, memberId: m.id, firstName: m.user.firstName, lastName: m.user.lastName, isActive: m.isActive,
         personnelNumber: m.personnelNumber, payType: m.payTypeId ? typeById.get(m.payTypeId) ?? null : null,
-        minutes: pays.reduce((s, p) => s + p.minutes, 0), totalCents: pays.reduce((s, p) => s + p.totalCents, 0),
-        lines: sumLines(pays), warnings,
-        records: pays.map((p) => ({
-          id: p.recordId, date: p.record.date.toISOString().slice(0, 10), type: p.record.type, timeFrom: p.record.timeFrom, timeTo: p.record.timeTo,
-          breakMinutes: Math.round(p.record.breakSeconds / 60), branchName: p.record.branch?.name ?? null, divisionTitle: p.divisionTitle,
-          minutes: p.minutes, totalCents: p.totalCents, lines: p.lines, warnings: p.warnings,
-        })),
+        minutes: all.reduce((s, p) => s + p.minutes, 0), totalCents: all.reduce((s, p) => s + p.totalCents, 0),
+        lines: sumLines(all), warnings,
+        records: [
+          ...pays.map((p) => ({
+            id: p.recordId, date: p.record.date.toISOString().slice(0, 10), type: p.record.type as string, timeFrom: p.record.timeFrom, timeTo: p.record.timeTo,
+            breakMinutes: Math.round(p.record.breakSeconds / 60), branchName: p.record.branch?.name ?? null, divisionTitle: p.divisionTitle,
+            minutes: p.minutes, totalCents: p.totalCents, lines: p.lines, warnings: p.warnings,
+          })),
+          ...absent.map((p) => ({
+            id: p.recordId, date: p.absence.date, type: "ABSENCE", timeFrom: p.absence.from, timeTo: p.absence.to, breakMinutes: 0, branchName: null, divisionTitle: p.divisionTitle,
+            minutes: p.minutes, totalCents: p.totalCents, lines: p.lines, warnings: p.warnings,
+          })),
+        ].sort((x, y) => x.date.localeCompare(y.date) || (x.timeFrom ?? "").localeCompare(y.timeFrom ?? "")),
       };
     })
     .filter((p) => p.isActive || p.records.length)

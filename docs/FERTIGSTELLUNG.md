@@ -5,6 +5,34 @@ Status: `bestanden` · `fehlgeschlagen` · `nicht geprüft` · `offen` (fachlich
 Nachweise sind lokal (PGlite-Workflowtests, isolierte Docker-Testinstallation), soweit nicht anders vermerkt.
 Auf Netcup eingespielt: `9eabd44` am 28.09.2026, `b5efa55` am 29.09.2026 (Löschen, Qualifikationen bearbeiten, Push).
 
+## Smartplan-Abgleich: P4 und P5 (12.10.2026)
+
+Branch `claude/wizardly-cerf-cxbutc`. Noch nicht eingespielt. Migrationen `20261014090000_time_accounts`,
+`20261015090000_absence_effects` und `20261016090000_vacation_account` sind additiv; vorher auf einer Kopie prüfen.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P1 | Zeitkonto – `lib/time-account.ts`, `lib/time-account-service.ts`, `api/time-accounts` | Soll je Person mit Startdatum (Woche/Monat), anteilig nach Werktagen; Ist − Soll, Plan − Soll, Ist − Plan; Ausgleich ± Stunden; nur Admin ändert | bestanden | `npm run test:accounts` (15), `tests/time-accounts.ts` |
+| P1 | Sichtbarkeit Zeitkonto | Admin; Manager mit „Stunden einsehen“; die Person nur bei Freigabe; fremde Organisation 404 | bestanden | `tests/time-accounts.ts` |
+| P0 | Abwesenheit wirkt – `lib/absence-effects.ts`, `api/absences`, `api/absences/effects` | Beim Genehmigen je Schicht bezahlt / 0 Stunden / aus der Schicht nehmen; Vorgabe aus der Abwesenheitsart; Rücknahme und Löschen heben die Wirkung auf | bestanden | `tests/absence-effects.ts` |
+| P0 | Rechte | „Aus der Schicht nehmen“ nur mit „Schichten bearbeiten“ oder Admin (403); Entscheidung je Schicht nur bei Genehmigung (sonst 400); Mitarbeitende nicht | bestanden | `tests/absence-effects.ts` |
+| P1 | Lohn, Export, Stundenzettel, Zeitkonto | Bezahlte Abwesenheit mit Planstunden und Lohnart-Code der Abwesenheitsart; Lohnexport-Zeile „Abwesenheit“; Stundenzettel „abwesend: … (bezahlt)“; Ausgleich aufs Zeitkonto | bestanden | `tests/absence-effects.ts` |
+| P1 | Urlaubskonto – `lib/vacation.ts`, `lib/vacation-service.ts`, `api/vacation` | Anspruch jährlich oder monatlich, anteilig ab Beginn, Übertrag mit Grenze, freie Wochentage und Feiertage, genommen/geplant/beantragt, Korrektur in halben Tagen, Kosten im Antrag | bestanden | `npm run test:vacation` (12), `tests/vacation.ts` |
+| P1 | Sichtbarkeit Urlaubskonto | Admin; Manager mit „Abwesenheiten entscheiden“; die Person bei Freigabe; Übersicht nur für Entscheidende; Regeln und Korrekturen nur Admin | bestanden | `tests/vacation.ts` |
+| P1 | Migrationen | Zeitkonten und Urlaubskonto zunächst aus; Altabwesenheiten behalten ihren Status ohne Wirkung; eindeutige Schlüssel; Löschen kaskadiert | bestanden | `npm run test:migration` (79) |
+| P1 | Oberfläche | Dialog „Folgen für die Schichten“, Urlaubshinweis im Antrag, „Urlaubskonten“ unter Abwesenheiten, eigenes Konto, Einstellungen Zeitkonten und Urlaubskonto, Saldo-Spalte, 375 px ohne Überbreite | nicht geprüft | Browser (Produktions-Build, `npm run preview:test`) |
+
+### Prüfungen (lokal)
+
+| Prüfung | Ergebnis |
+|---|---|
+| `npx tsc --noEmit` | 0 Fehler |
+| `npx eslint src tests --quiet` | 0 Fehler |
+| `npm run test:workflows` | nicht geprüft (Lauf vor dem letzten Testfix: alles grün bis auf eine falsche Erwartung im neuen Urlaubstest) |
+| `npm run test:migration` | 79/79 |
+| `npm run test:payroll` / `test:accounts` / `test:vacation` / `test:pdf` | 31/31, 15/15, 12/12, 14/14 |
+| `npm run build` | nicht geprüft |
+
 ## Smartplan-Abgleich: P2 und P3 (12.10.2026)
 
 Branch `claude/wizardly-cerf-cxbutc`. Noch nicht eingespielt. Migration `20261013090000_time_approval` vorher auf einer Kopie prüfen.

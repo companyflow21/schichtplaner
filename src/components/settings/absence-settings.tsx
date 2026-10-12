@@ -25,6 +25,7 @@ type AbsenceCategory = {
   name: string;
   color: string;
   isPaid: boolean;
+  payCode?: string | null;
 };
 
 // German states by country
@@ -106,6 +107,7 @@ export function AbsenceSettings({
   const [editName, setEditName] = useState("");
   const [editColor, setEditColor] = useState("#ef4444");
   const [editIsPaid, setEditIsPaid] = useState(true);
+  const [editPayCode, setEditPayCode] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState("#3b82f6");
@@ -153,6 +155,7 @@ export function AbsenceSettings({
       name: string;
       color: string;
       isPaid: boolean;
+      payCode: string | null;
     }) => {
       const res = await fetch("/api/absences/categories", {
         method: "PATCH",
@@ -201,6 +204,7 @@ export function AbsenceSettings({
     setEditName(cat.name);
     setEditColor(cat.color);
     setEditIsPaid(cat.isPaid);
+    setEditPayCode(cat.payCode ?? "");
   }
 
   function handleSaveEdit() {
@@ -210,6 +214,7 @@ export function AbsenceSettings({
       name: editName.trim(),
       color: editColor,
       isPaid: editIsPaid,
+      payCode: editPayCode.trim() || null,
     });
   }
 
@@ -293,6 +298,14 @@ export function AbsenceSettings({
                     size="sm"
                   />
                 </div>
+                <Input
+                  value={editPayCode}
+                  onChange={(e) => setEditPayCode(e.target.value)}
+                  className="h-8 w-24"
+                  placeholder="Lohncode"
+                  aria-label="Lohnart-Code für bezahlte Abwesenheit"
+                  maxLength={20}
+                />
                 <Button
                   size="xs"
                   onClick={handleSaveEdit}
@@ -324,7 +337,7 @@ export function AbsenceSettings({
                 />
                 <span className="flex-1 text-sm font-medium">{cat.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {cat.isPaid ? "Bezahlt" : "Unbezahlt"}
+                  {cat.isPaid ? "Bezahlt" : "Unbezahlt"}{cat.payCode ? " · Code " + cat.payCode : ""}
                 </span>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button

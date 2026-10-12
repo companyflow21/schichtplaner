@@ -3,6 +3,7 @@ import { ApiError } from "./errors";
 import { berlinDate, isoWeek, addDate, plannedMinutes, recordMinutes, shiftRange } from "./berlin";
 import { canStaff, type Access } from "./access";
 import { computeAccount, type AccountMethod, type AccountResult, type DayMinutes } from "./time-account";
+import { paidAbsenceShifts } from "./absence-effects";
 
 type Settings = { accountsEnabled: boolean; accountMethod: AccountMethod; accountVisible: boolean };
 
@@ -35,6 +36,9 @@ async function dayMinutes(orgId: string, userId: string, from: string, to: strin
   const at = (d: string) => { if (!days.has(d)) days.set(d, { actual: 0, planned: 0 }); return days.get(d)!; };
   for (const r of records) at(r.date.toISOString().slice(0, 10)).actual += recordMinutes(r);
   for (const b of bookings) { const d = shiftRange(b.shift).date; if (d >= from && d <= to) at(d).planned += plannedMinutes(b.shift); }
+  // Bezahlte Abwesenheit zaehlt mit den Planstunden der Schicht als Ist - ausser es wurde fuer die Schicht doch Zeit erfasst.
+  const worked = new Set(records.map((r) => r.shiftId).filter(Boolean));
+  for (const x of await paidAbsenceShifts(orgId, [userId], from, to)) if (!worked.has(x.shiftId)) at(x.date).actual += x.minutes;
   return days;
 }
 

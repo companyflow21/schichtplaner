@@ -6,9 +6,10 @@ import { branchIds, can, canSeeTime, canStaff, staffIds, timeScope, type Access 
 import { recordOverlaps } from "./time-service";
 import { payrollReport } from "./payroll-service";
 import { balancesFor } from "./time-account-service";
+import { absenceEffects } from "./absence-effects";
 import type { PayLine } from "./payroll";
 
-export type HoursStatus = "APPROVED" | "OPEN" | "MISSING" | "PLANNED" | "RUNNING";
+export type HoursStatus = "APPROVED" | "OPEN" | "MISSING" | "PLANNED" | "RUNNING" | "ABSENT";
 
 
 /**
@@ -52,6 +53,7 @@ export async function hoursReport(a: Access, from: string, to: string, branchId:
     for (const p of report.people) for (const r of p.records) pay.set(r.id, { totalCents: r.totalCents, lines: r.lines, warnings: r.warnings });
   }
   const today = berlinDate();
+  const effects = await absenceEffects(a.orgId, userIds, from, to);
 
   const result = people.map((p) => {
     const shifts = bookings.filter((b) => b.userId === p.userId).map((b) => ({ ...b.shift, range: shiftRange(b.shift) })).filter((s) => s.range.date >= from && s.range.date <= to);
@@ -80,18 +82,24 @@ export async function hoursReport(a: Access, from: string, to: string, branchId:
     const rows = [
       ...shifts.map((s) => {
         const list = (byShift.get(s.id) ?? []).map(recordView);
-        const planned = plannedMinutes(s), ist = list.reduce((sum, r) => sum + r.minutes, 0);
+        const planned = plannedMinutes(s);
+        // Genehmigte Abwesenheit ohne erfasste Zeit: bezahlt mit Planstunden, sonst 0 (auch Altbestand ohne Entscheidung).
+        const effect = effects.byShift.get(s.id), day = effects.onDay(p.userId, s.range.date);
+        const absence = !list.length && (effect?.userId === p.userId || day)
+          ? { category: effect?.userId === p.userId ? effect.category : day!.category, handling: effect?.userId === p.userId ? effect.handling : null, pay: effect ? pay.get("a-" + effect.effectId) ?? null : null }
+          : null;
+        const ist = absence ? (absence.handling === "PAID" ? planned : 0) : list.reduce((sum, r) => sum + r.minutes, 0);
         // Zeit nachtragen: die Person selbst (als Antrag) oder Pruefende fuer den Standort der Schicht.
         const canEnter = p.isActive && (a.isAdmin || p.userId === a.userId || (!!s.schedule.branchId && can(a, "EDIT_TIME", s.schedule.branchId) && canStaff(a, "VIEW_HOURS", p.userId)));
         return {
-          key: "s-" + s.id, date: s.range.date, status: status(list, s.range.date), canEnter, plannedMinutes: planned, istMinutes: ist, deviationMinutes: list.length ? ist - planned : null,
+          key: "s-" + s.id, date: s.range.date, status: absence ? "ABSENT" as const : status(list, s.range.date), canEnter: canEnter && !absence, absence, plannedMinutes: planned, istMinutes: ist, deviationMinutes: list.length ? ist - planned : null,
           shift: { id: s.id, from: s.shiftFrom, to: s.shiftTo, title: s.title, branchName: s.schedule.branch?.name ?? null, customerName: s.schedule.branch?.customer?.name ?? null, division: s.division, pauseMinutes: rangeMinutes(s.shiftFrom, s.shiftTo) - planned },
           records: list,
         };
       }),
       ...loose.map((r) => {
         const view = recordView(r);
-        return { key: "r-" + r.id, date: view.date, status: status([view], null), canEnter: false, plannedMinutes: 0, istMinutes: view.minutes, deviationMinutes: null, shift: null, records: [view] };
+        return { key: "r-" + r.id, date: view.date, status: status([view], null), canEnter: false, absence: null, plannedMinutes: 0, istMinutes: view.minutes, deviationMinutes: null, shift: null, records: [view] };
       }),
     ].sort((x, y) => x.date.localeCompare(y.date) || (x.shift?.from ?? x.records[0]?.timeFrom ?? "").localeCompare(y.shift?.from ?? y.records[0]?.timeFrom ?? ""));
     const all = rows.flatMap((r) => r.records);
@@ -101,7 +109,7 @@ export async function hoursReport(a: Access, from: string, to: string, branchId:
       plannedMinutes: rows.reduce((s, r) => s + r.plannedMinutes, 0), istMinutes: rows.reduce((s, r) => s + r.istMinutes, 0),
       openCount: all.filter((r) => !r.approved && !r.running).length, missingCount: rows.filter((r) => r.status === "MISSING").length,
       approvable: all.filter((r) => !r.approved && r.canApprove).map((r) => r.id),
-      totalCents: a.isAdmin ? all.reduce((s, r) => s + (r.pay?.totalCents ?? 0), 0) : null,
+      totalCents: a.isAdmin ? all.reduce((s, r) => s + (r.pay?.totalCents ?? 0), 0) + rows.reduce((s, r) => s + (r.absence?.pay?.totalCents ?? 0), 0) : null,
       rows,
     };
   }).filter((p) => p.isActive || p.rows.length)

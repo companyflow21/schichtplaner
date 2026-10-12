@@ -33,7 +33,7 @@ export type PayRecord = {
   durationHours: number | null; durationMinutes: number | null; breakSeconds?: number;
 };
 export type PayLine = {
-  kind: "BASE" | "SURCHARGE";
+  kind: "BASE" | "SURCHARGE" | "ABSENCE";
   /** Lohnart bzw. Zuschlag */
   refId: string | null;
   title: string;
@@ -130,6 +130,20 @@ export function payForRecord(r: PayRecord, ctx: { payType: PayTypeLite | null; d
   return { recordId: r.id, minutes, payType: pt, lines, totalCents: lines.reduce((sum, l) => sum + l.amountCents, 0), warnings };
 }
 
+/**
+ * Bezahlte Abwesenheit (z. B. Urlaub, Krankheit) fuer eine geplante Schicht:
+ * Planminuten x Stundenlohn der geltenden Lohnart, als eigene Zeile mit dem
+ * Lohnart-Code der Abwesenheitsart (sonst dem der Lohnart). Zuschlaege fallen
+ * hier nicht an (Lohnfortzahlung nach Lohnausfallprinzip mit dem Steuerbuero klaeren).
+ */
+export function payForAbsence(x: { id: string; minutes: number; category: string; payCode: string | null }, payType: PayTypeLite | null): RecordPay {
+  const amountCents = payType ? round(x.minutes / 60 * payType.hourlyRateCents) : 0;
+  return {
+    recordId: "a-" + x.id, minutes: x.minutes, payType, totalCents: amountCents, warnings: payType ? [] : ["Keine Lohnart hinterlegt."],
+    lines: [{ kind: "ABSENCE", refId: "abs:" + x.category, title: "Abwesenheit: " + x.category, code: x.payCode ?? payType?.code ?? null, minutes: x.minutes, rateCents: payType?.hourlyRateCents ?? null, percent: null, amountCents }],
+  };
+}
+
 /** Geltende Lohnart: Arbeitsbereich vor Person; inaktive Lohnarten zaehlen nicht. */
 export function effectivePayType(byId: Map<string, PayTypeLite>, divisionPayTypeId: string | null | undefined, memberPayTypeId: string | null | undefined): PayTypeLite | null {
   for (const id of [divisionPayTypeId, memberPayTypeId]) {
@@ -149,7 +163,8 @@ export function sumLines(pays: RecordPay[]): PayTotalLine[] {
     if (entry) { entry.minutes += line.minutes; entry.amountCents += line.amountCents; }
     else map.set(key, { ...line });
   }
-  return [...map.values()].sort((a, b) => (a.kind === b.kind ? a.title.localeCompare(b.title, "de") : a.kind === "BASE" ? -1 : 1));
+  const order = { BASE: 0, ABSENCE: 1, SURCHARGE: 2 };
+  return [...map.values()].sort((a, b) => order[a.kind] - order[b.kind] || a.title.localeCompare(b.title, "de"));
 }
 
 /** Satz als Text: "25 %" bzw. "2,50 €/h". */

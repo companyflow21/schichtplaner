@@ -10,6 +10,7 @@ import {
   BadgeCheck,
   Wallet,
   Scale,
+  Palmtree,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,11 @@ const sections = [
     key: "accounts",
     label: "Zeitkonten",
     icon: Scale,
+  },
+  {
+    key: "vacation",
+    label: "Urlaubskonto",
+    icon: Palmtree,
   },
   {
     key: "wishplan",
