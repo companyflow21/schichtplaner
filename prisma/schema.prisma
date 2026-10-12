@@ -88,6 +88,8 @@ model Organization {
   formerEmployees   FormerEmployee[]
   subcontractors    Subcontractor[]
   contractorWorkers ContractorWorker[]
+  planningRules     PlanningRules?
+  planningRuleOverrides PlanningRuleOverride[]
 
   @@map("organizations")
 }
@@ -121,6 +123,7 @@ model OrganizationMember {
   managedStaff   StaffAssignment[] @relation("StaffManager")
   staffManagers  StaffAssignment[] @relation("StaffEmployee")
   assignedIssues BranchIssue[]
+  planningRuleOverride PlanningRuleOverride?
 
   @@unique([organizationId, userId])
   @@unique([id, organizationId])
@@ -947,4 +950,30 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscriptions")
+}
+
+/// Planungsregeln der Organisation: je Regel an/aus und Werte (siehe src/lib/planning-rules.ts).
+model PlanningRules {
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  rules          Json     @default("{}")
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("planning_rules")
+}
+
+/// Abweichende Planungsregeln einer Person; jede enthaltene Regel ersetzt die allgemeine ganz.
+model PlanningRuleOverride {
+  id             String   @id @default(cuid())
+  organizationId String
+  memberId       String   @unique
+  rules          Json     @default("{}")
+  updatedAt      DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("planning_rule_overrides")
 }

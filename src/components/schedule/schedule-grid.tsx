@@ -17,6 +17,7 @@ import { EmployeeNav } from "./employee-nav";
 import { LiveBorder } from "./live-mode";
 import { ConflictPanel, useWeekConflicts } from "./conflict-panel";
 import { PlanStatusBanner } from "./plan-status-banner";
+import { RuleViolations } from "./rule-violations";
 import type { WishRequest } from "./wish-plan";
 import type { ScheduleResponse, ShiftData } from "@/types/schedule";
 import type { ConflictItem } from "@/types/conflicts";
@@ -219,6 +220,7 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
 
       {planner && conflicts.data && <ConflictPanel data={conflicts.data} shifts={shifts} standort={standort} onSprung={springeZuSchicht} />}
       {planner && conflicts.isError && <p className="mb-4 text-[13px] text-muted-foreground">Konfliktprüfung konnte nicht geladen werden.</p>}
+      {planner && scheduleId && <RuleViolations scheduleId={scheduleId} isAdmin={!!member?.access?.isAdmin} />}
 
       {/* Employee filter bar */}
       {shifts.some((s) => s.bookings.length) && (

@@ -285,6 +285,25 @@ async function main() {
   check((await rows(edit, `SELECT 1 FROM "schedule_snapshots"`)).length === 0, "at most one snapshot per plan, only for existing plans, removed with the plan");
   await edit.close();
 
+  // Planungsregeln: additiv, ohne Eintrag alles aus; je Organisation eine Zeile, je Person eine Abweichung.
+  const RULES = "20261017090000_planning_rules";
+  const pr = await database(RULES);
+  await pr.exec(`
+    INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('p1','Org Regeln',${now});
+    INSERT INTO "users" ("id","email","firstName","lastName","updatedAt") VALUES ('pa','pa@akro-test.invalid','Pia','Alt',${now});
+    INSERT INTO "organization_members" ("id","organizationId","userId","role","isActivated") VALUES ('pm','p1','pa','EMPLOYEE',true);
+  `);
+  await pr.exec(await readFile("prisma/migrations/" + RULES + "/migration.sql", "utf8"));
+  check((await rows(pr, `SELECT 1 FROM "planning_rules"`)).length === 0, "no organization gets rules by the migration");
+  await pr.exec(`INSERT INTO "planning_rules" ("id","organizationId","updatedAt") VALUES ('r1','p1',${now})`);
+  check(JSON.stringify((await rows<{ rules: unknown }>(pr, `SELECT "rules" FROM "planning_rules"`))[0].rules) === "{}", "rules default to an empty set (all off)");
+  await assert.rejects(pr.exec(`INSERT INTO "planning_rules" ("id","organizationId","updatedAt") VALUES ('r2','p1',${now})`), /unique|duplicate/i);
+  await pr.exec(`INSERT INTO "planning_rule_overrides" ("id","organizationId","memberId","rules","updatedAt") VALUES ('o1','p1','pm','{"rest":{"enabled":false,"hours":11}}',${now})`);
+  await assert.rejects(pr.exec(`INSERT INTO "planning_rule_overrides" ("id","organizationId","memberId","updatedAt") VALUES ('o2','p1','pm',${now})`), /unique|duplicate/i);
+  await pr.exec(`DELETE FROM "organization_members" WHERE "id"='pm'`);
+  check((await rows(pr, `SELECT 1 FROM "planning_rule_overrides"`)).length === 0, "one rule set per organization, one override per person; removed with the member");
+  await pr.close();
+
   console.log("SUCCESS: " + checks + " migration checks passed.");
 }
 

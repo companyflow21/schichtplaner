@@ -34,6 +34,7 @@
     "test:migration:copy": "tsx tests/migration-copy.ts",
     "test:load:pilot": "tsx tests/load-pilot.ts",
     "test:load:seed": "tsx tests/seed-load-pilot.ts",
+    "test:rules": "tsx tests/planning-rules-unit.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "node scripts/start.mjs",

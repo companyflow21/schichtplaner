@@ -16,6 +16,7 @@ import { TimeSettings } from "@/components/settings/time-settings";
 import { AbsenceSettings } from "@/components/settings/absence-settings";
 import { AccountSettings } from "@/components/settings/account-settings";
 import { QualificationSettings } from "@/components/settings/qualification-settings";
+import { PlanningRulesSettings } from "@/components/settings/planning-rules-settings";
 
 // ---------- Types ----------
 
@@ -54,7 +55,7 @@ type SettingsResponse = {
 
 // ---------- Component ----------
 
-const SECTIONS: SettingsSection[] = ["schedule", "time", "wishplan", "employees", "qualifications", "absences", "account"];
+const SECTIONS: SettingsSection[] = ["schedule", "time", "wishplan", "employees", "qualifications", "absences", "account", "rules"];
 
 export default function SettingsPage() {
   return (
@@ -210,6 +211,7 @@ function SettingsContent() {
             <option value="qualifications">Qualifikationen</option>
             <option value="absences">Abwesenheiten</option>
             <option value="account">Account</option>
+            <option value="rules">Planungsregeln</option>
           </select>
         </div>
 
@@ -287,6 +289,8 @@ function SettingsContent() {
               isSaving={updateMutation.isPending}
             />
           )}
+
+          {activeSection === "rules" && <PlanningRulesSettings />}
         </div>
       </div>
     </div>

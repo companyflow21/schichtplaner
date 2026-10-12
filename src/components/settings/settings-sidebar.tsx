@@ -8,6 +8,7 @@ import {
   Umbrella,
   Building2,
   BadgeCheck,
+  ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +47,11 @@ const sections = [
     key: "account",
     label: "Account",
     icon: Building2,
+  },
+  {
+    key: "rules",
+    label: "Planungsregeln",
+    icon: ListChecks,
   },
 ] as const;
 
