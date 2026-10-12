@@ -4,6 +4,7 @@ import { ApiError } from "./errors";
 import { berlinDate, recordMinutes, weekDate, isoWeek, addDate } from "./berlin";
 import { branchIds, can, staffIds, type Access } from "./access";
 import { plannedMinutes as netMinutes } from "./planning";
+import { frozenPlans } from "./schedule-frozen";
 
 /**
  * Monatsauswertung. Eigene Werte sieht jede Person; fremde Werte nur, wer
@@ -47,6 +48,15 @@ export async function monthlyReport(a: Access, month: number, year: number, opti
       include: { shift: { include: { schedule: true } } },
     }),
   ]);
+  // Plaene in Bearbeitung ohne Planungssicht: Planstunden aus dem veroeffentlichten Stand
+  // (Momentaufnahme, lib/schedule-frozen.ts) im selben Rahmen wie bookingScope; Iststunden bleiben live.
+  const frozen = await frozenPlans(db, a, { year: { gte: year - 1, lte: year + 1 }, ...(branch ? { branchId: branch } : {}) });
+  const planned: typeof bookings = [
+    ...bookings.filter((b) => !frozen.scheduleIds.has(b.shift.scheduleId)),
+    ...frozen.shifts.flatMap((shift) => shift.bookings
+      .filter((b) => b.userId === a.userId || (!!b.userId && !!others?.includes(b.userId) && !!shift.schedule.branchId && !!allowedBranches?.includes(shift.schedule.branchId)))
+      .map((b) => ({ ...b, shift }))),
+  ];
   const weeks = new Map<number, { weekNumber: number; label: string }>();
   for (let d = first; d <= last; d = addDate(d, 1)) {
     const week = isoWeek(d);
@@ -76,7 +86,7 @@ export async function monthlyReport(a: Access, month: number, year: number, opti
     return {
       /** Stabiler Schluessel je Zeile (Personen mit Konto: userId; geloeschte: "former:" + Id). */
       key: p.userId, userId: p.userId as string | null, former: false, firstName: p.user.firstName, lastName: p.user.lastName, profileImage: p.user.profileImage as string | null, targetMinutes, targetStatus,
-      ...hours(records.filter((t) => t.userId === p.userId), bookings.filter((b) => b.userId === p.userId)),
+      ...hours(records.filter((t) => t.userId === p.userId), planned.filter((b) => b.userId === p.userId)),
     };
   });
   // Geloeschte Personen (Momentaufnahme): nur fuer Admins, ohne Sollstunden.

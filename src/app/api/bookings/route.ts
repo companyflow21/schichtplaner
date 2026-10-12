@@ -6,7 +6,7 @@ import { assertReleasable, assign, findShift, notify, placeBooking, planningPool
 import { closeOpenRequests, requestParties } from "@/lib/shift-requests";
 import { emitToBranch } from "@/lib/emit";
 import { shiftDays, signalBookedSites } from "@/lib/conflicts";
-import { notifiesEmployees } from "@/lib/schedule-status";
+import { EDITING_REQUESTS, notifiesEmployees } from "@/lib/schedule-status";
 
 type Tx = Prisma.TransactionClient;
 const input = z.object({ shiftId: z.string().min(1), userId: z.string().min(1) });
@@ -138,7 +138,8 @@ export async function DELETE(request: Request) {
  * Eigene, veroeffentlichte Schicht bestaetigen - nur fuer Altbestand ohne
  * Herkunft (confirmation leer). Zuweisungen der Planung (PLANNER) sind
  * bereits verbindlich, selbst bestaetigte (EMPLOYEE) bleiben unveraendert;
- * dann ist die Anfrage ohne Wirkung. Gleichzeitige Bestaetigungen
+ * dann ist die Anfrage ohne Wirkung. Waehrend der Bearbeitung des Plans 409
+ * (EDITING_REQUESTS). Gleichzeitige Bestaetigungen
  * kollidieren leicht; die Transaktion wird dann begrenzt neu ausgefuehrt.
  */
 export async function PATCH(request: Request) {
@@ -146,6 +147,8 @@ export async function PATCH(request: Request) {
     const member = await requireMember();
     const data = await body(request, z.object({ shiftId: z.string() }));
     const result = await serial(async tx => {
+      // Waehrend der Bearbeitung ruht die Bestaetigung wie Antraege: Mitarbeitende sehen noch den veroeffentlichten Stand.
+      if (await tx.schedule.count({ where: { organizationId: member.organizationId, deletedAt: null, isPublic: true, editingSince: { not: null }, shifts: { some: { id: data.shiftId } } } })) throw new ApiError(EDITING_REQUESTS, 409);
       const booking = await tx.booking.findFirst({ where: { shiftId: data.shiftId, userId: member.userId, shift: { deletedAt: null, schedule: { organizationId: member.organizationId, isPublic: true, deletedAt: null } } }, include: { shift: { include: { schedule: true } } } });
       if (!booking) throw new ApiError("Schicht nicht gefunden.", 404);
       const updated = booking.confirmation ? booking : await tx.booking.update({ where: { id: booking.id }, data: { confirmedAt: new Date(), confirmation: "EMPLOYEE" } });

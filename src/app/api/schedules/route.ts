@@ -1,7 +1,8 @@
 import { api, serial, ApiError } from "@/lib/api";
 import { can, requireAccess, type Access } from "@/lib/access";
 import { ineffectiveBookings, shiftInclude, shiftView } from "@/lib/planning";
-import { ineffectiveFor, mergedScope, visibleFor } from "@/lib/schedule-visibility";
+import { ineffectiveFor, inMergedScope, mergedScope, visibleFor } from "@/lib/schedule-visibility";
+import { frozenView } from "@/lib/schedule-frozen";
 import { ensureSchedule } from "@/lib/shift-service";
 import { editingInfo } from "@/lib/schedule-editing";
 import { branchHolidays } from "@/lib/holidays";
@@ -45,7 +46,8 @@ export async function GET(request: Request) {
         let schedule = await tx.schedule.findFirst({ where: { organizationId: a.orgId, branchId, weekNumber, year, deletedAt: null } });
         if (!schedule && branch && access.edit && branch.isActive && branch.customerId) schedule = await ensureSchedule(tx, a.orgId, branch.id, { weekNumber, year });
         const visible = schedule && (access.planner || schedule.isPublic);
-        const shifts = visible ? (await tx.shift.findMany({ where: { scheduleId: schedule!.id, deletedAt: null }, include: shiftInclude, orderBy: [{ dayOfWeek: "asc" }, { shiftFrom: "asc" }] })).filter(visibleFor(a)) : [];
+        // Plan in Bearbeitung: Mitarbeitende sehen den veroeffentlichten Stand (Momentaufnahme).
+        const shifts = visible ? (await frozenView(tx, a, await tx.shift.findMany({ where: { scheduleId: schedule!.id, deletedAt: null }, include: shiftInclude, orderBy: [{ dayOfWeek: "asc" }, { shiftFrom: "asc" }] }), { id: schedule!.id })).filter(visibleFor(a)) : [];
         const ineffective = access.planner ? await ineffectiveBookings(tx, a.orgId, shifts) : new Set<string>();
         const base = schedule && visible ? schedule : { id: "", isPublic: false, settingsLayout: "LAYOUT_1" as const, showTitle: true, showPauses: true };
         // Lebenszyklus (Entwurf / veroeffentlicht / in Bearbeitung) nur fuer die Planung.
@@ -57,12 +59,13 @@ export async function GET(request: Request) {
           access,
         };
       }
-      // Zusammengefuehrte Sicht: eigene veroeffentlichte Schichten plus alles, was Freigaben zeigen.
-      const shifts = (await tx.shift.findMany({
+      // Zusammengefuehrte Sicht: eigene veroeffentlichte Schichten plus alles, was Freigaben zeigen;
+      // Plaene in Bearbeitung ohne Planungssicht im veroeffentlichten Stand (Momentaufnahme).
+      const shifts = (await frozenView(tx, a, await tx.shift.findMany({
         where: { deletedAt: null, schedule: { organizationId: a.orgId, weekNumber, year, deletedAt: null }, OR: mergedScope(a) },
         include: shiftInclude,
         orderBy: [{ dayOfWeek: "asc" }, { shiftFrom: "asc" }],
-      })).filter(visibleFor(a));
+      }), { weekNumber, year }, inMergedScope(a))).filter(visibleFor(a));
       const ineffective = await ineffectiveFor(tx, a, shifts);
       return {
         schedule: { id: "", organizationId: a.orgId, branchId: null, weekNumber, year, isPublic: shifts.every(s => s.schedule.isPublic), settingsLayout: "LAYOUT_1", showTitle: true, showPauses: true, shifts: shifts.map(s => shiftView(s, a, ineffective)) },

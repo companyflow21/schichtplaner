@@ -2,6 +2,7 @@ import { db } from "./db";
 import { berlinDate, addDate, isoWeek, weekDate } from "./berlin";
 import { can, canSee, branchIds, anyBranchIds, branchHolders, type Access } from "./access";
 import { ApiError } from "./errors";
+import { frozenPlans } from "./schedule-frozen";
 
 type Recipient = { userId: string; isRead: boolean; isDeleted: boolean; user?: { id: string; firstName: string; lastName: string; profileImage?: string | null } };
 
@@ -18,9 +19,15 @@ export function recipientsFor<T extends Recipient>(recipients: T[], people: Set<
  * Standort einer Schicht fuer den Nachrichtenbezug: null bei Altbestand ohne
  * Standort, undefined wenn die Schicht fuer die Person gar nicht sichtbar ist.
  * Sichtbar sind planende Manager/Admins sowie - bei veroeffentlichten Plaenen -
- * gebuchte oder zur Standortanfrage berechtigte Personen (wie im Dienstplan).
+ * gebuchte oder zur Standortanfrage berechtigte Personen (wie im Dienstplan);
+ * bei Plaenen in Bearbeitung ohne Planungssicht laut Momentaufnahme.
  */
 export async function shiftBranchForMessage(a: Access, shiftId: string): Promise<string | null | undefined> {
+  const frozen = await frozenPlans(db, a, { shifts: { some: { id: shiftId } } });
+  if (frozen.scheduleIds.size) {
+    const s = frozen.shifts.find((x) => x.id === shiftId);
+    return s && (s.bookings.some((b) => b.userId === a.userId) || can(a, "REQUEST_SHIFTS", s.schedule.branchId)) ? s.schedule.branchId : undefined;
+  }
   const shift = await db.shift.findFirst({
     where: { id: shiftId, deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null } },
     select: { schedule: { select: { branchId: true, isPublic: true } }, bookings: { where: { userId: a.userId }, select: { id: true } } },
@@ -103,6 +110,22 @@ export function messageReference(message: {
   return null;
 }
 
+/**
+ * Schichtbezug beim Lesen wie im Dienstplan: Liegt die Schicht in einem Plan
+ * in Bearbeitung, den die Person nicht live sieht, gelten Tag und Zeit der
+ * Momentaufnahme (falls die Schicht dort vorkommt).
+ */
+export async function frozenReferences<T extends { shiftId: string | null; shift: { dayOfWeek: number; shiftFrom: string; shiftTo: string } | null }>(a: Access, messages: T[]): Promise<T[]> {
+  const ids = [...new Set(messages.flatMap((m) => (m.shiftId && m.shift ? [m.shiftId] : [])))];
+  const frozen = ids.length ? await frozenPlans(db, a, { shifts: { some: { id: { in: ids } } } }) : null;
+  if (!frozen?.shifts.length) return messages;
+  const shifts = new Map(frozen.shifts.map((s) => [s.id, s]));
+  return messages.map((m) => {
+    const s = m.shiftId ? shifts.get(m.shiftId) : undefined;
+    return s && m.shift ? { ...m, shift: { ...m.shift, dayOfWeek: s.dayOfWeek, shiftFrom: s.shiftFrom, shiftTo: s.shiftTo } } : m;
+  });
+}
+
 /** Feld-Auswahl, um shift/branch fuer messageReference() mitzuladen. */
 export const referenceInclude = {
   shift: { select: { dayOfWeek: true, shiftFrom: true, shiftTo: true, schedule: { select: { year: true, weekNumber: true, branch: { select: { name: true } } } } } },
@@ -168,7 +191,8 @@ function weeksInRange(from: string, days: number): { year: number; weekNumber: n
 
 /**
  * Schichten, auf die die Person in einer Nachricht verweisen darf (Task 4):
- * eigene veroeffentlichte Buchungen der naechsten 30 Tage, fuer Planer
+ * eigene veroeffentlichte Buchungen der naechsten 30 Tage (Plaene in
+ * Bearbeitung ohne Planungssicht laut Momentaufnahme), fuer Planer
  * zusaetzlich Schichten ihrer "Schichten bearbeiten"-Standorte im selben
  * Zeitraum. Hoechstens 50 Eintraege, nach Datum sortiert.
  */
@@ -184,8 +208,9 @@ export async function referencableShifts(a: Access): Promise<{ id: string; date:
     title: true,
     schedule: { select: { year: true, weekNumber: true, branch: { select: { name: true } } } },
   } as const;
+  const frozen = await frozenPlans(db, a, { OR: weeks.map((w) => ({ year: w.year, weekNumber: w.weekNumber })) });
   const own = await db.shift.findMany({
-    where: { deletedAt: null, schedule: { organizationId: a.orgId, isPublic: true, deletedAt: null }, bookings: { some: { userId: a.userId } } },
+    where: { deletedAt: null, schedule: { organizationId: a.orgId, isPublic: true, deletedAt: null, id: { notIn: [...frozen.scheduleIds] } }, bookings: { some: { userId: a.userId } } },
     select,
   });
   const editBranches = branchIds(a, "EDIT_SHIFTS");
@@ -207,7 +232,7 @@ export async function referencableShifts(a: Access): Promise<{ id: string; date:
         })
       : [];
   const byId = new Map<string, (typeof own)[number]>();
-  for (const s of [...own, ...plannerShifts]) byId.set(s.id, s);
+  for (const s of [...own, ...frozen.shifts.filter((s) => s.bookings.some((b) => b.userId === a.userId)), ...plannerShifts]) byId.set(s.id, s);
   const result: { id: string; date: string; shiftFrom: string; shiftTo: string; title: string | null; branchName: string | null }[] = [];
   for (const s of byId.values()) {
     const date = weekDate(s.schedule.year, s.schedule.weekNumber, s.dayOfWeek);
