@@ -199,14 +199,16 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
       />
 
       {canEdit && branch && !branch.plannable && (
-        <p className="mb-4 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
+        <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
           {branch.isActive ? "Standort ohne Kunde: neue Schichten erst nach der Zuordnung unter Einsatzorte." : "Standort inaktiv: keine neuen Schichten möglich."}
+          {branch.isActive && <Link href="/divisions" className="font-medium text-primary underline-offset-4 hover:underline">Jetzt zuordnen</Link>}
         </p>
       )}
       <PlanStatusBanner schedule={schedule} access={access} standort={standort} />
       {canEdit && branch && !branch.holidayState && (
-        <p className="mb-4 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
+        <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
           Für diesen Einsatzort ist kein Bundesland festgelegt. Angezeigt werden nur bundesweite Feiertage; landesrechtliche (z. B. Reformationstag in Thüringen, Allerheiligen in NRW) fehlen. Festlegen unter Einsatzorte → Bearbeiten.
+          <Link href="/divisions" className="font-medium text-primary underline-offset-4 hover:underline">Bundesland festlegen</Link>
         </p>
       )}
       {standort === "ohne" && (
