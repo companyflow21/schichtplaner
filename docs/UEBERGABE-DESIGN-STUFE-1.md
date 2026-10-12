@@ -82,17 +82,34 @@ Tagen, Statusbadge, Bestätigungsdialoge mit Folgen, „Offene Aufgaben“ mit L
 - Bereichsfarben durchgängig, Wochen-Vorlagen, Live-Zähler, Filterleiste: Stufe 2/3, nicht
   beauftragt. `Division.color` existiert bereits im Datenmodell.
 
-## Nachzügler (nach dem Merge der Lebenszyklus-Oberfläche, weil dieselben Dateien)
-- `schedule-toolbar.tsx:~150`: „Heute“ statt „Diese Woche“, immer sichtbar.
-- `schedule-grid.tsx:~174/~184`: Links in den Warnungen „Standort ohne Kunde“ und „kein
-  Bundesland“ auf die Einsatzorte.
-- `shift-card.tsx:~258/~277`: Dialog „Zuweisung aufheben“ um die belegte Folge ergänzen
-  (Benachrichtigung bei veröffentlichtem Plan, offene Anträge werden abgelehnt).
-- Schrift ≤ 12 px: `shift-card.tsx` (11 Stellen), `schedule-grid.tsx` (3), `schedule-toolbar.tsx`
-  (1) sowie die zentralen Bausteine `ui/status-badge.tsx` („klein“ = 11 px), `ui/badge.tsx`,
-  `ui/table.tsx` (Spaltenköpfe), `ui/button.tsx` (`xs`), `.akro-label` (12 px) – Mindestgröße
-  ist eine Entscheidung (Vorschlag: nichts unter 12 px, Inhalte 13–14 px).
-- `schedule-options.tsx:~515`: `confirm()` beim Briefing-Löschen → `ConfirmDialog`.
+## Nachzügler (erledigt 12.10.2026 auf Basis `badfea6`, nach dem Merge der Lebenszyklus-Oberfläche)
+- „Heute“-Knopf in der Planungs-Toolbar (`schedule-toolbar.tsx`, statt „Diese Woche“) und im
+  Monatsplan (`month-grid.tsx`, statt „Aktueller Monat“): immer sichtbar, in der aktuellen
+  Woche bzw. im aktuellen Monat deaktiviert. Kein Browser-Test erwartete die alten Texte.
+- Links in den Plan-Warnungen (`schedule-grid.tsx`): „Jetzt zuordnen“ (Standort ohne Kunde) und
+  „Bundesland festlegen“ (kein Bundesland), Ziel `/divisions` (Einsatzorte laut `nav-config.ts`),
+  Stil wie „Zuordnen“ auf der Startseite.
+- Dialog „Zuweisung aufheben“ (`shift-card.tsx`): Folgen als `details` – offene Anträge der
+  Person zu dieser Schicht werden abgelehnt (`api/bookings/route.ts` → `closeOpenRequests`);
+  Benachrichtigung nur bei veröffentlichtem Plan, nicht im Entwurf und nicht während der
+  Bearbeitung (`notifiesEmployees`); Sub-Platzhalter: keine Mitteilung
+  (`contractor-bookings` DELETE sendet nichts). Titel und Knöpfe unverändert.
+- Briefing löschen (`schedule-options.tsx`): `ConfirmDialog` „Briefing löschen“, Löschen rot;
+  Text belegt durch `api/schedules/[id]/briefing/route.ts` (hartes `deleteMany`, kein `notify`,
+  Mitarbeitende sehen das Briefing bei veröffentlichtem Plan).
+- Mindestschrift 12 px: Regel als Kommentar in `globals.css` beim `.akro-label`; alle
+  Vorkommen `text-[9|10|11|11.5px]` in `src` von 74 auf 0 (`text-xs`). Mitgezogen, damit nichts
+  umbricht oder überläuft: Avatare mit Initialen 24 → 28 px (`shift-card`, `employee-grid`,
+  `employee-nav`, `employee-picker`, `wish-plan`), Zählerpunkte der mobilen Tab-Leiste
+  16 → 20 px, `anomaly-badge` Höhe 16 → 20 px, KW-Spalte im Monatsplan 3,5 → 4 rem,
+  `whitespace-nowrap` an Zeiten, „Kapazität erhöhen“ und „Kopieren“; `StatusBadge klein` = 12 px.
+  `ui/badge.tsx`, `ui/table.tsx`, `ui/button.tsx` nutzten bereits 12 px.
+- Nachweise (Branch `worktree-agent-ab75cc1291ed18146`, 6 Commits `bd7a3cb`…`1a45df2`):
+  Typprüfung 0 Fehler; Lint 0/25; `schedule-actions` 45, `conflict-card` 17, `info-hint` 6,
+  `plan-banner` 45; `TEST_ONLY=permissions,assignment` 715; Browser-Vorschau (PGlite, Port 3413)
+  bei 1280, 1024 und 375 px ohne Überlauf, beide neuen Dialoge bedient, kein sichtbarer Text
+  unter 12 px. Nicht geprüft: `npm run build`, `tests/ui-*.mjs`, der „Mehr“-Zähler mit
+  ungelesenen Nachrichten und die Warnung „Jetzt zuordnen“ (in der Vorschau nicht vorhanden).
 
 ## Prüfnachweise (Branch `feat/design-stufe-1`, 12.10.2026)
 - Typprüfung 0 Fehler; Lint 0 Fehler / 25 bestehende Warnungen.
