@@ -326,7 +326,9 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Kleines Label, nur leicht gesperrt (Designsystem: 11-13px, 500-600). */
+  /* Kleines Label, nur leicht gesperrt (Designsystem: 12-13 px, 500-600).
+     Mindestschrift im ganzen Produkt: nichts unter 12 px - in Komponenten
+     text-xs (12 px) statt freier Werte unter 12 px; Inhalte 13-14 px. */
   .akro-label {
     font-size: 12px;
     font-weight: 600;

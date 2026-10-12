@@ -55,7 +55,7 @@ export function MobileNav() {
 
   const eintragKlasse = (active: boolean) =>
     cn(
-      "relative flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
+      "relative flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors",
       active ? "bg-primary/5 text-primary" : "text-muted-foreground"
     );
 
@@ -88,7 +88,7 @@ export function MobileNav() {
           <MoreHorizontal className="size-5" />
           Mehr
           {unread > 0 && (
-            <span className="absolute top-2 right-1/4 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+            <span className="absolute top-1.5 right-1/4 flex min-w-5 items-center justify-center rounded-full bg-primary px-1 py-0.5 text-xs font-semibold text-primary-foreground">
               {unread > 9 ? "9+" : unread}
               <span className="sr-only"> ungelesene Nachrichten</span>
             </span>
@@ -106,7 +106,7 @@ export function MobileNav() {
               if (weitere.length === 0) return null;
               return (
                 <div key={group.title} className="mb-4 last:mb-0">
-                  <p className="mb-1.5 px-2 text-[11px] font-semibold tracking-wide text-muted-foreground">
+                  <p className="mb-1.5 px-2 text-xs font-semibold tracking-wide text-muted-foreground">
                     {group.title}
                   </p>
                   <ul>
@@ -128,7 +128,7 @@ export function MobileNav() {
                             <Icon className="size-5 text-muted-foreground" />
                             {item.label}
                             {count > 0 && (
-                              <span className="ml-auto flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
+                              <span className="ml-auto flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-xs font-semibold text-primary-foreground">
                                 {count > 99 ? "99+" : count}
                                 <span className="sr-only"> ungelesene Nachrichten</span>
                               </span>

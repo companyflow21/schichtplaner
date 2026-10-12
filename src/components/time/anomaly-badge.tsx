@@ -121,7 +121,7 @@ export function AnomalyBadge({ month, isManager }: AnomalyBadgeProps) {
         {summary.critical > 0 && (
           <Badge
             variant="destructive"
-            className="text-[9px] px-1 py-0 h-4"
+            className="text-xs px-1 py-0 h-5"
           >
             {summary.critical} kritisch
           </Badge>
@@ -172,7 +172,7 @@ export function AnomalyBadge({ month, isManager }: AnomalyBadgeProps) {
                           : "secondary"
                       }
                       className={cn(
-                        "text-[9px] px-1.5 py-0 shrink-0",
+                        "text-xs px-1.5 py-0 shrink-0",
                         anomaly.severity === "warning" &&
                           "bg-warn/10 text-warn dark:bg-warn/20 dark:text-warn"
                       )}
@@ -183,7 +183,7 @@ export function AnomalyBadge({ month, isManager }: AnomalyBadgeProps) {
                   <p className="text-xs text-muted-foreground">
                     {anomaly.details}
                   </p>
-                  <p className="text-[10px] text-muted-foreground/70">
+                  <p className="text-xs text-muted-foreground/70">
                     {anomaly.date}
                   </p>
                 </div>
@@ -227,7 +227,7 @@ export function EmployeeAnomalyIndicator({
     <Badge
       variant="secondary"
       className={cn(
-        "text-[9px] px-1.5 py-0 gap-0.5",
+        "text-xs px-1.5 py-0 gap-0.5",
         hasCritical
           ? "bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive"
           : "bg-warn/10 text-warn dark:bg-warn/20 dark:text-warn"
