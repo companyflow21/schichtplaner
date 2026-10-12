@@ -99,7 +99,27 @@ Ports 3408/55542, Rechner sonst weitgehend frei):
 | `npm run test:workflows` (vollständig, alle Module inkl. `plan-lifecycle`, `plan-frozen`, `conflicts`, `dashboard-tasks`) | FINAL SUCCESS 3156/3156 |
 | `npm run build` | erfolgreich |
 
-Browserabnahme: siehe Abschnitt „Browserabnahme“ unten (wird nach der Prüfung ergänzt).
+### Browserabnahme (12.10.2026, 17:25–17:35)
+
+Lokale Produktionsinstanz (`npm run build` + `npx tsx tests/load-local.ts --serve`, PGlite im
+RAM, synthetische Daten „AKRO Codex Lasttest“ mit 100 Konten, Port 3337), Admin im
+Browser, Mitarbeiterkonten parallel über die HTTP-API mit eigenen Sitzungen. Alle Punkte
+tatsächlich bedient, nicht nur gesehen:
+
+| Ablauf | Ergebnis |
+|---|---|
+| Veröffentlichte Woche KW 42 → „Bearbeitung starten“ | Dialog mit Folgen und Warnzeile „Woche hat bereits begonnen“; danach Badge „In Bearbeitung“, Balken mit Zeitpunkt und Name, Toast mit Serverhinweis |
+| Während EDITING: Platz besetzt, Zeit einer Schicht geändert (14–22 → 13–21), Schicht gelöscht, neue Schicht angelegt | Planer sieht alles live; Mitarbeiter (API: Standortplan, „Mein Dienstplan“, Startseite) sieht unverändert 14:00–22:00 mit `can.request=false`; Postfach bleibt leer |
+| „Änderungen veröffentlichen“ | Dialog gruppiert korrekt: 1 neue (Sa, 1 Platz offen), 2 geänderte (Di „Zeit“ mit vorher/nachher, Fr „Besetzung“), 1 entfallene (Do), „Betroffene Personen: 27“, Checkbox an. Nach Bestätigen Toast „27 Personen benachrichtigt“, Badge „Veröffentlicht“, Balken weg; Mitarbeiter sieht jetzt 13:00–21:00 und hat genau eine Mitteilung „Dienstplan KW 42/2026 aktualisiert“ mit Abschnitt „Geändert … vorher …“ |
+| Zweiter Durchlauf: Bearbeitung, Zeit geändert, „Verwerfen“ | Roter Dialog mit Folgen; danach Schicht wieder 08:00–17:00, Status PUBLISHED, keine Mitteilung |
+| Dritter Durchlauf: Zuweisung aufgehoben, Checkbox „Betroffene benachrichtigen“ abgewählt | Toast „ohne Benachrichtigung“; betroffene Person hat 0 Mitteilungen (API) |
+| Konfliktprüfung: genehmigte Abwesenheit per API für eine eingeteilte Person angelegt | Panel aktualisiert sich ohne Neuladen: „1 Konflikt, 0 Hinweise – Test 100 – Di 13.10., 13:00–21:00 · Genehmigte Abwesenheit.“; Klick springt zur Karte, Karte rot mit Badge „Konflikt“ |
+| Entwurfswoche KW 43 mit einer Schicht | Oranger Balken „Entwurf – für Mitarbeitende unsichtbar“ mit genau einem Knopf „Veröffentlichen“; Dialog „Erstveröffentlichung: 1 Schicht ist neu“, übrige Gruppen „keine“; Toast „keine Person benachrichtigt“, Badge „Veröffentlicht“ |
+| 375 px (Entwurfsbanner und Veröffentlichen-Dialog) | `scrollWidth` = `clientWidth` = 375, Dialog 343 px breit, keine Elemente über den Rand; Aktionen gestapelt |
+
+Nicht im Browser geprüft: Mitarbeiterkonto in der Oberfläche (nur per API), Verwerfen mit
+Überschneidungskonflikt, Benachrichtigung „Neue offene Schichten“ an Standortfreigaben
+(keine Freigaben in den Testdaten), Push auf echten Geräten.
 
 Nachweise der Einzelbausteine vor der Integration (Agentenläufe, jeweils flüchtige PGlite):
 Konfliktprüfung 1235, Lebenszyklus 1264 (+65 Migrationsprüfungen), Überschneidung 1400,
