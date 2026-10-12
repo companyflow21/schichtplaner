@@ -2,7 +2,7 @@
 
 ## Mitarbeiterbetrieb: gemeldete Probleme (11.–12.10.2026)
 
-Ausgangsstand live: `1d2046d` (06.10.). Lokal ab `87834b0` bearbeitet, nicht eingespielt.
+Ausgangsstand live: `1d2046d` (06.10.). **Seit 12.10.2026, 10:53 läuft `5052c3d` auf Netcup** (Auftrag „weiter“ auf die Frage nach Einspielen und Bundesländern).
 Betriebsdaten nur lesend in schreibgeschützten Transaktionen geprüft. Es wurden nur
 Kennzahlen ausgegeben, keine Personendaten. Nichts veröffentlicht, keine Rechte und
 keine Stammdaten verändert.
@@ -57,14 +57,19 @@ und keine allgemeine Wochenhöchstgrenze; 48 h ergibt sich rechnerisch aus § 3.
 4. Betriebliche Höchststunden pro Tag (Einstellungen → Zeiterfassung) einschalten und Wert.
 5. Fronleichnam in Thüringen: für welche Standorte (nur Gemeinden mit 1994 geltender Regelung).
 
-**Vorbereitete Betriebsschritte (nicht ausgeführt, nur mit ausdrücklichem Auftrag):**
-- Einspielen des lokalen Stands mit Sicherung, Kopie-Migration der neuen Migration,
-  Rückfallversion und Nachprüfung (Verfahren wie am 06.10.).
-- Bundesland je Einsatzort (Vorschlag aus den Ortsnamen, bitte bestätigen): Nordrhein-Westfalen
-  für Bonn, Frechen, Köln, Leverkusen, Mönchengladbach; Thüringen für Apolda, Arnstadt,
-  Bad Salzungen, Eisenach, Gotha, Greiz, Hildburghausen, Jena, Saalfeld, Schleiz,
-  Schmalkalden, Sömmerda, Suhl, Weimar; Bayern für München; „N“ (inaktiv) offen.
-- Abwesenheitsarten anlegen; Wochen je Standort veröffentlichen (Admin in der App).
+**Einspielen 12.10.2026 (ausgeführt):** Ausgangsstand geprüft (382/382 Dateien `1d2046d`, 10/10 Migrationen).
+Sicherung: drei `pg_dump -Fc` (43 Tabellendaten) und Code ohne `.env` unter `/root/schichtplaner-backups`,
+Rückfall-Images `:rollback-1d2046d`. Wegwerf-Kopie im internen Docker-Netz: Wiederherstellung 43/43,
+Betrieb während der Sicherung unverändert, Migration `20261012090000` mit `additiv` 45/45; neue und alte
+App starten auf den Kopien. Umgeschaltet 10:53 (rund 10 s Unterbrechung): 11/11 Migrationen, 393/393 Dateien
+`5052c3d`, Konten/Mitgliedschaften/Pläne/Schichten/Einteilungen/Freigaben per Hash unverändert, HTTPS
+Health/Login/Echtzeit 200, keine App-Fehler im Log. Danach in einer geprüften Transaktion Bundesland gesetzt:
+NRW 5 (Bonn, Frechen, Köln, Leverkusen, Mönchengladbach), Thüringen 14 (JC/AA-Standorte), Bayern 1 (München);
+„N“ (inaktiv) offen. Wegwerf-Kopie entfernt. Rückweg: Images `:rollback-1d2046d` mit Sicherung
+`db-1d2046d-*-c.dump` in eine neue Datenbank.
+
+**Noch offen im Betrieb (AKRO in der App):** Wochen je Standort veröffentlichen; Abwesenheitsarten anlegen;
+Anmeldung mit echten Konten prüfen; GPS/Push auf echten Geräten.
 
 ## Diagnose: Mitarbeiter sehen keine Pläne (11.10.2026)
 
