@@ -157,6 +157,16 @@ export function MessageList({ folder }: Props) {
                 variant="ghost"
                 size="sm"
                 onClick={() =>
+                  patchMutation.mutate({ ids: Array.from(selected), patch: { isRead: false } })
+                }
+              >
+                <Mail className="mr-1 size-4" />
+                Ungelesen
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
                   patchMutation.mutate({ ids: Array.from(selected), patch: { isDeleted: true } })
                 }
               >

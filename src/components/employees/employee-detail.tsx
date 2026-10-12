@@ -276,6 +276,29 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
     },
   });
 
+  const reactivateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/employees/${memberId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: true }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Fehler beim Reaktivieren");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("Mitarbeiter reaktiviert");
+      queryClient.invalidateQueries({ queryKey: ["employee", memberId] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message);
+    },
+  });
+
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -406,11 +429,8 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
               )}
               {canDelete && !employee.isActive && (
                 <DropdownMenuItem
-                  onClick={() => {
-                    // Reactivate by updating isActive through a custom approach
-                    // For now we use the PATCH endpoint concept
-                    toast.info("Reaktivierung noch nicht implementiert");
-                  }}
+                  disabled={reactivateMutation.isPending}
+                  onClick={() => reactivateMutation.mutate()}
                 >
                   Reaktivieren
                 </DropdownMenuItem>

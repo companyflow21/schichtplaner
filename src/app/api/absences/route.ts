@@ -21,8 +21,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const managed = staffIds(a, "MANAGE_ABSENCES");
     const scope = managed ? [a.userId, ...managed] : null;
-    const active = await db.organizationMember.findMany({ where: { organizationId: a.orgId, isActive: true, ...(scope ? { userId: { in: scope } } : {}) }, select: { userId: true } });
-    const userIds = active.map((m) => m.userId);
+    // Abwesenheiten deaktivierter Personen bleiben sichtbar (Verlauf); eintragen nur fuer aktive.
+    const members = await db.organizationMember.findMany({ where: { organizationId: a.orgId, ...(scope ? { userId: { in: scope } } : {}) }, select: { userId: true, isActive: true } });
+    const userIds = members.map((m) => m.userId);
+    const activeIds = members.filter((m) => m.isActive).map((m) => m.userId);
     const where: Record<string, unknown> = { category: { organizationId: a.orgId }, userId: { in: userIds } };
     const yearParam = searchParams.get("year"), monthParam = searchParams.get("month");
     if (yearParam && !Number.isNaN(parseInt(yearParam, 10))) {
@@ -44,9 +46,9 @@ export async function GET(request: NextRequest) {
     const [absences, all, people] = await Promise.all([
       db.absence.findMany({ where, include, orderBy: { dateFrom: "asc" } }),
       db.absence.findMany({ where: { category: { organizationId: a.orgId }, userId: { in: userIds } }, select: { status: true } }),
-      canManage ? db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, firstName: true, lastName: true }, orderBy: [{ lastName: "asc" }, { firstName: "asc" }] }) : Promise.resolve([]),
+      canManage ? db.user.findMany({ where: { id: { in: activeIds } }, select: { id: true, firstName: true, lastName: true }, orderBy: [{ lastName: "asc" }, { firstName: "asc" }] }) : Promise.resolve([]),
     ]);
-    const decides = (userId: string) => canStaff(a, "MANAGE_ABSENCES", userId) && (a.isAdmin || userId !== a.userId);
+    const decides = (userId: string) => activeIds.includes(userId) && canStaff(a, "MANAGE_ABSENCES", userId) && (a.isAdmin || userId !== a.userId);
     return {
       absences: absences.map((x) => ({ ...x, canDecide: decides(x.userId) })),
       counts: { all: all.length, pending: all.filter((x) => x.status === "PENDING").length, approved: all.filter((x) => x.status === "APPROVED").length, declined: all.filter((x) => x.status === "DECLINED").length },

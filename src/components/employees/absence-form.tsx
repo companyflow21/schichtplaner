@@ -134,6 +134,13 @@ function AbsenceEditor({
     absence?.dateTo.slice(0,10) || defaultDateTo || berlinDate()
   );
   const [note, setNote] = useState(absence?.note || "");
+  const [approveNow, setApproveNow] = useState(true);
+  // Wie Smartplan: Eintraege der Leitung fuer andere gelten sofort. Die eigene
+  // Abwesenheit genehmigt nur die Administration selbst; der Server prueft erneut.
+  const self = userId === currentMember?.user.id;
+  const isAdmin = currentMember?.role === "OWNER" || currentMember?.role === "ADMIN";
+  const canApproveNow = !isEdit && (self ? isAdmin : employees.some((e) => e.userId === userId));
+  const approving = canApproveNow && approveNow;
 
   // Fetch categories
   const { data: categoriesData } = useQuery<{ categories: AbsenceCategory[] }>({
@@ -159,6 +166,7 @@ function AbsenceEditor({
           dateFrom,
           dateTo,
           note: note.trim() || undefined,
+          ...(approving ? { status: "APPROVED" } : {}),
         }),
       });
       if (!res.ok) {
@@ -168,7 +176,7 @@ function AbsenceEditor({
       return res.json();
     },
     onSuccess: () => {
-      toast.success("Abwesenheit erstellt");
+      toast.success(approving ? "Abwesenheit eingetragen und genehmigt" : "Abwesenheit beantragt");
       queryClient.invalidateQueries({ queryKey: ["absences"] });
       onOpenChange(false);
     },
@@ -356,6 +364,18 @@ function AbsenceEditor({
                 maxLength={500}
               />
             </div>
+
+            {canApproveNow && (
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-primary"
+                  checked={approveNow}
+                  onChange={(e) => setApproveNow(e.target.checked)}
+                />
+                Direkt genehmigen
+              </label>
+            )}
           </div>
 
           <DialogFooter className="mt-6">
@@ -398,7 +418,7 @@ function AbsenceEditor({
                 </Button>
                 <Button type="submit" disabled={isPending}>
                   {isPending && <Loader2 className="size-4 animate-spin" />}
-                  {isEdit ? "Speichern" : "Beantragen"}
+                  {isEdit ? "Speichern" : approving ? "Eintragen" : "Beantragen"}
                 </Button>
               </div>
             </div>
