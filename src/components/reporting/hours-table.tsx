@@ -122,7 +122,7 @@ function formatMinutesCompact(totalMinutes: number): string {
   return `${h}H${String(m).padStart(2, "0")}M`;
 }
 
-type BranchOption = { id: string; name: string; customer: { name: string } | null };
+type BranchOption = { id: string; name: string; archivedAt?: string | null; customer: { name: string } | null };
 
 function stunden(minutes: number | null): string {
   return minutes === null ? "–" : (minutes / 60).toLocaleString("de-DE", { maximumFractionDigits: 2 }) + " h";
@@ -145,11 +145,11 @@ export function HoursTable({ month, year }: HoursTableProps) {
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [showExport, setShowExport] = useState(false);
-  // Standortfilter: nur Standorte mit "Zeiterfassung einsehen" (Admins: alle)
+  // Standortfilter: nur Standorte mit "Zeiterfassung einsehen" (Admins: alle), auch archivierte
   const [standort, setStandort] = useState("");
   const { data: branchData } = useQuery({
-    queryKey: ["branches", "VIEW_TIME"],
-    queryFn: () => json<{ branches: BranchOption[] }>("/api/branches?right=VIEW_TIME"),
+    queryKey: ["branches", "VIEW_TIME", "archived"],
+    queryFn: () => json<{ branches: BranchOption[] }>("/api/branches?right=VIEW_TIME&archived=include"),
   });
   const branches = branchData?.branches ?? [];
 
@@ -332,7 +332,7 @@ export function HoursTable({ month, year }: HoursTableProps) {
             <select className={cn(selectClass, "sm:w-64")} value={standort} onChange={(e) => setStandort(e.target.value)}>
               <option value="">Alle freigegebenen Standorte</option>
               {branches.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}{b.customer ? " · " + b.customer.name : ""}</option>
+                <option key={b.id} value={b.id}>{b.name}{b.customer ? " · " + b.customer.name : ""}{b.archivedAt ? " (archiviert)" : ""}</option>
               ))}
             </select>
           </label>
