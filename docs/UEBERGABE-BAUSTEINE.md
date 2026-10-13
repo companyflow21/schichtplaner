@@ -169,6 +169,15 @@ eingefrorene Sicht 1477, UI: Rendertests 45/17/45 und `next build` erfolgreich.
 - Kein Betriebsnachweis: Migration `20261012120000_schedule_editing` ist nicht gegen eine
   Kopie der Betriebsdaten gelaufen.
 
+## Nachtrag 13.10.2026: Port der Cloud-Pakete
+
+Auf demselben Branch liegen seit dem 13.10.2026 zusätzlich die portierten Cloud-Pakete
+(Sicherheitsfix Login-POST, P0-Korrekturen, Lohn, Stundenfreigabe, Stundenzettel/PDF,
+Zeitkonten, Abwesenheitswirkung, Urlaubskonto, Planungsregeln) – Beschreibung, sechs neue
+Migrationen, Fachannahmen und Gesamtabnahme in `docs/UEBERGABE-SMARTPLAN-PORT.md`. Der
+Cloud-Branch `claude/wizardly-cerf-cxbutc` selbst darf nicht gemerged werden
+(`docs/BERICHT-CLOUD-BRANCH-2026-10-12.md`).
+
 ## Übernahme in das Original
 
 1. Im Original den Branch holen – entweder direkt aus dem Klon
