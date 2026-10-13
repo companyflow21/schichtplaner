@@ -87,8 +87,33 @@ Die Cloud-Migration `20261018090000_publishing` und das Cloud-Modell `ScheduleSn
   Mitarbeiteransicht) mit teils gleichen Prüfungen und anderen Texten; zusammenlegen oder
   beides lassen.
 
-### P4 Zeitkonten, P5 Abwesenheit wirkt / Urlaubskonto
-_(wird nach dem Merge von S4 ergänzt)_
+### P4 Zeitkonten, P5 Abwesenheit wirkt / Urlaubskonto (Cloud `0de1cc7`, `c21d5b3`, `ef304e8`, `8b69405`; Merge `a756ec0`)
+- Zeitkonto je Person: Soll mit Startdatum (anteilig bei Beginn mitten in Woche/Monat), drei
+  Rechenarten (Ist−Soll, Plan−Soll, Ist−Plan), Gutschriften/Abzüge durch die Administration,
+  Saldo als Spalte in „Stunden und Lohn“, „Mein Zeitkonto“ unter Zeiterfassung (freischaltbar).
+- Abwesenheit wirkt: Beim Genehmigen zeigt ein Dialog die Schichten im Zeitraum; je Schicht
+  „zählt Stunden (bezahlt)“, „0 Stunden“ oder „Person austragen“. Bezahlte Abwesenheit erscheint
+  in Stunden/Lohn, Lohnexport (eigener Lohnart-Code je Abwesenheitsart), Stundenzettel und
+  Zeitkonto; Rücknahme oder Löschen hebt die Wirkung auf. Wirkung je Person und Schicht (die
+  Cloud überschrieb zwei Abwesende in einer Schicht), Nachtschichten zählen am Folgetag.
+- Urlaubskonto: Tage/Jahr (keine Vorgabe – die Cloud hatte 30), Beginn des Urlaubsjahres,
+  Zuteilung jährlich/monatlich, Übertrag mit Höchstgrenze, freie Wochentage, Feiertage,
+  Regeln je Person; im Antrag „verfügbar · dieser Zeitraum · danach“; Übersicht
+  „Urlaubskonten“ mit Kontoauszug, Korrekturen in halben Tagen nur Administration.
+- Hauptlinien-Anpassungen: „Person austragen“ läuft über die Buchungslogik
+  (`releaseAssignment()` in `src/lib/shift-requests.ts`, auch von `DELETE /api/bookings`
+  genutzt): 409 nach Schichtende oder Check-in, offene Anträge werden abgelehnt, Mitteilung nur
+  bei `notifiesEmployees()` (bei Plänen in Bearbeitung erst mit der Sammelmitteilung beim
+  Veröffentlichen), Signale `booking:changed`/`schedule:updated`. Zeitkonto-Planstunden kommen
+  für Nicht-Planer aus dem eingefrorenen Stand. Konfliktpanel nennt den Umgang: „Genehmigte
+  Abwesenheit (bezahlt)“ bzw. „(0 Stunden)“. Feiertage im Urlaubskonto: an Tagen mit Schicht
+  nach dem Bundesland des Einsatzorts, sonst Organisationsfeiertage. Gelöschte Personen und
+  Platzhalter: keine Konten, keine Wirkung, keine Abstürze (Zeitkonto/Urlaubskonto 404);
+  Konto, Soll und Ausgleich gehen mit der Mitgliedschaft verloren – vor dem Löschen abrechnen.
+- Rechte: Zeitkonto ändern, Urlaubskonto einrichten/korrigieren nur Administration; Austragen
+  nur Administration oder „Schichten bearbeiten“ am Standort; Folgen festlegen nur
+  Administration oder „Abwesenheiten entscheiden“; eigenes Konto nur wenn freigegeben.
+- Regeln in `docs/AKRO-ERWEITERUNG.md` §10.
 
 ## Vorläufige Fachannahmen (von AKRO zu bestätigen)
 1. Die Genehmigung steuert Lohn, Export und Zeitkonto **nicht** – ungenehmigte Stunden werden
@@ -106,6 +131,12 @@ _(wird nach dem Merge von S4 ergänzt)_
    `holidaysForRecord`).
 6. Personalnummer/Lohnart gehen beim Löschen einer Person verloren (Datensparsamkeit) – vor
    dem Löschen abrechnen, oder `FormerEmployee` um die Personalnummer erweitern.
+
+7. Beantragter (noch nicht genehmigter) Urlaub wird angezeigt, aber nicht abgezogen.
+8. Nachträglich eingetragene Abwesenheiten können vergangene Schichten nicht mehr austragen,
+   nur „bezahlt“ oder „0 Stunden“ festlegen.
+9. Lohnfortzahlung bei Abwesenheit (Zuschläge), Übertrag/Verfall beim Urlaub und Feiertage an
+   Urlaubstagen ohne Schicht mit dem Steuerbüro bzw. intern festlegen.
 
 ## Nachweise
 _(Gesamtabnahme nach S4, siehe unten; Zwischenstände:)_

@@ -92,7 +92,7 @@ Integration jetzt durch die Design-Sitzung (die integrierende Sitzung ist beende
 | S2 P1 Lohn | 8e6e865, 4346c44, 6c75b86 | opus, 3416/55550 | gemerged `588dbb9` (Migration `20261013100000_payroll`, gelöschte Personen, Feiertage je Einsatzort) |
 | S5 Planungsregeln (P6 ohne Bearbeitungsmodus) | b8cca24, bc7dd6e, 119d35a | opus, 3417/55551 | gemerged `4e5e8c6` (Migration `20261013150000_planning_rules`) |
 | S3 P2 Freigabe + P3 PDF | 0ff8e24, d35d168, 5f4e78d | opus, 3418/55552 | gemerged `8ae705b` (Migration `20261013110000_time_approval`; eine Seite „Stunden und Lohn“, `/payroll` leitet um) |
-| S4 P4 Zeitkonten + P5 Abwesenheit/Urlaub | 0de1cc7, c21d5b3, ef304e8, 8b69405 | opus, 3419/55553 | läuft (Basis 8ae705b) |
+| S4 P4 Zeitkonten + P5 Abwesenheit/Urlaub | 0de1cc7, c21d5b3, ef304e8, 8b69405 | opus, 3419/55553 | gemerged `a756ec0` (Migrationen `…120000_time_accounts`, `…130000_absence_effects`, `…140000_vacation_account`) |
 | Abschluss | Gesamtprüfung, Browser-Tests, Übergabe, Bundle/Patches | Hauptagent | – |
 
 Feste Regeln für den Port: Migrationen umbenennen (`20261013100000_payroll`, `…110000_time_approval`,
