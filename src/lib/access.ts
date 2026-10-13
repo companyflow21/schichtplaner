@@ -40,15 +40,28 @@ export type Access = {
   branches: Map<string, Set<BranchRightKey>>;
   /** userId der zugeordneten Person -> Personalrechte (nur Manager). */
   staff: Map<string, { memberId: string; rights: Set<StaffRightKey> }>;
+  /** Archivierte Einsatzorte (Admins: alle der Organisation, sonst die freigegebenen); dort gelten nur ARCHIVE_RIGHTS. */
+  archived?: Set<string>;
 };
+
+/**
+ * Rechte, die an einem archivierten Einsatzort weiter gelten - fuer jede Rolle:
+ * Historie ansehen und Zeiten pruefen. Planen, Veroeffentlichen, Antraege,
+ * offene Schichten und Meldungen ruhen bis zum Wiederherstellen.
+ */
+export const ARCHIVE_RIGHTS: readonly BranchRightKey[] = ["VIEW_SCHEDULE", "VIEW_TIME", "EDIT_TIME"];
+export const ARCHIVED_MESSAGE = "Einsatzort ist archiviert.";
 
 export async function accessFor(member: CurrentMember, tx: Tx = db): Promise<Access> {
   const isAdmin = isAdminRole(member.role);
   const branches = new Map<string, Set<BranchRightKey>>();
   const staff = new Map<string, { memberId: string; rights: Set<StaffRightKey> }>();
-  if (!isAdmin) {
+  const archived = new Set<string>();
+  if (isAdmin) {
+    for (const b of await tx.branch.findMany({ where: { organizationId: member.organizationId, archivedAt: { not: null } }, select: { id: true } })) archived.add(b.id);
+  } else {
     const [grants, assignments] = await Promise.all([
-      tx.branchAccess.findMany({ where: { memberId: member.id, organizationId: member.organizationId }, select: { branchId: true, rights: true } }),
+      tx.branchAccess.findMany({ where: { memberId: member.id, organizationId: member.organizationId }, select: { branchId: true, rights: true, branch: { select: { archivedAt: true } } } }),
       member.role === "MANAGER"
         ? tx.staffAssignment.findMany({
             where: { managerMemberId: member.id, organizationId: member.organizationId, employee: { isActive: true } },
@@ -57,7 +70,8 @@ export async function accessFor(member: CurrentMember, tx: Tx = db): Promise<Acc
         : Promise.resolve([]),
     ]);
     for (const grant of grants) {
-      const rights = normalizeBranchRights(grant.rights, member.role);
+      if (grant.branch.archivedAt) archived.add(grant.branchId);
+      const rights = normalizeBranchRights(grant.rights, member.role).filter((r) => !grant.branch.archivedAt || ARCHIVE_RIGHTS.includes(r));
       if (rights.length) branches.set(grant.branchId, new Set(rights));
     }
     for (const assignment of assignments) {
@@ -65,7 +79,7 @@ export async function accessFor(member: CurrentMember, tx: Tx = db): Promise<Acc
       if (rights.length) staff.set(assignment.employee.userId, { memberId: assignment.employee.id, rights: new Set(rights) });
     }
   }
-  return { member, orgId: member.organizationId, userId: member.userId, memberId: member.id, role: member.role, isAdmin, branches, staff };
+  return { member, orgId: member.organizationId, userId: member.userId, memberId: member.id, role: member.role, isAdmin, branches, staff, archived };
 }
 
 export async function requireAccess(): Promise<Access> {
@@ -81,15 +95,17 @@ export function requireAdmin(a: Access) {
 // --- Standortrechte --------------------------------------------------------
 
 export function can(a: Access, right: BranchRightKey, branchId: string | null | undefined): boolean {
+  if (branchId && a.archived?.has(branchId) && !ARCHIVE_RIGHTS.includes(right)) return false;
   if (a.isAdmin) return true;
   if (!branchId) return false; // Altbestand ohne Standort: nur Admins
   return a.branches.get(branchId)?.has(right) ?? false;
 }
 
-/** Wirft 404, wenn der Standort gar nicht sichtbar ist, sonst 403. */
+/** Wirft 404, wenn der Standort gar nicht sichtbar ist, 409 an einem archivierten Einsatzort, sonst 403. */
 export function assertCan(a: Access, right: BranchRightKey, branchId: string | null | undefined, message = "Keine Berechtigung für diesen Standort.") {
   if (can(a, right, branchId)) return;
   const visible = a.isAdmin || (!!branchId && a.branches.has(branchId));
+  if (visible && branchId && a.archived?.has(branchId)) throw new ApiError(ARCHIVED_MESSAGE, 409);
   throw new ApiError(visible ? message : "Nicht gefunden.", visible ? 403 : 404);
 }
 

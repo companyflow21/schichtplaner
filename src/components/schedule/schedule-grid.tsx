@@ -207,6 +207,11 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
           {branch.isActive && <Link href="/divisions" className="font-medium text-primary underline-offset-4 hover:underline">Jetzt zuordnen</Link>}
         </p>
       )}
+      {branch?.archivedAt && (
+        <p className="mb-4 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
+          Einsatzort archiviert: nur Ansicht vergangener Wochen. Planen erst nach dem Wiederherstellen unter Einsatzorte → Archiv.
+        </p>
+      )}
       <PlanStatusBanner schedule={schedule} access={access} standort={standort} />
       {canEdit && branch && !branch.holidayState && (
         <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">

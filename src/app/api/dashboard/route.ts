@@ -52,7 +52,7 @@ export async function GET() {
     const planning = a.isAdmin || a.role === "MANAGER";
     if (!planning) {
       const plans = await db.branch.findMany({
-        where: { organizationId: a.orgId, isActive: true, id: { in: branchIds(a, "VIEW_SCHEDULE") ?? [] } },
+        where: { organizationId: a.orgId, isActive: true, archivedAt: null, id: { in: branchIds(a, "VIEW_SCHEDULE") ?? [] } },
         orderBy: { name: "asc" },
         select: { id: true, name: true, customer: { select: { name: true } } },
       });
@@ -67,7 +67,8 @@ export async function GET() {
     const issues = a.isAdmin || !!branchIds(a, "MANAGE_ISSUES")?.length;
     const plans = a.isAdmin || !!branchIds(a, "VIEW_SCHEDULE")?.length;
     const [pendingRequests, pendingAbsences, pendingCorrections] = await Promise.all([
-      handle && !handle.length ? null : db.modRequest.count({ where: { state: "OPEN", shift: { deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null, ...(handle ? { branchId: { in: handle } } : {}) } } } }),
+      // Archivierte Einsatzorte: Antraege dort sind nicht mehr zu entscheiden und keine Aufgabe.
+      handle && !handle.length ? null : db.modRequest.count({ where: { state: "OPEN", shift: { deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null, ...(handle ? { branchId: { in: handle } } : { NOT: { branch: { archivedAt: { not: null } } } }) } } } }),
       absences && !absences.length ? null : db.absence.count({ where: { status: "PENDING", category: { organizationId: a.orgId }, ...(absences ? { userId: { in: absences } } : {}) } }),
       corrections ? db.timeCorrection.count({ where: { organizationId: a.orgId, status: "PENDING", record: timeScope(a, "edit") } }) : null,
     ]);

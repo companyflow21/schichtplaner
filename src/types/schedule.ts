@@ -159,7 +159,7 @@ export type ScheduleAccess = {
 
 export type ScheduleResponse = {
   schedule: ScheduleData;
-  branch?: { id: string; name: string; isActive: boolean; plannable: boolean; customer: { id: string; name: string } | null; holidayState?: string | null; holidays?: { name: string; date: string; dayOfWeek: number }[] } | null;
+  branch?: { id: string; name: string; isActive: boolean; archivedAt?: string | null; plannable: boolean; customer: { id: string; name: string } | null; holidayState?: string | null; holidays?: { name: string; date: string; dayOfWeek: number }[] } | null;
   access?: ScheduleAccess;
   merged?: boolean;
 };

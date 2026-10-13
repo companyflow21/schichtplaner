@@ -50,10 +50,10 @@ export async function GET(request: NextRequest) {
       not_activated: all.filter((m) => m.isActive && !m.isActivated).length,
       inactive: all.filter((m) => !m.isActive).length,
     };
-    // Standortzuordnung nur innerhalb des eigenen Bereichs (Admins: alle).
+    // Standortzuordnung nur innerhalb des eigenen Bereichs (Admins: alle), ohne archivierte Einsatzorte.
     const scope = siteScope(a);
     const grants = await db.branchAccess.findMany({
-      where: { organizationId: a.orgId, memberId: { in: members.filter((m) => m.role === "EMPLOYEE").map((m) => m.id) }, ...(scope ? { branchId: { in: scope } } : {}) },
+      where: { organizationId: a.orgId, memberId: { in: members.filter((m) => m.role === "EMPLOYEE").map((m) => m.id) }, branch: { archivedAt: null }, ...(scope ? { branchId: { in: scope } } : {}) },
       select: { memberId: true, rights: true, branch: { select: { id: true, name: true } } },
       orderBy: { branch: { name: "asc" } },
     });

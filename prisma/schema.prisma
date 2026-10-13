@@ -188,6 +188,8 @@ model Customer {
   name           String
   notes          String?
   isActive       Boolean  @default(true)
+  /// Archiviert: aus Planung und Listen ausgeblendet, Historie bleibt. NULL = nicht archiviert.
+  archivedAt     DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -245,6 +247,8 @@ model Branch {
   notes          String?
   positions      String[] @default([])
   isActive       Boolean @default(true)
+  /// Archiviert: aus Planung und Listen ausgeblendet, Historie bleibt. NULL = nicht archiviert.
+  archivedAt     DateTime?
   createdAt      DateTime @default(now())
   /// Mittelpunkt fuer den GPS-Check-in (WGS84). Ohne Koordinaten kein GPS-Check-in.
   latitude       Float?

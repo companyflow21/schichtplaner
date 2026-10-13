@@ -15,7 +15,7 @@
  */
 import type { Prisma } from "@prisma/client";
 import { ApiError } from "./errors";
-import { branchIds, type Access } from "./access";
+import { ARCHIVED_MESSAGE, branchIds, type Access } from "./access";
 import { normalizeBranchRights, type BranchRightKey } from "./access-shared";
 
 type Tx = Prisma.TransactionClient;
@@ -49,22 +49,23 @@ function assigned(rights: readonly string[], role: string): boolean {
   return normalizeBranchRights(rights, role).includes("REQUEST_SHIFTS");
 }
 
-/** Prueft die gewuenschten Standorte: im eigenen Bereich (403) und in der Organisation vorhanden (404). */
+/** Prueft die gewuenschten Standorte: im eigenen Bereich (403), in der Organisation vorhanden (404) und nicht archiviert (409). */
 export async function checkSites(tx: Tx, a: Access, wanted: string[]): Promise<string[]> {
   const unique = [...new Set(wanted)];
   const scope = siteScope(a);
   if (scope && unique.some((id) => !scope.includes(id))) throw new ApiError("Du kannst nur Standorte zuordnen, an denen du Schichten bearbeiten darfst.", 403);
-  const found = unique.length ? await tx.branch.count({ where: { organizationId: a.orgId, id: { in: unique } } }) : 0;
-  if (found !== unique.length) throw new ApiError("Standort nicht gefunden.", 404);
+  const found = unique.length ? await tx.branch.findMany({ where: { organizationId: a.orgId, id: { in: unique } }, select: { archivedAt: true } }) : [];
+  if (found.length !== unique.length) throw new ApiError("Standort nicht gefunden.", 404);
+  if (found.some((b) => b.archivedAt)) throw new ApiError(ARCHIVED_MESSAGE, 409);
   return unique;
 }
 
-/** Standorte im Bereich der angemeldeten Person, mit dem Stand fuer diese Person. */
+/** Standorte im Bereich der angemeldeten Person (ohne Archivierte), mit dem Stand fuer diese Person. */
 export async function sitesOf(tx: Tx, a: Access, target: Target) {
   const scope = siteScope(a);
   const [branches, grants] = await Promise.all([
     tx.branch.findMany({
-      where: { organizationId: a.orgId, ...(scope ? { id: { in: scope } } : {}) },
+      where: { organizationId: a.orgId, archivedAt: null, ...(scope ? { id: { in: scope } } : {}) },
       orderBy: { name: "asc" },
       select: { id: true, name: true, isActive: true, customer: { select: { id: true, name: true } } },
     }),
@@ -80,13 +81,13 @@ export async function sitesOf(tx: Tx, a: Access, target: Target) {
 /**
  * Setzt die Zuordnung innerhalb des eigenen Bereichs: fehlende Standorte
  * erhalten die Zuordnung, abgewaehlte verlieren sie. Standorte ausserhalb
- * des Bereichs bleiben unberuehrt.
+ * des Bereichs und archivierte (nicht in der Auswahl) bleiben unberuehrt.
  */
 export async function setSites(tx: Tx, a: Access, target: Target, wanted: string[]) {
   const unique = await checkSites(tx, a, wanted);
   const scope = siteScope(a);
   const current = await tx.branchAccess.findMany({
-    where: { memberId: target.id, organizationId: a.orgId, ...(scope ? { branchId: { in: scope } } : {}) },
+    where: { memberId: target.id, organizationId: a.orgId, branch: { archivedAt: null }, ...(scope ? { branchId: { in: scope } } : {}) },
     select: { id: true, branchId: true, rights: true },
   });
   for (const grant of current) {

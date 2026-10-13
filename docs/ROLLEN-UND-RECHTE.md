@@ -234,6 +234,20 @@ Abkürzungen: A = Inhaber/Administration, D = Disposition, M = Mitarbeiter; Rech
 - Wer: Anlegen/ändern/löschen A; D sieht nur freigegebene Standorte (ohne Kundennotizen).
 - Grenzen: Löschen nur ohne fachliche Daten.
 
+**Archivieren** – UI: Einsatzorte → „Archivieren“ je Kunde/Einsatzort; Bereich „Archiv“ am Seitenende (nur A).
+- Unterschied: *Deaktivieren* sperrt neue Schichten und Einteilungen, der Einsatzort bleibt aber in Listen und
+  Auswahlfeldern („inaktiv“); *Archivieren* blendet ihn aus Planung, Auswahllisten, Startseite, Nachrichtenbezug
+  und Freigaben aus und setzt die Planungsrechte dort aus; *Endgültig löschen* geht
+  weiterhin nur ohne Historie (keine Schichten, Zeiten, Meldungen, Check-ins).
+- Voraussetzung: keine laufenden oder zukünftigen Schichten und keine noch nicht vergangene Woche in Bearbeitung
+  (sonst 409 mit Anzahl). Ein Kunde wird mit allen seinen Einsatzorten archiviert – alles oder nichts.
+- Wirkung: keine neuen Wochenpläne, Schichten, Einteilungen oder Freigaben (409 „Einsatzort ist archiviert.“).
+  Standortrechte gelten dort nur noch für die Historie (Dienstplan ansehen, Zeiterfassung einsehen/bearbeiten) –
+  für jede Rolle, auch A. Vergangene Wochen bleiben für Berechtigte lesbar; Auswertung, CSV und Stundenzettel
+  enthalten die Stunden weiter, im Standortfilter mit „(archiviert)“. Standortmeldungen ruhen bis zum Wiederherstellen.
+- Wiederherstellen: jederzeit durch A; ein Einsatzort erst, wenn sein Kunde nicht archiviert ist. Einen Kunden
+  wiederherzustellen holt seine Einsatzorte nicht mit zurück (einzeln). Bestehende Freigaben bleiben erhalten.
+
 **Arbeitsbereiche** – UI: Einsatzorte (unten, nur A). Farbige Bereiche mit Mitgliedern; Planer bekommen den Hinweis
 „Gehört nicht zum Arbeitsbereich“.
 

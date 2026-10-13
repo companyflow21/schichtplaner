@@ -448,7 +448,7 @@ async function executeCreateShift(
 
   // Jede Schicht gehoert zu einem Standort mit Kunde.
   const branch = branchId
-    ? await db.branch.findFirst({ where: { id: branchId, organizationId: orgId, isActive: true, customerId: { not: null } } })
+    ? await db.branch.findFirst({ where: { id: branchId, organizationId: orgId, isActive: true, archivedAt: null, customerId: { not: null } } })
     : null;
   if (!branch) {
     return { content: "Bitte einen aktiven Standort mit zugeordnetem Kunden angeben (branchId)." };

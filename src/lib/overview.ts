@@ -59,12 +59,12 @@ export type BranchCard = {
   issuesOpen: number | null;
 };
 
-/** Karten der sichtbaren Kunden mit ihren sichtbaren Standorten. */
+/** Karten der sichtbaren Kunden mit ihren sichtbaren Standorten (ohne Archivierte). */
 export async function planningOverview(a: Access) {
   const today = berlinDate(), until = addDate(today, HORIZON_DAYS - 1);
   const ids = anyBranchIds(a);
   const branches = await db.branch.findMany({
-    where: { organizationId: a.orgId, isActive: true, ...(ids ? { id: { in: ids } } : {}) },
+    where: { organizationId: a.orgId, isActive: true, archivedAt: null, ...(ids ? { id: { in: ids } } : {}) },
     orderBy: { name: "asc" },
     select: { id: true, name: true, isActive: true, customerId: true },
   });
@@ -77,7 +77,7 @@ export async function planningOverview(a: Access) {
       : Promise.resolve([]),
     db.customer.findMany({
       // Admins sehen auch aktive Kunden ohne Standort; Standorte eines inaktiven Kunden bleiben sichtbar.
-      where: { organizationId: a.orgId, OR: [{ id: { in: branches.map((b) => b.customerId).filter((x): x is string => !!x) } }, ...(a.isAdmin ? [{ isActive: true }] : [])] },
+      where: { organizationId: a.orgId, archivedAt: null, OR: [{ id: { in: branches.map((b) => b.customerId).filter((x): x is string => !!x) } }, ...(a.isAdmin ? [{ isActive: true }] : [])] },
       orderBy: { name: "asc" },
       select: { id: true, name: true, isActive: true },
     }),
