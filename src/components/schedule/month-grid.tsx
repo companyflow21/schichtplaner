@@ -11,26 +11,29 @@ import { ErrorMessage, json } from "@/components/workforce/client";
 import { berlinDate, isoWeek } from "@/lib/berlin";
 import { dayNames, formatKW, monthNames } from "@/lib/utils/calendar";
 import { cn } from "@/lib/utils";
-import type { ShiftData } from "@/types/schedule";
+import type { ScheduleStatus, ShiftData } from "@/types/schedule";
 import { BranchIssues } from "./branch-issues";
 import { PdfExportDialog } from "./pdf-export-dialog";
+import { PublishDialog } from "./publish-dialog";
 import { ViewSwitcher } from "./view-switcher";
 import { formatName } from "@/lib/names";
 import { useNameFormat } from "@/lib/hooks/use-current-member";
 
 type MonthDay = { date: string; weekday: number; isToday: boolean; shifts: ShiftData[]; continuations: ShiftData[]; missing: number };
-type MonthPlan = {
+export type MonthPlan = {
   branch: { id: string; name: string; address: string | null; meetingPoint: string | null; isActive: boolean; customer: { id: string; name: string } | null };
   month: string;
   first: string;
   last: string;
   today: string;
   days: MonthDay[];
-  weeks: { year: number; weekNumber: number; scheduleId: string | null; isPublic: boolean | null; shifts: number }[];
+  /** status nur fuer die Planung, sonst null. */
+  weeks: { year: number; weekNumber: number; scheduleId: string | null; isPublic: boolean | null; status: ScheduleStatus | null; shifts: number }[];
   totals: { shifts: number; missing: number; draftShifts: number };
   access: { planner: boolean; edit: boolean; publish: boolean; handleRequests: boolean; manageIssues: boolean; viewTime: boolean };
   issuesOpen: number | null;
 };
+type MonthWeek = MonthPlan["weeks"][number];
 
 /** "10-2026" <-> "2026-10" */
 function toApiMonth(month: number, year: number) {
@@ -45,12 +48,18 @@ function shiftMonth(apiMonth: string, offset: number) {
   const d = new Date(Date.UTC(y, m - 1 + offset, 1));
   return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0");
 }
-function weekHref(date: string, standort: string) {
-  const w = isoWeek(date);
+function kwHref(w: { weekNumber: number; year: number }, standort: string) {
   return `/schedule/flexible/${formatKW(w.weekNumber, w.year)}?standort=${standort}`;
+}
+function weekHref(date: string, standort: string) {
+  return kwHref(isoWeek(date), standort);
 }
 function names(shift: ShiftData, nameFormat: string | undefined) {
   return shift.bookings.map((b) => formatName(b.user, nameFormat, { contractor: !!b.contractorWorkerId, short: true })).join(", ");
+}
+/** Direkt aus dem Monat veroeffentlichen: Entwurf mit Schichten und Recht "Dienstplan veroeffentlichen". */
+function veröffentlichbar(week: MonthWeek, plan: MonthPlan) {
+  return plan.access.publish && week.status === "DRAFT" && week.shifts > 0;
 }
 
 /**
@@ -90,6 +99,11 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
   const heuteMonat = berlinDate().slice(0, 7);
   const sichtbar = (s: ShiftData) => !nurOffen || (s.missing ?? 0) > 0;
   const offeneTage = plan.days.filter((d) => d.missing > 0);
+  // Wochen mit Status fuer die Planung; Mitarbeitende bekommen keinen Status.
+  const wochen = plan.access.planner ? plan.weeks.filter((w) => w.scheduleId && (w.status === "DRAFT" || w.status === "EDITING")) : [];
+  const mitKnopf = wochen.some((w) => veröffentlichbar(w, plan));
+  // Breitere KW-Spalte nur, wenn dort ein Knopf oder "In Bearbeitung" steht.
+  const spalten = mitKnopf || wochen.some((w) => w.status === "EDITING") ? "grid-cols-[9rem_repeat(7,minmax(0,1fr))]" : "grid-cols-[4rem_repeat(7,minmax(0,1fr))]";
 
   return (
     <div className="space-y-5">
@@ -141,7 +155,7 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
           <StatusBadge ton="ok">voll besetzt</StatusBadge>
         ) : null}
         {plan.access.planner && plan.totals.draftShifts > 0 && (
-          <StatusBadge ton="hinweis" icon={EyeOff}>{plan.totals.draftShifts} im Entwurf</StatusBadge>
+          <StatusBadge ton="hinweis" icon={EyeOff}>{plan.totals.draftShifts} im Entwurf{mitKnopf && " – je Woche veröffentlichen"}</StatusBadge>
         )}
         {plan.issuesOpen ? (
           <StatusBadge ton="hinweis">{plan.issuesOpen} {plan.issuesOpen === 1 ? "offene Meldung" : "offene Meldungen"}</StatusBadge>
@@ -164,7 +178,7 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
 
       {/* Kalender ab Tablet */}
       <div className="akro-panel hidden overflow-hidden md:block">
-        <div className="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] akro-panel-kopf border-b">
+        <div className={cn("grid akro-panel-kopf border-b", spalten)}>
           <div className="px-2 py-2 text-xs font-semibold text-muted-foreground">KW</div>
           {dayNames.map((name) => (
             <div key={name} className="border-l px-2 py-2 text-[12px] font-semibold text-muted-foreground">{name}</div>
@@ -175,10 +189,10 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
           const w = isoWeek(firstDate);
           const week = plan.weeks.find((x) => x.year === w.year && x.weekNumber === w.weekNumber);
           return (
-            <div key={index} className="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] border-t first:border-t-0">
-              <div className="px-2 py-2 text-xs leading-tight text-muted-foreground">
+            <div key={index} className={cn("grid border-t first:border-t-0", spalten)}>
+              <div className="flex flex-col items-start gap-1 px-2 py-2 text-xs leading-tight text-muted-foreground">
                 <Link href={weekHref(firstDate, standort)} className="tabular font-semibold text-foreground hover:underline">{w.weekNumber}</Link>
-                {plan.access.planner && week?.isPublic === false && <p className="mt-1 font-medium text-warn">Entwurf</p>}
+                <WochenStatus week={week} plan={plan} standort={standort} />
               </div>
               {row.map((day, i) => day ? <DayCell key={day.date} day={day} plan={plan} standort={standort} sichtbar={sichtbar} /> : <div key={"leer" + i} className="border-l akro-vertieft" />)}
             </div>
@@ -188,6 +202,17 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
 
       {/* Tagesliste auf dem Handy */}
       <div className="space-y-2 md:hidden">
+        {/* Wochenstatus mit derselben Aktion wie in der KW-Spalte des Kalenders. */}
+        {wochen.length > 0 && (
+          <ul className="akro-panel divide-y divide-[var(--linie-fein)] overflow-hidden">
+            {wochen.map((week) => (
+              <li key={week.year + "-" + week.weekNumber} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-[13px]">
+                <span className="tabular font-semibold">KW {week.weekNumber}</span>
+                <WochenStatus week={week} plan={plan} standort={standort} />
+              </li>
+            ))}
+          </ul>
+        )}
         {plan.days.filter((d) => d.shifts.some(sichtbar) || (!nurOffen && d.continuations.length)).map((day) => (
           <div key={day.date} className={cn("akro-panel overflow-hidden", day.isToday && "border-primary/50")}>
             <Link href={weekHref(day.date, standort)} className="akro-panel-kopf flex items-baseline justify-between border-b px-4 py-2">
@@ -204,6 +229,43 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
 
       {plan.access.manageIssues && <BranchIssues branchId={plan.branch.id} />}
     </div>
+  );
+}
+
+/**
+ * Status einer Woche fuer die Planung: "Entwurf", bei Schichten und Recht mit
+ * demselben Veroeffentlichen-Dialog wie im Wochenplan; "In Bearbeitung" nur
+ * mit Sprung in die Woche, weil Veroeffentlichen und Verwerfen dort
+ * zusammengehoeren.
+ */
+function WochenStatus({ week, plan, standort }: { week: MonthWeek | undefined; plan: MonthPlan; standort: string }) {
+  if (!plan.access.planner || !week?.scheduleId) return null;
+  if (week.status === "EDITING") {
+    return (
+      <>
+        <p className="font-medium text-warn">In Bearbeitung</p>
+        <Link href={kwHref(week, standort)} className="font-medium text-primary underline-offset-4 hover:underline max-md:inline-flex max-md:min-h-11 max-md:items-center">
+          Zur Woche
+        </Link>
+      </>
+    );
+  }
+  if (week.status !== "DRAFT") return null;
+  return (
+    <>
+      <p className="font-medium text-warn">Entwurf</p>
+      {veröffentlichbar(week, plan) && (
+        <PublishDialog
+          scheduleId={week.scheduleId}
+          wochenLabel={"KW " + String(week.weekNumber).padStart(2, "0") + "/" + week.year}
+          status="DRAFT"
+          woche={{ weekNumber: week.weekNumber, year: week.year, standort }}
+          hauptaktion={false}
+          size="sm"
+          className="h-7 gap-1 px-2 text-xs has-[>svg]:px-2"
+        />
+      )}
+    </>
   );
 }
 
