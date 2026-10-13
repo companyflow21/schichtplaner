@@ -129,7 +129,7 @@ ersten Rollout).
 | Wunsch | Agent / Ports | Status |
 |---|---|---|
 | Monatsansicht: Entwurfswochen direkt veröffentlichen | opus, 3405/55539 | gemergt `94ccf73` (Abschnitt in `docs/UEBERGABE-BAUSTEINE.md`) |
-| Kunden und Einsatzorte archivieren statt nur deaktivieren | opus, 3406/55540 | in Arbeit |
+| Kunden und Einsatzorte archivieren statt nur deaktivieren | opus, 3406/55540 | gemergt `a92da53` (Abschnitt in `docs/UEBERGABE-BAUSTEINE.md`) |
 
 Hinweis: Der Agent für die Monatsansicht hat seinen Worktree versehentlich unter
 `../schichtplaner/.claude/worktrees/` angelegt. Die Commits wurden per `git fetch` in den Klon
