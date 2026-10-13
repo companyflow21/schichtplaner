@@ -65,4 +65,23 @@ const own = effectiveRules(general, { rest: { enabled: false, hours: 11 }, daysP
 check(!own.rest.enabled && own.daysPerWeek.max === 4 && !own.hours.enabled, "a person's rule replaces the general one, everything else stays");
 check(ruleViolations(DEFAULT_RULES, days("2026-10-05", 14, "06:00", "20:00"), week).length === 0, "without enabled rules nothing is reported");
 
+// --- Schichten an Standorten ohne Leserecht (elsewhere): zaehlen mit, werden nie benannt ------------------
+const hide = (x: PlannedShift): PlannedShift => ({ ...x, elsewhere: true });
+const lateHere = shift("2026-10-12", "14:00", "22:00"), earlyThere = hide(shift("2026-10-13", "06:00", "14:00"));
+v = ruleViolations(only({ rest: { enabled: true, hours: 11 } }), [lateHere, earlyThere], week);
+check(v.length === 1 && v[0].text === "Ruhezeit 8 h vor einer Schicht an einem anderen Standort am 13.10. (mindestens 11 h)" && v[0].shiftIds.join() === lateHere.id && v[0].elsewhere === true, "rest before a hidden shift: neutral text without its time, only the visible shift id");
+const lateThere = hide(shift("2026-10-12", "14:00", "22:00")), earlyHere = shift("2026-10-13", "06:00", "14:00");
+v = ruleViolations(only({ rest: { enabled: true, hours: 11 } }), [lateThere, earlyHere], week);
+check(v.length === 1 && v[0].text === "Ruhezeit 8 h vor der Schicht am 13.10. um 06:00 (mindestens 11 h) – auch Schichten an einem anderen Standort" && v[0].shiftIds.join() === earlyHere.id, "rest after a hidden shift: the visible shift is named, the other site only mentioned");
+v = ruleViolations(only({ hours: { enabled: true, period: "WEEK", min: null, max: 40 } }), [...days("2026-10-12", 4), hide(shift("2026-10-16", "08:00", "17:00"))], week);
+check(v.length === 1 && v[0].text === "45 h in KW 42 (höchstens 40 h) – auch Schichten an einem anderen Standort" && v[0].shiftIds.length === 4 && v[0].elsewhere, "hidden shifts count for the weekly hours but are not listed");
+v = ruleViolations(only({ dailyHours: { enabled: true, max: 10 } }), [hide(shift("2026-10-14", "06:00", "18:00"))], week);
+check(v.length === 1 && v[0].shiftIds.length === 0 && v[0].elsewhere, "a violation of hidden shifts only keeps no shift id (the service leaves it out)");
+check(!ruleViolations(only({ dailyHours: { enabled: true, max: 10 } }), [shift("2026-10-14", "06:00", "18:00")], week)[0].elsewhere, "without hidden shifts no elsewhere mark");
+
+// --- Echte Minuten: Beginn fuer den Text aus "from" ------------------------------------------------
+const real = { id: "dst", date: "2026-10-25", start: 0, end: 480, minutes: 480, from: "07:00" };
+v = ruleViolations(only({ rest: { enabled: true, hours: 11 } }), [{ id: "sat", date: "2026-10-24", start: -600, end: -120, minutes: 480 }, real], week);
+check(v.length === 1 && v[0].text.includes("Ruhezeit 2 h vor der Schicht am 25.10. um 07:00"), "rest text takes the start time from 'from' when minutes are real time");
+
 console.log("PLANNING RULES UNIT: " + checks + " checks passed.");

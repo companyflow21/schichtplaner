@@ -2,10 +2,11 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { api, body, serial } from "@/lib/api";
 import { requireAccess, requireAdmin } from "@/lib/access";
+import { formatName } from "@/lib/names";
 import { effectiveRules, partialRulesSchema } from "@/lib/planning-rules";
 import { ruleSettings } from "@/lib/planning-rules-service";
 
-/** Allgemeine Regeln (vollstaendig, mit Vorgaben) und die Abweichungen je Person. Nur Admins. */
+/** Allgemeine Regeln (vollstaendig, mit Vorgaben) und die Abweichungen je aktiver Person (Name nach Namensformat). Nur Admins. */
 export async function GET() {
   return api(async () => {
     const a = await requireAccess();
@@ -15,8 +16,8 @@ export async function GET() {
       const members = await tx.organizationMember.findMany({ where: { organizationId: a.orgId, isActive: true }, select: { id: true, userId: true, user: { select: { firstName: true, lastName: true } } } });
       return {
         general: effectiveRules(general),
-        members: members.map((m) => ({ memberId: m.id, userId: m.userId, firstName: m.user.firstName, lastName: m.user.lastName, own: overrides.get(m.id) ?? {} }))
-          .sort((x, y) => x.lastName.localeCompare(y.lastName, "de") || x.firstName.localeCompare(y.firstName, "de")),
+        members: members.map((m) => ({ memberId: m.id, userId: m.userId, name: formatName(m.user, a.member.organization.nameFormat), own: overrides.get(m.id) ?? {} }))
+          .sort((x, y) => x.name.localeCompare(y.name, "de")),
       };
     });
   });

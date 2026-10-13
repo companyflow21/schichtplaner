@@ -7,6 +7,10 @@
  * Schicht gehoert zu dem Tag, an dem sie beginnt. Stunden sind Planstunden
  * (Dauer minus Pause). Schichten mit hoechstens 15 Minuten Abstand gelten als
  * zusammenhaengend (keine Ruhezeit dazwischen).
+ *
+ * Schichten an Standorten, deren Dienstplan die betrachtende Person nicht
+ * sehen darf (elsewhere), zaehlen mit, werden aber nie benannt: keine
+ * Schicht-ID, keine Uhrzeit, nur "an einem anderen Standort".
  */
 import { z } from "zod";
 import { addDate, isoWeek, weekDate } from "./berlin";
@@ -68,10 +72,20 @@ export function effectiveRules(general: PartialRules, own: PartialRules = {}): R
 
 export const anyEnabled = (rules: Rules) => RULE_KEYS.some((k) => rules[k].enabled);
 
-export type PlannedShift = { id: string; date: string; start: number; end: number; minutes: number };
-export type Violation = { rule: RuleKey; date: string; text: string; shiftIds: string[] };
+/**
+ * start/end: Minuten auf einer durchgehenden Zeitachse (fuer die Ruhezeit);
+ * from: Beginn "HH:MM" fuer Texte (sonst aus start); elsewhere: Standort ohne
+ * Leserecht der betrachtenden Person.
+ */
+export type PlannedShift = { id: string; date: string; start: number; end: number; minutes: number; from?: string; elsewhere?: boolean };
+/** shiftIds: nur sichtbare Schichten; elsewhere: auch Schichten an einem anderen Standort beteiligt. */
+export type Violation = { rule: RuleKey; date: string; text: string; shiftIds: string[]; elsewhere?: boolean };
+/** Antwort der Regelpruefung eines Wochenplans (GET /api/schedules/[id]/violations). */
+export type PersonViolations = { userId: string; name: string; violations: Violation[] };
+export type ViolationReport = { enabled: boolean; count: number; people: PersonViolations[] };
 
 const CONTIGUOUS = 15;
+const ELSEWHERE = " – auch Schichten an einem anderen Standort";
 const weekday = (date: string) => ((new Date(date + "T12:00:00Z").getUTCDay() + 6) % 7) + 1;
 const h = (minutes: number) => (Math.round(minutes / 6) / 10).toLocaleString("de-DE") + " h";
 const n = (value: number) => value.toLocaleString("de-DE");
@@ -91,7 +105,11 @@ export function ruleViolations(rules: Rules, shifts: PlannedShift[], window: { f
   for (const s of sorted) byDate.set(s.date, [...(byDate.get(s.date) ?? []), s]);
   const days = [...byDate.keys()].sort();
   const worked = (date: string) => byDate.has(date);
-  const ids = (list: PlannedShift[]) => list.map((s) => s.id);
+  // named: der Text nennt den anderen Standort schon selbst.
+  const add = (rule: RuleKey, date: string, text: string, list: PlannedShift[], named = false) => {
+    const hidden = list.some((s) => s.elsewhere);
+    out.push({ rule, date, text: text + (hidden && !named ? ELSEWHERE : ""), shiftIds: list.filter((s) => !s.elsewhere).map((s) => s.id), ...(hidden ? { elsewhere: true } : {}) });
+  };
 
   if (rules.hours.enabled) {
     const { period, min, max } = rules.hours;
@@ -108,15 +126,15 @@ export function ruleViolations(rules: Rules, shifts: PlannedShift[], window: { f
     for (const s of sorted) groups.get(period === "WEEK" ? weekKey(s.date) : s.date.slice(0, 7))?.list.push(s);
     for (const g of groups.values()) {
       const total = g.list.reduce((sum, s) => sum + s.minutes, 0);
-      if (max !== null && total > max * 60) out.push({ rule: "hours", date: g.date, text: h(total) + " " + g.label + " (höchstens " + n(max) + " h)", shiftIds: ids(g.list) });
-      if (min !== null && total < min * 60) out.push({ rule: "hours", date: g.date, text: h(total) + " " + g.label + " (mindestens " + n(min) + " h)", shiftIds: ids(g.list) });
+      if (max !== null && total > max * 60) add("hours", g.date, h(total) + " " + g.label + " (höchstens " + n(max) + " h)", g.list);
+      if (min !== null && total < min * 60) add("hours", g.date, h(total) + " " + g.label + " (mindestens " + n(min) + " h)", g.list);
     }
   }
 
   if (rules.dailyHours.enabled) {
     for (const [date, list] of byDate) {
       const total = list.reduce((sum, s) => sum + s.minutes, 0);
-      if (total > rules.dailyHours.max * 60) out.push({ rule: "dailyHours", date, text: h(total) + " am " + day(date) + " (höchstens " + n(rules.dailyHours.max) + " h am Tag)", shiftIds: ids(list) });
+      if (total > rules.dailyHours.max * 60) add("dailyHours", date, h(total) + " am " + day(date) + " (höchstens " + n(rules.dailyHours.max) + " h am Tag)", list);
     }
   }
 
@@ -126,7 +144,9 @@ export function ruleViolations(rules: Rules, shifts: PlannedShift[], window: { f
     for (const s of sorted) {
       const gap = s.start - previousEnd;
       if (previous && gap > CONTIGUOUS && gap < rules.rest.hours * 60) {
-        out.push({ rule: "rest", date: s.date, text: "Ruhezeit " + h(gap) + " vor der Schicht am " + day(s.date) + " um " + String(Math.floor((s.start % 1440) / 60)).padStart(2, "0") + ":" + String(s.start % 60).padStart(2, "0") + " (mindestens " + n(rules.rest.hours) + " h)", shiftIds: [previous.id, s.id] });
+        const before = s.elsewhere ? "vor einer Schicht an einem anderen Standort am " + day(s.date)
+          : "vor der Schicht am " + day(s.date) + " um " + (s.from ?? String(Math.floor((s.start % 1440) / 60)).padStart(2, "0") + ":" + String(s.start % 60).padStart(2, "0"));
+        add("rest", s.date, "Ruhezeit " + h(gap) + " " + before + " (mindestens " + n(rules.rest.hours) + " h)", [previous, s], !!s.elsewhere);
       }
       if (s.end > previousEnd) { previous = s; previousEnd = s.end; }
     }
@@ -139,7 +159,7 @@ export function ruleViolations(rules: Rules, shifts: PlannedShift[], window: { f
       while (j + 1 < days.length && days[j + 1] === addDate(days[j], 1)) j++;
       if (j - i + 1 > max) {
         const beyond = days.slice(i + max, j + 1);
-        out.push({ rule: "consecutiveDays", date: beyond[0], text: n(j - i + 1) + " Arbeitstage am Stück, " + day(days[i]) + "–" + day(days[j]) + " (höchstens " + n(max) + ")", shiftIds: beyond.flatMap((d) => ids(byDate.get(d)!)) });
+        add("consecutiveDays", beyond[0], n(j - i + 1) + " Arbeitstage am Stück, " + day(days[i]) + "–" + day(days[j]) + " (höchstens " + n(max) + ")", beyond.flatMap((d) => byDate.get(d)!));
       }
       i = j + 1;
     }
@@ -151,18 +171,18 @@ export function ruleViolations(rules: Rules, shifts: PlannedShift[], window: { f
     for (const list of weeks.values()) {
       if (list.length > rules.daysPerWeek.max) {
         const w = isoWeek(list[0]);
-        out.push({ rule: "daysPerWeek", date: weekDate(w.year, w.weekNumber), text: n(list.length) + " Arbeitstage in KW " + w.weekNumber + " (höchstens " + n(rules.daysPerWeek.max) + ")", shiftIds: list.flatMap((d) => ids(byDate.get(d)!)) });
+        add("daysPerWeek", weekDate(w.year, w.weekNumber), n(list.length) + " Arbeitstage in KW " + w.weekNumber + " (höchstens " + n(rules.daysPerWeek.max) + ")", list.flatMap((d) => byDate.get(d)!));
       }
     }
   }
 
   if (rules.workdayBlocks.enabled) {
-    for (const d of days) if (!worked(addDate(d, -1)) && !worked(addDate(d, 1))) out.push({ rule: "workdayBlocks", date: d, text: "Einzelner Arbeitstag am " + day(d) + " (mindestens 2 am Stück)", shiftIds: ids(byDate.get(d)!) });
+    for (const d of days) if (!worked(addDate(d, -1)) && !worked(addDate(d, 1))) add("workdayBlocks", d, "Einzelner Arbeitstag am " + day(d) + " (mindestens 2 am Stück)", byDate.get(d)!);
   }
 
   if (rules.freeDayBlocks.enabled && days.length) {
     for (let d = addDate(days[0], 1); d < days[days.length - 1]; d = addDate(d, 1)) {
-      if (!worked(d) && worked(addDate(d, -1)) && worked(addDate(d, 1))) out.push({ rule: "freeDayBlocks", date: d, text: "Einzelner freier Tag am " + day(d) + " (mindestens 2 freie Tage am Stück)", shiftIds: [...ids(byDate.get(addDate(d, -1))!), ...ids(byDate.get(addDate(d, 1))!)] });
+      if (!worked(d) && worked(addDate(d, -1)) && worked(addDate(d, 1))) add("freeDayBlocks", d, "Einzelner freier Tag am " + day(d) + " (mindestens 2 freie Tage am Stück)", [...byDate.get(addDate(d, -1))!, ...byDate.get(addDate(d, 1))!]);
     }
   }
 
@@ -177,7 +197,7 @@ export function ruleViolations(rules: Rules, shifts: PlannedShift[], window: { f
       while (j + 1 < weekends.length && weekends[j + 1] === addDate(weekends[j], 7)) j++;
       if (j - i + 1 > max) {
         const beyond = weekends.slice(i + max, j + 1);
-        out.push({ rule: "consecutiveWeekends", date: beyond[0], text: n(j - i + 1) + " Wochenenden in Folge mit Schicht bis " + day(addDate(weekends[j], 1)) + " (höchstens " + n(max) + ")", shiftIds: beyond.flatMap(weekendShifts).map((s) => s.id) });
+        add("consecutiveWeekends", beyond[0], n(j - i + 1) + " Wochenenden in Folge mit Schicht bis " + day(addDate(weekends[j], 1)) + " (höchstens " + n(max) + ")", beyond.flatMap(weekendShifts));
       }
       i = j + 1;
     }
@@ -189,7 +209,7 @@ export function ruleViolations(rules: Rules, shifts: PlannedShift[], window: { f
       const monday = addDate(saturday, 2);
       const free = [0, 1, 2, 3, 4].map((i) => addDate(monday, i)).filter((d) => !worked(d)).length;
       if (free < needed) {
-        out.push({ rule: "freeDayAfterWeekend", date: monday, text: "Nach " + (needed === 1 ? "einem Wochenendtag" : "zwei Wochenendtagen") + " mit Schicht " + (free === 0 ? "kein freier Werktag" : "nur ein freier Werktag") + " in der Woche ab " + day(monday) + " (je Wochenendtag einer)", shiftIds: [...weekendShifts(saturday), ...[0, 1, 2, 3, 4].flatMap((i) => byDate.get(addDate(monday, i)) ?? [])].map((s) => s.id) });
+        add("freeDayAfterWeekend", monday, "Nach " + (needed === 1 ? "einem Wochenendtag" : "zwei Wochenendtagen") + " mit Schicht " + (free === 0 ? "kein freier Werktag" : "nur ein freier Werktag") + " in der Woche ab " + day(monday) + " (je Wochenendtag einer)", [...weekendShifts(saturday), ...[0, 1, 2, 3, 4].flatMap((i) => byDate.get(addDate(monday, i)) ?? [])]);
       }
     }
   }
