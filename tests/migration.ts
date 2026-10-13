@@ -285,16 +285,23 @@ async function main() {
   check((await rows(edit, `SELECT 1 FROM "schedule_snapshots"`)).length === 0, "at most one snapshot per plan, only for existing plans, removed with the plan");
   await edit.close();
 
-  // Lohn: rein additiv; Personalnummer eindeutig je Organisation, genutzte Lohnart nicht loeschbar.
-  const PAYROLL = "20261012090000_payroll";
+  // Lohn: rein additiv nach dem Plan-Lebenszyklus; Personalnummer eindeutig je Organisation, genutzte Lohnart
+  // nicht loeschbar. Zeiten geloeschter Personen (userId NULL) und das Bundesland je Einsatzort bleiben unberuehrt.
+  const PAYROLL = "20261013100000_payroll";
+  check(PAYROLL > EDITING && PAYROLL > HOLIDAY, "payroll migration is ordered after the plan lifecycle and federal state migrations");
   const pay = await database(PAYROLL);
   await pay.exec(`
     INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('l1','Org Lohn',${now}),('l2','Org Zwei',${now});
     INSERT INTO "users" ("id","email","firstName","lastName","updatedAt") VALUES ('la','la@akro-test.invalid','Lea','Alt',${now}),('lb','lb@akro-test.invalid','Leo','Alt',${now});
     INSERT INTO "organization_members" ("id","organizationId","userId","role","isActivated","position") VALUES ('lm1','l1','la','EMPLOYEE',true,'Wache'),('lm2','l1','lb','EMPLOYEE',true,null),('lm3','l2','la','EMPLOYEE',true,null);
     INSERT INTO "divisions" ("id","organizationId","title") VALUES ('ld','l1','Empfang');
+    INSERT INTO "branches" ("id","organizationId","name","holidayState") VALUES ('lbr','l1','Objekt Lohn','NW');
+    INSERT INTO "former_employees" ("id","organizationId","firstName","lastName") VALUES ('lf','l1','Fritz','Frueher');
+    INSERT INTO "time_records" ("id","organizationId","userId","formerEmployeeId","branchId","date","timeFrom","timeTo","type","updatedAt") VALUES ('lt','l1',null,'lf','lbr','2026-10-01','08:00','16:00','MANUAL',${now});
   `);
   await pay.exec(await readFile("prisma/migrations/" + PAYROLL + "/migration.sql", "utf8"));
+  const kept = (await rows<{ userId: string | null; formerEmployeeId: string | null; holidayState: string | null }>(pay, `SELECT t."userId",t."formerEmployeeId",b."holidayState" FROM "time_records" t JOIN "branches" b ON b."id"=t."branchId" WHERE t."id"='lt'`))[0];
+  check(kept.userId === null && kept.formerEmployeeId === "lf" && kept.holidayState === "NW", "time records of deleted people and the federal state per site stay unchanged");
   const member = (await rows<{ position: string | null; personnelNumber: string | null; payTypeId: string | null }>(pay, `SELECT "position","personnelNumber","payTypeId" FROM "organization_members" WHERE "id"='lm1'`))[0];
   check(member.position === "Wache" && member.personnelNumber === null && member.payTypeId === null, "existing members keep their data and start without personnel number and pay type");
   check((await rows<{ payTypeId: string | null }>(pay, `SELECT "payTypeId" FROM "divisions" WHERE "id"='ld'`))[0].payTypeId === null, "existing work areas start without their own pay type");
