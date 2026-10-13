@@ -21,6 +21,7 @@ import { json } from "@/components/workforce/client";
 import { formatKW } from "@/lib/utils/calendar";
 import { cn } from "@/lib/utils";
 import { useWeekConflicts } from "./conflict-panel";
+import { useViolations, verstößeText } from "./rule-violations";
 import type { ScheduleDiffData, ScheduleDiffShift, ScheduleStatus } from "@/types/schedule";
 import type { WeekConflicts } from "@/types/conflicts";
 
@@ -48,6 +49,7 @@ export function keineMitteilung(data: DiffResponse): boolean {
 
 const SICHTBAR = 8;
 const PANEL = 'section[aria-label="Konfliktprüfung"]';
+const REGELN = 'section[aria-label="Regelverstöße"]';
 
 function namen(s: ScheduleDiffShift): string {
   return s.people.map((p) => p.name).join(", ");
@@ -105,6 +107,8 @@ export function PublishSummary({
   konflikte,
   konflikteHref,
   onKonflikte,
+  regeln,
+  onRegeln,
 }: {
   data: DiffResponse;
   notify: boolean;
@@ -113,6 +117,9 @@ export function PublishSummary({
   konflikte?: WeekConflicts["counts"] | null;
   konflikteHref?: string;
   onKonflikte?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+  /** Regelpruefung dieser Woche, falls geladen und mindestens eine Regel eingeschaltet; Sprung wie bei den Konflikten. */
+  regeln?: { enabled: boolean; count: number } | null;
+  onRegeln?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const id = useId();
   const { status, diff } = data;
@@ -188,6 +195,26 @@ export function PublishSummary({
         </p>
       )}
 
+      {regeln?.enabled && (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {regeln.count === 0 ? (
+            <span className="flex items-center gap-1.5 font-medium text-ok"><Check className="size-4" aria-hidden="true" />Keine Regelverstöße in dieser Woche</span>
+          ) : (
+            <>
+              <span className="flex items-center gap-1.5 font-medium text-warn">
+                <AlertTriangle className="size-4" aria-hidden="true" />
+                {verstößeText(regeln.count)} – Veröffentlichen trotzdem möglich
+              </span>
+              {konflikteHref && (
+                <Link href={konflikteHref} onClick={onRegeln} className="font-medium text-primary underline-offset-4 hover:underline max-md:inline-flex max-md:min-h-11 max-md:items-center">
+                  Ansehen
+                </Link>
+              )}
+            </>
+          )}
+        </p>
+      )}
+
       <div className="space-y-1.5 rounded-[var(--radius)] border p-3">
         <label htmlFor={id} className="flex items-center gap-2 text-[14px] font-medium max-md:min-h-11">
           <Checkbox id={id} checked={senden} disabled={niemand} aria-describedby={id + "-hinweis"} onCheckedChange={(value) => onNotifyChange(value === true)} />
@@ -245,7 +272,8 @@ export function PublishDialog({
   const [open, setOpen] = useState(false);
   const [notify, setNotify] = useState(true);
   const busy = useRef(false);
-  const sprung = useRef(false);
+  /** Panel, zu dem nach dem Schliessen gesprungen wird (Konflikte oder Regelverstoesse). */
+  const sprung = useRef<string | null>(null);
 
   // Unter "schedule": Echtzeit-Aenderungen am Plan laden den Diff neu, solange der Dialog offen ist.
   const diff = useQuery<DiffResponse>({
@@ -256,6 +284,7 @@ export function PublishDialog({
     retry: false,
   });
   const konflikte = useWeekConflicts(woche?.weekNumber ?? 0, woche?.year ?? 0, woche?.standort ?? "ohne", open && !!woche);
+  const verstöße = useViolations(scheduleId, open);
 
   const mutation = useMutation({
     mutationFn: async (send: boolean) => {
@@ -288,7 +317,7 @@ export function PublishDialog({
   function wechsel(value: boolean) {
     if (value) {
       setNotify(true);
-      sprung.current = false;
+      sprung.current = null;
     }
     setOpen(value);
   }
@@ -300,11 +329,11 @@ export function PublishDialog({
     mutation.mutate(notify && !keineMitteilung(data));
   }
 
-  /** Konfliktpanel auf dieser Seite: Dialog schliessen und dorthin springen; sonst fuehrt der Link in die Wochenansicht. */
-  function zuKonflikten(event: React.MouseEvent<HTMLAnchorElement>) {
-    if (!document.querySelector(PANEL)) return;
+  /** Panel auf dieser Seite: Dialog schliessen und dorthin springen; sonst fuehrt der Link in die Wochenansicht. */
+  function zuPanel(selector: string, event: React.MouseEvent<HTMLAnchorElement>) {
+    if (!document.querySelector(selector)) return;
     event.preventDefault();
-    sprung.current = true;
+    sprung.current = selector;
     setOpen(false);
   }
 
@@ -319,10 +348,11 @@ export function PublishDialog({
       <DialogContent
         className="sm:max-w-lg"
         onCloseAutoFocus={(event) => {
-          if (!sprung.current) return;
-          sprung.current = false;
+          const ziel = sprung.current;
+          if (!ziel) return;
+          sprung.current = null;
           event.preventDefault();
-          const panel = document.querySelector<HTMLElement>(PANEL);
+          const panel = document.querySelector<HTMLElement>(ziel);
           panel?.scrollIntoView({ block: "start" });
           panel?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
         }}
@@ -343,7 +373,9 @@ export function PublishDialog({
             onNotifyChange={setNotify}
             konflikte={konflikte.data?.counts ?? null}
             konflikteHref={konflikteHref}
-            onKonflikte={zuKonflikten}
+            onKonflikte={(event) => zuPanel(PANEL, event)}
+            regeln={verstöße.data ?? null}
+            onRegeln={(event) => zuPanel(REGELN, event)}
           />
         ) : diff.isError ? (
           <div role="alert" className="space-y-2 rounded-[var(--radius)] border border-destructive/30 bg-destructive/5 p-3 text-[13px] text-destructive">
