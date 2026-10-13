@@ -45,8 +45,3 @@ export function recordMinutes(record: { startedAt?: Date | string | null; endedA
   const gross = record.startedAt && record.endedAt ? (new Date(record.endedAt).getTime() - new Date(record.startedAt).getTime()) / 60000 : record.type === "MANUAL_DURATION" ? (record.durationHours ?? 0) * 60 + (record.durationMinutes ?? 0) : record.timeFrom && record.timeTo ? rangeMinutes(record.timeFrom, record.timeTo) : 0;
   return Math.max(0, Math.round(gross - (record.breakSeconds ?? 0) / 60));
 }
-/** Planminuten einer Schicht: Dauer minus Pause (je Schicht oder je volle Stunde), wie die Monatsauswertung. */
-export function plannedMinutes(shift: { shiftFrom: string; shiftTo: string; pauseOption: string; pauseValue: number }): number {
-  const gross = rangeMinutes(shift.shiftFrom, shift.shiftTo);
-  return Math.max(0, gross - (shift.pauseOption === "PER_HOUR" ? Math.floor(gross / 60) * shift.pauseValue : shift.pauseValue));
-}

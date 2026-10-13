@@ -2,7 +2,8 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { ApiError } from "./errors";
-import { addDate, isoWeek, plannedMinutes, shiftRange } from "./berlin";
+import { addDate, isoWeek, shiftRange } from "./berlin";
+import { plannedMinutes } from "./planning";
 import { can, type Access } from "./access";
 
 type Tx = Prisma.TransactionClient;
