@@ -32,6 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
+import { formatName } from "@/lib/names";
 import { AbsenceForm, getStatusBadge, calculateDays } from "./absence-form";
 import { AbsenceEffectsDialog, type EffectsInput } from "./absence-effects-dialog";
 import type { AbsenceData, EmployeeOption } from "./absence-form";
@@ -182,7 +183,7 @@ export function AbsenceList() {
   });
 
   const LOESCH_HINWEIS =
-    "Der Eintrag wird endgültig entfernt; die Person wird darüber nicht benachrichtigt. Ein genehmigter Zeitraum gilt danach nicht mehr als Abwesenheit.";
+    "Der Eintrag wird endgültig entfernt; die Person wird darüber nicht benachrichtigt. Ein genehmigter Zeitraum gilt danach nicht mehr als Abwesenheit: bezahlte Abwesenheitsstunden entfallen aus Stunden, Lohn und Zeitkonto; aus Schichten ausgetragene Zuweisungen bleiben offen.";
 
   function handleEdit(absence: AbsenceData) {
     setEditingAbsence(absence);
@@ -507,7 +508,7 @@ export function AbsenceList() {
 
       {approving && (
         <AbsenceEffectsDialog
-          userId={approving.userId} name={approving.user.firstName + " " + approving.user.lastName}
+          userId={approving.userId} name={formatName(approving.user, currentMember?.nameFormat)}
           from={approving.dateFrom.slice(0, 10)} to={approving.dateTo.slice(0, 10)} categoryId={approving.categoryId} absenceId={approving.id}
           confirmLabel="Genehmigen" pending={approveMutation.isPending}
           onCancel={() => setApproving(null)} onConfirm={(effects) => approveMutation.mutate({ id: approving.id, effects })}

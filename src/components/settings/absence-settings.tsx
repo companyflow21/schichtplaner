@@ -259,10 +259,10 @@ export function AbsenceSettings({
         <div className="space-y-2">
           {categories.map((cat) =>
             editingId === cat.id ? (
-              // Editing mode
+              // Editing mode (bricht auf schmalen Bildschirmen um; der Lohnart-Code kam mit der Abwesenheitswirkung dazu)
               <div
                 key={cat.id}
-                className="flex items-center gap-3 rounded-lg border p-3"
+                className="flex flex-wrap items-center gap-3 rounded-lg border p-3"
               >
                 <Input
                   value={editName}

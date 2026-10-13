@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
+import { formatName } from "@/lib/names";
 import { AbsenceEffectsDialog, type EffectsInput } from "./absence-effects-dialog";
 import { VacationHint } from "./vacation";
 
@@ -255,7 +256,7 @@ function AbsenceEditor({
     const person = absence?.user ?? employees.find((e) => e.userId === userId) ?? currentMember?.user;
     return (
       <AbsenceEffectsDialog
-        userId={absence?.userId ?? userId} name={person ? person.firstName + " " + person.lastName : ""}
+        userId={absence?.userId ?? userId} name={person ? formatName(person, currentMember?.nameFormat) : ""}
         from={absence?.dateFrom.slice(0, 10) ?? dateFrom} to={absence?.dateTo.slice(0, 10) ?? dateTo} categoryId={absence?.categoryId ?? categoryId} absenceId={absence?.id}
         confirmLabel={effectsFor === "create" ? "Abwesenheit eintragen" : "Genehmigen"} pending={isPending}
         onCancel={() => setEffectsFor(null)}

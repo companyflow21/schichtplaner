@@ -5,9 +5,13 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ErrorMessage, json, useAction } from "@/components/workforce/client";
+import { useNameFormat } from "@/lib/hooks/use-current-member";
+import { formatName } from "@/lib/names";
 import type { VacationYear } from "@/lib/vacation";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +40,7 @@ export function OwnVacation() {
         {y.pending > 0 && <p className="text-sm text-warn">{days(y.pending)} Tage beantragt, noch nicht genehmigt</p>}
       </div>
       <Button size="sm" variant="outline" onClick={() => setOpen(true)}>Kontoauszug</Button>
-      {open && <VacationDialog name="Mein Urlaubskonto" onClose={() => setOpen(false)} />}
+      {open && <VacationDialog onClose={() => setOpen(false)} />}
     </Card>
   );
 }
@@ -44,12 +48,13 @@ export function OwnVacation() {
 /** Urlaubskonten aller Personen, deren Abwesenheiten man entscheidet. */
 export function VacationOverview() {
   const query = useQuery({ queryKey: ["vacation-overview"], queryFn: () => json<Overview>("/api/vacation/overview") });
+  const nameFormat = useNameFormat();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState<Overview["people"][number] | null>(null);
   if (query.isLoading) return <div className="flex justify-center py-10"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>;
   if (query.error) return <ErrorMessage error={query.error} />;
   if (!query.data?.enabled) return <Card className="p-6 text-sm text-muted-foreground">Das Urlaubskonto ist ausgeschaltet (Einstellungen › Urlaubskonto).</Card>;
-  const people = query.data.people.filter((p) => (p.lastName + ", " + p.firstName).toLowerCase().includes(search.trim().toLowerCase()));
+  const people = query.data.people.filter((p) => formatName(p, nameFormat).toLowerCase().includes(search.trim().toLowerCase()));
   return (
     <Card className="space-y-3 p-4">
       <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Person suchen …" aria-label="Person suchen" className="sm:max-w-xs" />
@@ -61,7 +66,7 @@ export function VacationOverview() {
           <tbody>
             {people.map((p) => (
               <tr key={p.userId} className="cursor-pointer border-t hover:bg-muted/40" onClick={() => setOpen(p)}>
-                <td className="py-2 pr-3"><span className="font-medium">{p.lastName}, {p.firstName}</span>{p.deviates && <span className="ml-2 text-xs text-muted-foreground">eigene Regeln</span>}{p.current.pending > 0 && <span className="ml-2 rounded-full bg-warn/10 px-2 py-0.5 text-xs text-warn">{days(p.current.pending)} beantragt</span>}</td>
+                <td className="py-2 pr-3"><span className="font-medium">{formatName(p, nameFormat)}</span>{p.deviates && <span className="ml-2 text-xs text-muted-foreground">eigene Regeln</span>}{p.current.pending > 0 && <span className="ml-2 rounded-full bg-warn/10 px-2 py-0.5 text-xs text-warn">{days(p.current.pending)} beantragt</span>}</td>
                 <td className="py-2 pr-3 text-right tabular-nums">{days(p.current.entitlement)}</td>
                 <td className="hidden py-2 pr-3 text-right tabular-nums sm:table-cell">{days(p.current.carried)}</td>
                 <td className="py-2 pr-3 text-right tabular-nums">{days(p.current.taken)}</td>
@@ -73,13 +78,13 @@ export function VacationOverview() {
           </tbody>
         </table>
       </div>
-      {open && <VacationDialog userId={open.userId} name={open.firstName + " " + open.lastName} onClose={() => setOpen(null)} />}
+      {open && <VacationDialog userId={open.userId} name={formatName(open, nameFormat)} onClose={() => setOpen(null)} />}
     </Card>
   );
 }
 
-/** Kontoauszug je Urlaubsjahr mit Korrektur (nur Administration). */
-export function VacationDialog({ userId, name, onClose }: { userId?: string; name: string; onClose: () => void }) {
+/** Kontoauszug je Urlaubsjahr mit Korrektur (nur Administration); ohne name das eigene Konto. */
+export function VacationDialog({ userId, name, onClose }: { userId?: string; name?: string; onClose: () => void }) {
   const query = useQuery({ queryKey: ["vacation", userId ?? "self", "statement"], queryFn: () => json<View>("/api/vacation" + (userId ? "?userId=" + encodeURIComponent(userId) : "")) });
   const action = useAction();
   const [index, setIndex] = useState<number | null>(null);
@@ -92,7 +97,13 @@ export function VacationDialog({ userId, name, onClose }: { userId?: string; nam
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl [&>*]:min-w-0">
         <DialogHeader>
-          <DialogTitle>Urlaubskonto {name}</DialogTitle>
+          <DialogTitle className="flex items-center gap-1">
+            {name ? "Urlaubskonto " + name : "Mein Urlaubskonto"}
+            <InfoHint thema="Urlaubskonto" titel="So wird gerechnet">
+              <p>Anspruch je Urlaubsjahr (ganz zu Beginn oder monatlich), Übertrag aus dem Vorjahr, Korrekturen der Administration.</p>
+              <p>Abgezogen wird genehmigter Urlaub ohne freie Wochentage und – je nach Einstellung – ohne Feiertage (Bundesland des Einsatzorts der Schicht an diesem Tag, sonst Feiertage der Organisation). Beantragter Urlaub wird angezeigt, aber nicht abgezogen.</p>
+            </InfoHint>
+          </DialogTitle>
           <DialogDescription>{data?.categoryName ? "Abgezogen wird „" + data.categoryName + "“." : "Wird geladen …"}</DialogDescription>
         </DialogHeader>
         <ErrorMessage error={query.error} />
@@ -119,13 +130,19 @@ export function VacationDialog({ userId, name, onClose }: { userId?: string; nam
         )}
         {data?.active && data.canEdit && (
           <div className="space-y-2">
-            <h3 className="text-sm font-semibold">Saldo anpassen</h3>
+            <h3 className="flex items-center gap-1 text-sm font-semibold">
+              Saldo anpassen
+              <InfoHint thema="Saldo anpassen"><p>Korrektur in ganzen oder halben Tagen mit Vorzeichen, z. B. Resturlaub bei Einführung (+4,5) oder bereits genommener Urlaub (−3). Zählt am eingetragenen Datum. Nur die Administration.</p></InfoHint>
+            </h3>
             {data.adjustments.length > 0 && (
               <ul className="divide-y rounded-[var(--radius)] border text-sm">
                 {data.adjustments.map((x) => (
                   <li key={x.id} className="flex items-center gap-2 px-2 py-1.5">
                     <span className="w-24 shrink-0 tabular-nums">{date(x.date)}</span><span className="min-w-0 flex-1 break-words">{x.comment}</span><span className="tabular-nums">{signed(x.days)}</span>
-                    <Button size="icon-sm" variant="ghost" aria-label="Korrektur löschen" disabled={action.isPending} onClick={() => { if (confirm("Korrektur löschen?")) action.mutate({ url: "/api/vacation/adjustments/" + x.id, method: "DELETE", message: "Korrektur gelöscht" }); }}><Trash2 className="size-4" /></Button>
+                    <ConfirmDialog title="Korrektur löschen?" description={"„" + x.comment + "“ (" + signed(x.days) + " Tage) wird entfernt; der Stand des Urlaubskontos wird neu gerechnet."} confirmLabel="Löschen" disabled={action.isPending}
+                      onConfirm={() => action.mutate({ url: "/api/vacation/adjustments/" + x.id, method: "DELETE", message: "Korrektur gelöscht" })}>
+                      <Button size="icon-sm" variant="ghost" aria-label="Korrektur löschen" disabled={action.isPending}><Trash2 className="size-4 text-destructive" /></Button>
+                    </ConfirmDialog>
                   </li>
                 ))}
               </ul>

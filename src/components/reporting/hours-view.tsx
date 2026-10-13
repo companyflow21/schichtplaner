@@ -33,7 +33,8 @@ type RecordView = {
 };
 type Row = {
   key: string; date: string; status: Status; canEnter: boolean; plannedMinutes: number;
-  absence: { category: string; handling: "PAID" | "UNPAID" | "RELEASED" | null; pay: { totalCents: number; lines: PayLine[]; warnings: string[] } | null } | null; istMinutes: number; deviationMinutes: number | null;
+  /** category nur fuer die Person selbst, die Administration und wer ihre Abwesenheiten entscheidet. */
+  absence: { category: string | null; handling: "PAID" | "UNPAID" | "RELEASED" | null; pay: { totalCents: number; lines: PayLine[]; warnings: string[] } | null } | null; istMinutes: number; deviationMinutes: number | null;
   shift: { id: string; from: string; to: string; title: string | null; branchName: string | null; customerName: string | null; division: { title: string; color: string } | null; pauseMinutes: number } | null;
   records: RecordView[];
 };
@@ -123,7 +124,9 @@ export function HoursView() {
             <InfoHint thema="Stunden und Lohn" titel="So wird geprüft">
               <p>Je Schicht stehen Plan und Ist nebeneinander. „nicht erfasst“: Schicht vorbei, keine Zeit – sie zählt nicht als gearbeitet; „Zeit wie geplant nachtragen“ erfasst sie.</p>
               <p>Genehmigen: Administration, oder Disposition mit „Zeiterfassung bearbeiten“ am Standort und „Stunden einsehen“ für die Person. Eigene Stunden genehmigt nur die Administration.</p>
-              <p>Vorläufig (AKRO entscheidet): Die Genehmigung ändert Lohn und Lohnexport nicht – offene Stunden sind enthalten.</p>
+              <p>„abwesend“: genehmigte Abwesenheit ohne erfasste Zeit – bezahlt mit Planstunden oder 0 Stunden, wie beim Genehmigen gewählt.</p>
+              <p>„Saldo“ (wenn Zeitkonten eingeschaltet sind): Stand des Zeitkontos am Ende des gewählten Zeitraums; Tage nach heute zählen mit Planstunden.</p>
+              <p>Vorläufig (AKRO entscheidet): Die Genehmigung ändert Lohn, Lohnexport und Zeitkonto nicht – offene Stunden sind enthalten.</p>
             </InfoHint>
           </h1>
           <p className="text-sm text-muted-foreground">Plan und Ist je Schicht prüfen, korrigieren und genehmigen{data?.showPay ? " – mit Lohn und Lohnexport" : ""}</p>
@@ -341,7 +344,7 @@ function RowItem({ row, showPay, userId, busy, onApprove, onEdit, onEnter }: {
         )}
         {row.absence && (
           <div className="space-y-1 rounded-md bg-muted/40 px-2 py-1.5">
-            <p>Abwesenheit: {row.absence.category} · {row.absence.handling === "PAID" ? "bezahlt mit Planstunden" : row.absence.handling === "UNPAID" ? "zählt 0 Stunden" : row.absence.handling === "RELEASED" ? "Schicht offen gestellt" : "ohne Festlegung (0 Stunden)"}</p>
+            <p>{row.absence.category ? "Abwesenheit: " + row.absence.category : "Genehmigte Abwesenheit"} · {row.absence.handling === "PAID" ? "bezahlt mit Planstunden" : row.absence.handling === "UNPAID" ? "zählt 0 Stunden" : row.absence.handling === "RELEASED" ? "aus der Schicht ausgetragen" : "ohne Festlegung (0 Stunden)"}</p>
             {showPay && row.absence.pay && <ul className="text-xs text-muted-foreground">{row.absence.pay.lines.map((l, i) => <li key={i}>{lineText(l)}</li>)}</ul>}
           </div>
         )}

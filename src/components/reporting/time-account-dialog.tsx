@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ErrorMessage, json, useAction } from "@/components/workforce/client";
 import { hours } from "@/lib/payroll";
@@ -21,8 +23,12 @@ export const signedHours = (minutes: number) => (minutes > 0 ? "+" : minutes < 0
 const date = (d: string) => new Date(d + "T12:00:00Z").toLocaleDateString("de-DE", { timeZone: "UTC", day: "2-digit", month: "2-digit", year: "numeric" });
 const short = (d: string) => d.slice(8, 10) + "." + d.slice(5, 7) + ".";
 
-/** Zeitkonto einer Person: Perioden mit Soll, Plan, Ist, Ausgleich und laufendem Saldo; Ausgleich buchen (Admins). */
-export function TimeAccountDialog({ userId, name, from, to, onClose }: { userId?: string; name: string; from: string; to: string; onClose: () => void }) {
+/**
+ * Zeitkonto einer Person: Perioden mit Soll, Plan, Ist, Ausgleich und laufendem
+ * Saldo; Ausgleich buchen und loeschen nur die Administration (canEdit).
+ * name: Anzeigename nach dem Namensformat; ohne name das eigene Konto.
+ */
+export function TimeAccountDialog({ userId, name, from, to, onClose }: { userId?: string; name?: string; from: string; to: string; onClose: () => void }) {
   const query = useQuery({ queryKey: ["time-account", userId ?? "self", to], queryFn: () => json<AccountView>("/api/time-accounts?to=" + to + (userId ? "&userId=" + encodeURIComponent(userId) : "")) });
   const action = useAction();
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +39,14 @@ export function TimeAccountDialog({ userId, name, from, to, onClose }: { userId?
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl [&>*]:min-w-0">
         <DialogHeader>
-          <DialogTitle>Zeitkonto {name}</DialogTitle>
+          <DialogTitle className="flex items-center gap-1">
+            {name ? "Zeitkonto " + name : "Mein Zeitkonto"}
+            <InfoHint thema="Zeitkonto" titel="So wird gerechnet">
+              <p>Je Woche bzw. Monat ab dem ersten Soll-Eintrag: Ist (erfasste Zeiten, bezahlte Abwesenheit mit Planstunden), Plan (veröffentlichte Schichten) und Soll.</p>
+              <p>Tage nach heute zählen mit ihren Planstunden. Beginnt ein Soll mitten in einer Woche oder einem Monat, zählt es anteilig nach Werktagen (Mo–Fr).</p>
+              <p>Saldo: Stand am Ende des gewählten Zeitraums.</p>
+            </InfoHint>
+          </DialogTitle>
           <DialogDescription>{data ? METHOD_LABEL[data.method] + " · Saldo zum " + date(to) : "Wird geladen …"}</DialogDescription>
         </DialogHeader>
         <ErrorMessage error={query.error} />
@@ -41,7 +54,7 @@ export function TimeAccountDialog({ userId, name, from, to, onClose }: { userId?
         {data && !data.active && <p className="text-sm text-muted-foreground">{!data.enabled ? "Zeitkonten sind ausgeschaltet (Einstellungen › Zeitkonten)." : "Für diese Person ist kein Soll hinterlegt oder das Zeitkonto ist ausgeschaltet."}</p>}
         {data?.result && (
           <>
-            <p className="text-2xl font-semibold tabular-nums">{signedHours(data.result.balanceMinutes)} h</p>
+            <p className={cn("text-2xl font-semibold tabular-nums", data.result.balanceMinutes < 0 && "text-destructive")}>{signedHours(data.result.balanceMinutes)} h</p>
             <div className="overflow-x-auto rounded-[var(--radius)] border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-xs text-muted-foreground">
@@ -62,20 +75,30 @@ export function TimeAccountDialog({ userId, name, from, to, onClose }: { userId?
                 </tbody>
               </table>
             </div>
-            <p className="text-xs text-muted-foreground">Tage nach heute zählen mit ihren Planstunden. Beginnt ein Soll mitten in einer Periode, zählt es anteilig nach Werktagen.</p>
           </>
         )}
         {data && (data.compensations.length > 0 || data.canEdit) && (
           <div className="space-y-2">
-            <h3 className="text-sm font-semibold">Ausgleich</h3>
+            <h3 className="flex items-center gap-1 text-sm font-semibold">
+              Ausgleich
+              <InfoHint thema="Ausgleich">
+                <p>Gutschrift oder Abzug in Stunden, z. B. „−30“ für ausbezahlte Überstunden oder „+12,5“ als Anfangssaldo. Zählt in der Woche bzw. im Monat des Datums; vor dem ersten Soll im ersten Zeitraum.</p>
+                <p>Buchen und löschen darf nur die Administration.</p>
+              </InfoHint>
+            </h3>
             {data.compensations.length > 0 && (
               <ul className="divide-y rounded-[var(--radius)] border text-sm">
                 {data.compensations.map((c) => (
                   <li key={c.id} className="flex items-center gap-2 px-2 py-1.5">
-                    <span className="w-24 tabular-nums">{date(c.date)}</span>
-                    <span className="flex-1">{c.description}</span>
-                    <span className="tabular-nums">{signedHours(c.minutes)} h</span>
-                    {data.canEdit && <Button size="icon-sm" variant="ghost" aria-label="Ausgleich löschen" disabled={action.isPending} onClick={() => { if (confirm("Ausgleich löschen?")) action.mutate({ url: "/api/time-accounts/compensations/" + c.id, method: "DELETE", message: "Ausgleich gelöscht" }); }}><Trash2 className="size-4" /></Button>}
+                    <span className="w-24 shrink-0 tabular-nums">{date(c.date)}</span>
+                    <span className="min-w-0 flex-1 break-words">{c.description}</span>
+                    <span className="shrink-0 tabular-nums">{signedHours(c.minutes)} h</span>
+                    {data.canEdit && (
+                      <ConfirmDialog title="Ausgleich löschen?" description={"„" + c.description + "“ (" + signedHours(c.minutes) + " h) wird entfernt; der Saldo wird neu gerechnet."} confirmLabel="Löschen" disabled={action.isPending}
+                        onConfirm={() => action.mutate({ url: "/api/time-accounts/compensations/" + c.id, method: "DELETE", message: "Ausgleich gelöscht" })}>
+                        <Button size="icon-sm" variant="ghost" aria-label="Ausgleich löschen" disabled={action.isPending}><Trash2 className="size-4 text-destructive" /></Button>
+                      </ConfirmDialog>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -111,7 +134,7 @@ export function OwnAccountButton({ from, to }: { from: string; to: string }) {
   return (
     <>
       <Button size="sm" variant="outline" onClick={() => setOpen(true)}>Zeitkonto {signedHours(query.data.result.balanceMinutes)} h</Button>
-      {open && <TimeAccountDialog name="(eigenes)" from={from} to={to} onClose={() => setOpen(false)} />}
+      {open && <TimeAccountDialog from={from} to={to} onClose={() => setOpen(false)} />}
     </>
   );
 }
