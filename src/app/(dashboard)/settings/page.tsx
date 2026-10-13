@@ -55,7 +55,7 @@ type SettingsResponse = {
 
 // ---------- Component ----------
 
-const SECTIONS: SettingsSection[] = ["schedule", "time", "wishplan", "employees", "qualifications", "absences", "account"];
+const SECTIONS: SettingsSection[] = ["schedule", "time", "payroll", "wishplan", "employees", "qualifications", "absences", "account"];
 
 export default function SettingsPage() {
   return (
@@ -206,7 +206,7 @@ function SettingsContent() {
           >
             <option value="schedule">Schichtplan</option>
             <option value="time">Zeiterfassung</option>
-            <option value="payroll">Lohn</option>
+            <option value="payroll">Lohnarten/Zuschläge</option>
             <option value="wishplan">Wunschpläne</option>
             <option value="employees">Mitarbeiter</option>
             <option value="qualifications">Qualifikationen</option>

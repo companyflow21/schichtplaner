@@ -25,7 +25,7 @@ const sections = [
   },
   {
     key: "payroll",
-    label: "Lohn",
+    label: "Lohnarten/Zuschläge",
     icon: Wallet,
   },
   {

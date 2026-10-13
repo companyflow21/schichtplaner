@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, Download, Search } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,12 +13,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ErrorMessage, json, selectClass } from "@/components/workforce/client";
 import { addDate, berlinDate } from "@/lib/berlin";
+import { useNameFormat } from "@/lib/hooks/use-current-member";
+import { formatName } from "@/lib/names";
 import { euro, formatNumber, hours, type PayLine } from "@/lib/payroll";
 import { cn } from "@/lib/utils";
 
 type RecordRow = { id: string; date: string; type: string; timeFrom: string | null; timeTo: string | null; breakMinutes: number; branchName: string | null; divisionTitle: string | null; minutes: number; totalCents: number; lines: PayLine[]; warnings: string[] };
-type Person = { userId: string; memberId: string; firstName: string; lastName: string; isActive: boolean; personnelNumber: string | null; payType: { title: string; hourlyRateCents: number } | null; minutes: number; totalCents: number; lines: PayLine[]; warnings: string[]; records: RecordRow[] };
-type Report = { from: string; to: string; people: Person[]; totals: { minutes: number; totalCents: number }; setup: { payTypes: number; surcharges: number } };
+/** key: userId, bei geloeschten Personen "former:" + Id (userId und memberId null). */
+type Person = { key: string; userId: string | null; memberId: string | null; former: boolean; firstName: string; lastName: string; isActive: boolean; personnelNumber: string | null; payType: { title: string; hourlyRateCents: number } | null; minutes: number; totalCents: number; lines: PayLine[]; warnings: string[]; records: RecordRow[] };
+type Report = { from: string; to: string; people: Person[]; notices: string[]; totals: { minutes: number; totalCents: number }; setup: { payTypes: number; surcharges: number } };
 type BranchOption = { id: string; name: string; customer?: { name: string } | null };
 
 const monthStart = (date: string) => date.slice(0, 8) + "01";
@@ -25,7 +29,7 @@ const monthEnd = (date: string) => addDate(addDate(monthStart(date), 32).slice(0
 const longDate = (date: string) => new Date(date + "T12:00:00Z").toLocaleDateString("de-DE", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
 const shortDate = (date: string) => new Date(date + "T12:00:00Z").toLocaleDateString("de-DE", { timeZone: "UTC", weekday: "short", day: "2-digit", month: "2-digit" });
 const monthTitle = (date: string) => new Date(date + "T12:00:00Z").toLocaleDateString("de-DE", { timeZone: "UTC", month: "long", year: "numeric" });
-const name = (p: Pick<Person, "firstName" | "lastName">) => p.lastName + ", " + p.firstName;
+const formerBadge = <Badge variant="outline" className="text-xs font-normal text-muted-foreground">gelöscht</Badge>;
 
 /** Rechenweg einer Zeile: "8,00 h × 15,00 € = 120,00 €" bzw. mit Prozentsatz. */
 function lineText(l: PayLine): string {
@@ -44,11 +48,13 @@ export function PayrollView() {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
+  const nameFormat = useNameFormat();
+  const name = (p: Pick<Person, "firstName" | "lastName">) => formatName(p, nameFormat);
   const wholeMonth = from === monthStart(from) && to === monthEnd(from);
   const params = "from=" + from + "&to=" + to + (standort ? "&standort=" + encodeURIComponent(standort) : "");
   const { data: branchData } = useQuery({ queryKey: ["branches", "VIEW_TIME"], queryFn: () => json<{ branches: BranchOption[] }>("/api/branches?right=VIEW_TIME") });
   const query = useQuery({ queryKey: ["payroll", from, to, standort], queryFn: () => json<Report>("/api/payroll/report?" + params), enabled: from <= to });
-  const people = useMemo(() => (query.data?.people ?? []).filter((p) => name(p).toLowerCase().includes(search.trim().toLowerCase()) || (p.personnelNumber ?? "").includes(search.trim())), [query.data, search]);
+  const people = useMemo(() => (query.data?.people ?? []).filter((p) => formatName(p, nameFormat).toLowerCase().includes(search.trim().toLowerCase()) || (p.personnelNumber ?? "").includes(search.trim())), [query.data, search, nameFormat]);
   const shiftMonth = (delta: -1 | 1) => { const start = delta < 0 ? monthStart(addDate(monthStart(from), -1)) : addDate(monthEnd(from), 1); setFrom(start); setTo(monthEnd(start)); setCustom(false); };
   const toggle = (id: string) => setOpen((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const data = query.data;
@@ -91,8 +97,15 @@ export function PayrollView() {
 
       {data && data.setup.payTypes === 0 && (
         <Card className="border-warn/40 bg-warn/5 p-4 text-sm">
-          Noch keine Lohnart angelegt. Stunden werden angezeigt, Beträge erst mit Lohnart. <Link href="/settings" className="font-medium underline">Einstellungen › Lohn</Link>
+          Noch keine Lohnart angelegt. Stunden werden angezeigt, Beträge erst mit Lohnart. <Link href="/settings?bereich=payroll" className="font-medium underline">Einstellungen › Lohnarten/Zuschläge</Link>
         </Card>
+      )}
+
+      {data && data.notices.length > 0 && (
+        <div className="space-y-1 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
+          {data.notices.map((n) => <p key={n} className="flex items-start gap-2"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-warn" />{n}</p>)}
+          <Link href="/divisions" className="font-medium text-primary underline-offset-4 hover:underline">Bundesland festlegen</Link>
+        </div>
       )}
 
       <ErrorMessage error={query.error} />
@@ -127,14 +140,15 @@ export function PayrollView() {
               </thead>
               <tbody>
                 {people.map((p) => {
-                  const expanded = open.has(p.userId);
+                  const expanded = open.has(p.key);
                   return (
-                    <Fragment key={p.userId}>
-                      <tr className="cursor-pointer border-t hover:bg-muted/40" onClick={() => toggle(p.userId)}>
+                    <Fragment key={p.key}>
+                      <tr className="cursor-pointer border-t hover:bg-muted/40" onClick={() => toggle(p.key)}>
                         <td className="px-3 py-2">
                           <span className="flex items-center gap-2">
                             <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", !expanded && "-rotate-90")} />
                             <span className={cn("font-medium", !p.isActive && "text-muted-foreground")}>{name(p)}</span>
+                            {p.former && formerBadge}
                             {p.minutes > 0 && p.warnings.length > 0 && <AlertTriangle className="size-4 text-warn" aria-label={p.warnings.join(" ")} />}
                           </span>
                         </td>
@@ -206,11 +220,12 @@ function ExportDialog({ report, standort, onClose }: { report: Report; standort:
   const [skip, setSkip] = useState<Set<string>>(new Set());
   const [withRates, setWithRates] = useState(true);
   const [pending, setPending] = useState(false);
-  const chosen = candidates.filter((p) => !skip.has(p.userId));
+  const nameFormat = useNameFormat();
+  const chosen = candidates.filter((p) => !skip.has(p.key));
   async function download() {
     setPending(true);
     try {
-      const url = "/api/payroll/export?from=" + report.from + "&to=" + report.to + (standort ? "&standort=" + encodeURIComponent(standort) : "") + "&saetze=" + (withRates ? "1" : "0") + (skip.size ? "&ohne=" + [...skip].join(",") : "");
+      const url = "/api/payroll/export?from=" + report.from + "&to=" + report.to + (standort ? "&standort=" + encodeURIComponent(standort) : "") + "&saetze=" + (withRates ? "1" : "0") + (skip.size ? "&ohne=" + encodeURIComponent([...skip].join(",")) : "");
       const res = await fetch(url);
       if (!res.ok) throw new Error((await res.json()).error || "Export fehlgeschlagen.");
       const href = URL.createObjectURL(await res.blob()), link = document.createElement("a");
@@ -231,10 +246,10 @@ function ExportDialog({ report, standort, onClose }: { report: Report; standort:
         {candidates.length === 0 ? <p className="text-sm text-muted-foreground">Keine Stunden im Zeitraum.</p> : (
           <ul className="max-h-72 divide-y overflow-y-auto rounded-[var(--radius)] border">
             {candidates.map((p) => (
-              <li key={p.userId} className="flex items-center gap-2 px-3 py-2 text-sm">
-                <input type="checkbox" className="size-4 accent-primary" checked={!skip.has(p.userId)} aria-label={name(p) + " exportieren"}
-                  onChange={(e) => setSkip((prev) => { const next = new Set(prev); if (e.target.checked) next.delete(p.userId); else next.add(p.userId); return next; })} />
-                <span className="flex-1">{name(p)}</span>
+              <li key={p.key} className="flex items-center gap-2 px-3 py-2 text-sm">
+                <input type="checkbox" className="size-4 accent-primary" checked={!skip.has(p.key)} aria-label={formatName(p, nameFormat) + " exportieren"}
+                  onChange={(e) => setSkip((prev) => { const next = new Set(prev); if (e.target.checked) next.delete(p.key); else next.add(p.key); return next; })} />
+                <span className="flex flex-1 items-center gap-2">{formatName(p, nameFormat)}{p.former && formerBadge}</span>
                 <span className={cn("tabular-nums", !p.personnelNumber && "text-warn")}>{p.personnelNumber ?? "ohne Personalnr."}</span>
                 <span className="w-20 text-right tabular-nums">{hours(p.minutes)} h</span>
               </li>

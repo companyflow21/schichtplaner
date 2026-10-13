@@ -5,10 +5,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TimeInput } from "@/components/ui/time-input";
 import { ErrorMessage, json, selectClass, useAction } from "@/components/workforce/client";
+import { useNameFormat } from "@/lib/hooks/use-current-member";
+import { formatName } from "@/lib/names";
 import { euro, formatNumber, rateLabel } from "@/lib/payroll";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +44,11 @@ function parseDates(text: string): string[] | null {
   return out;
 }
 const datesText = (dates: string[]) => dates.map((d) => d.slice(3) + "." + d.slice(0, 2) + ".").join(", ");
-const name = (m: Pick<Member, "firstName" | "lastName">) => m.lastName + ", " + m.firstName;
+/** Anzeigename nach dem Namensformat der Organisation. */
+function useName() {
+  const format = useNameFormat();
+  return (m: Pick<Member, "firstName" | "lastName">) => formatName(m, format);
+}
 
 export function surchargeSummary(s: Surcharge, divisions: Division[]): string {
   const days = [
@@ -64,7 +71,7 @@ export function PayrollSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">Lohn</h2>
+        <h2 className="text-xl font-semibold">Lohnarten und Zuschläge</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Grundlage für „Lohn“ und den Lohnexport. Sätze und Zuschläge legt die Administration selbst fest; die steuerliche
           Behandlung (z. B. steuerfreie Zuschläge nach § 3b EStG) bitte mit dem Steuerbüro abstimmen.
@@ -116,7 +123,11 @@ function PayTypes({ payTypes }: { payTypes: PayType[] }) {
                   <span className="text-muted-foreground sm:w-24">{p.code ? "Code " + p.code : "ohne Code"}</span>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" onClick={() => setEditing(p.id)}>Bearbeiten</Button>
-                    <Button size="sm" variant="outline" disabled={action.isPending} onClick={() => { if (confirm("Lohnart „" + p.title + "“ löschen?")) action.mutate({ url: "/api/payroll/pay-types/" + p.id, method: "DELETE", message: "Lohnart gelöscht" }); }}>Löschen</Button>
+                    <ConfirmDialog title="Lohnart löschen?" confirmLabel="Löschen" disabled={action.isPending}
+                      description={"Die Lohnart „" + p.title + "“ wird gelöscht. Nutzen sie noch Personen oder Arbeitsbereiche, wird das Löschen abgelehnt; dann zuerst umstellen oder die Lohnart deaktivieren."}
+                      onConfirm={() => action.mutate({ url: "/api/payroll/pay-types/" + p.id, method: "DELETE", message: "Lohnart gelöscht" })}>
+                      <Button size="sm" variant="outline" disabled={action.isPending}>Löschen</Button>
+                    </ConfirmDialog>
                   </div>
                 </div>
               )}
@@ -162,7 +173,11 @@ function Surcharges({ data }: { data: Settings }) {
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" onClick={() => setEditing(s.id)}>Bearbeiten</Button>
-                    <Button size="sm" variant="outline" disabled={action.isPending} onClick={() => { if (confirm("Zuschlag „" + s.name + "“ löschen?")) action.mutate({ url: "/api/payroll/surcharges/" + s.id, method: "DELETE", message: "Zuschlag gelöscht" }); }}>Löschen</Button>
+                    <ConfirmDialog title="Zuschlag löschen?" confirmLabel="Löschen" disabled={action.isPending}
+                      description={"Der Zuschlag „" + s.name + "“ wird gelöscht und fehlt danach in jeder Lohnberechnung, auch für vergangene Zeiträume. Zum Aussetzen stattdessen „Aktiv“ abwählen."}
+                      onConfirm={() => action.mutate({ url: "/api/payroll/surcharges/" + s.id, method: "DELETE", message: "Zuschlag gelöscht" })}>
+                      <Button size="sm" variant="outline" disabled={action.isPending}>Löschen</Button>
+                    </ConfirmDialog>
                   </div>
                 </div>
               )}
@@ -179,6 +194,7 @@ function SurchargeForm({ data, surcharge, onDone }: { data: Settings; surcharge?
   const [error, setError] = useState<string | null>(null);
   const [allPeople, setAllPeople] = useState(surcharge?.allPeople ?? true);
   const [allDivisions, setAllDivisions] = useState(surcharge?.allDivisions ?? true);
+  const name = useName();
   const prefix = "zuschlag-" + (surcharge?.id ?? "neu");
   const people = data.members.filter((m) => m.isActive || surcharge?.userIds.includes(m.userId));
   const submit = (form: FormData) => {
@@ -217,7 +233,7 @@ function SurchargeForm({ data, surcharge, onDone }: { data: Settings; surcharge?
             </label>
           ))}
         </div>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="holidays" defaultChecked={surcharge?.holidays} className="size-4 accent-primary" />Feiertage (Einstellungen › Abwesenheiten)</label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="holidays" defaultChecked={surcharge?.holidays} className="size-4 accent-primary" />Feiertage (Bundesland des Einsatzorts; Zeiten ohne Einsatzort: Einstellungen › Abwesenheiten)</label>
         <div className="space-y-1.5 sm:max-w-sm"><Label htmlFor={prefix + "-dates"}>Sonderdaten jedes Jahres</Label><Input id={prefix + "-dates"} name="dates" defaultValue={datesText(surcharge?.dates ?? [])} placeholder="z. B. 24.12., 31.12." /></div>
       </fieldset>
       <fieldset className="space-y-1.5">
@@ -272,6 +288,7 @@ function Choice({ legend, all, setAll, name: field, options, selected }: { legen
 function People({ data }: { data: Settings }) {
   const [search, setSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
+  const name = useName();
   const list = data.members.filter((m) => (showInactive || m.isActive) && name(m).toLowerCase().includes(search.trim().toLowerCase()));
   return (
     <Card className="space-y-4 p-5">
@@ -293,6 +310,7 @@ function People({ data }: { data: Settings }) {
 
 function PersonRow({ member, payTypes }: { member: Member; payTypes: PayType[] }) {
   const action = useAction();
+  const name = useName();
   const [number, setNumber] = useState(member.personnelNumber ?? "");
   const [payTypeId, setPayTypeId] = useState(member.payTypeId ?? "");
   const changed = number.trim() !== (member.personnelNumber ?? "") || payTypeId !== (member.payTypeId ?? "");
