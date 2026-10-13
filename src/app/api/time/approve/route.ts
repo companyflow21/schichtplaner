@@ -7,6 +7,10 @@ import { canSeeTime, requireAccess } from "@/lib/access";
  * (Admins; Manager mit "Zeiterfassung bearbeiten" am Standort der Buchung und
  * "Stunden einsehen" fuer die Person). Eigene Buchungen genehmigt nur die
  * Administration. Laufende Stoppuhren lassen sich nicht genehmigen.
+ * Zeiten geloeschter Personen sieht und genehmigt nur die Administration;
+ * die Zeiten selbst bleiben unveraendert.
+ * Wie assertCan: 404, wenn die Buchung nicht sichtbar ist und am Standort
+ * kein Recht besteht (auch fremde Organisation); sonst 403.
  */
 export async function POST(request: Request) {
   return api(async () => {
@@ -15,7 +19,8 @@ export async function POST(request: Request) {
     return serial(async (tx) => {
       const unique = [...new Set(ids)];
       const records = await tx.timeRecord.findMany({ where: { id: { in: unique }, organizationId: a.orgId } });
-      if (records.length !== unique.length || records.some((r) => !canSeeTime(a, r, "view"))) throw new ApiError("Zeitbuchung nicht gefunden.", 404);
+      const known = (r: (typeof records)[number]) => canSeeTime(a, r, "view") || (!!r.branchId && a.branches.has(r.branchId));
+      if (records.length !== unique.length || !records.every(known)) throw new ApiError("Zeitbuchung nicht gefunden.", 404);
       if (records.some((r) => !canSeeTime(a, r, "edit") || (r.userId === a.userId && !a.isAdmin))) throw new ApiError("Keine Berechtigung, diese Stunden zu genehmigen.", 403);
       if (records.some((r) => r.type === "WATCH" && !r.timeTo)) throw new ApiError("Laufende Zeiterfassung zuerst beenden.", 409);
       const result = await tx.timeRecord.updateMany({ where: { id: { in: unique } }, data: approved ? { approvedAt: new Date(), approvedById: a.userId } : { approvedAt: null, approvedById: null } });
