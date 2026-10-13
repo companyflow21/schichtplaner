@@ -104,7 +104,10 @@ export function PayrollView() {
       {data && data.notices.length > 0 && (
         <div className="space-y-1 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
           {data.notices.map((n) => <p key={n} className="flex items-start gap-2"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-warn" />{n}</p>)}
-          <Link href="/divisions" className="font-medium text-primary underline-offset-4 hover:underline">Bundesland festlegen</Link>
+          <p className="flex flex-wrap gap-x-4">
+            {data.notices.some((n) => n.startsWith("Für Einsatzort")) && <Link href="/divisions" className="font-medium text-primary underline-offset-4 hover:underline">Bundesland festlegen</Link>}
+            {data.notices.some((n) => n.startsWith("Für Zeiten ohne Einsatzort")) && <Link href="/settings?bereich=absences" className="font-medium text-primary underline-offset-4 hover:underline">Feiertage der Organisation</Link>}
+          </p>
         </div>
       )}
 
