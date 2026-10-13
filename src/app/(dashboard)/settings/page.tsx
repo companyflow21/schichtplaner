@@ -34,6 +34,7 @@ type SettingsResponse = {
     warningsEnabled: boolean;
     warningsMaxHours: number;
     useCategories: boolean;
+    autoApprove: boolean;
   };
   absenceCategories: {
     id: string;

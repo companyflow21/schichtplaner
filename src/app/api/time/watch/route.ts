@@ -2,7 +2,7 @@ import { z } from "zod";
 import { api, body, requireMember, serial, ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { berlinDate, berlinTime } from "@/lib/berlin";
-import { branchForTime } from "@/lib/time-service";
+import { branchForTime, initialApproval, shiftForTime } from "@/lib/time-service";
 import { watchStartBlock } from "@/lib/checkin";
 export async function GET() {
   return api(async () => { const m = await requireMember(); return { running: await db.timeRecord.findFirst({ where: { organizationId: m.organizationId, userId: m.userId, type: "WATCH", timeTo: null }, include: { category: true } }) }; });
@@ -32,8 +32,12 @@ export async function POST(request: Request) {
       const breakSeconds = running.breakSeconds + (running.pauseStartedAt ? Math.max(0, Math.round((now.getTime() - running.pauseStartedAt.getTime()) / 1000)) : 0);
       // Beim Beenden steht der Zeitraum fest: Standort nach der Zuordnungsregel,
       // sofern der Check-in ihn nicht schon festgelegt hat.
-      const branchId = data.action === "STOP" ? running.branchId ?? await branchForTime(tx, m.organizationId, m.userId, { date: running.date.toISOString().slice(0, 10), timeFrom: running.timeFrom, timeTo: berlinTime(now) }) : undefined;
-      return { record: await tx.timeRecord.update({ where: { id: running.id }, data: { breakSeconds, pauseStartedAt: null, ...(data.action === "STOP" ? { endedAt: now, timeTo: berlinTime(now), branchId, categoryId: data.categoryId || running.categoryId, comment: data.comment ?? running.comment } : {}) } }) };
+      if (data.action !== "STOP") return { record: await tx.timeRecord.update({ where: { id: running.id }, data: { breakSeconds, pauseStartedAt: null } }) };
+      const span = { date: running.date.toISOString().slice(0, 10), timeFrom: running.timeFrom, timeTo: berlinTime(now) };
+      const branchId = running.branchId ?? await branchForTime(tx, m.organizationId, m.userId, span);
+      const shiftId = running.shiftId ?? await shiftForTime(tx, m.organizationId, m.userId, span);
+      const approval = await initialApproval(tx, m.organizationId, { userId: m.userId, isAdmin: m.role === "OWNER" || m.role === "ADMIN" }, m.userId, false);
+      return { record: await tx.timeRecord.update({ where: { id: running.id }, data: { breakSeconds, pauseStartedAt: null, endedAt: now, timeTo: span.timeTo, branchId, shiftId, ...approval, categoryId: data.categoryId || running.categoryId, comment: data.comment ?? running.comment } }) };
     }, { retry: true });
   });
 }

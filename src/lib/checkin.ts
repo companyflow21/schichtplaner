@@ -146,8 +146,8 @@ export async function watchStartBlock(tx: Tx, orgId: string, userId: string, now
 }
 
 /** Daten einer laufenden Stoppuhr ab einem Serverzeitpunkt. */
-export function watchRecord(orgId: string, userId: string, branchId: string, at: Date) {
-  return { organizationId: orgId, userId, type: "WATCH" as const, date: new Date(berlinDate(at)), timeFrom: berlinTime(at), startedAt: at, branchId };
+export function watchRecord(orgId: string, userId: string, branchId: string, shiftId: string, at: Date) {
+  return { organizationId: orgId, userId, type: "WATCH" as const, date: new Date(berlinDate(at)), timeFrom: berlinTime(at), startedAt: at, branchId, shiftId };
 }
 
 /** Verstaendliche Meldung zu einem Fehlschlag der Positionspruefung. */

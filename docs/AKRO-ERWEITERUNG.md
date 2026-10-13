@@ -364,9 +364,52 @@ Hauptlinie angepasst. Sätze, Lohnarten und Zuschläge trägt AKRO selbst ein; d
 - **Export:** CSV (Semikolon, UTF-8 mit BOM) je Person und Lohnart/Zuschlag mit Personalnummer, Nachname, Vorname,
   Code, Stunden, optional Satz und Betrag; Personen abwählbar. Kein DATEV-Format.
 - **Bedienung:** Navigation „Lohn“ (Gruppe Organisation, mobil unter „Mehr“); Einstellungen › Lohnarten/Zuschläge
-  (`/settings?bereich=payroll`).
+  (`/settings?bereich=payroll`). Seit dem Port P2 ist die Lohnseite in „Stunden und Lohn“ aufgegangen (`/payroll`
+  leitet nach `/hours`, Abschnitt 9); Rechenregeln und Rechte unverändert.
 - **Migration `20261013100000_payroll`:** rein additiv (Tabellen `pay_types`, `surcharges`; Spalten `personnelNumber`,
   `payTypeId`); im Cloud-Branch hieß sie `20261012090000_payroll` (Zeitstempel-Dublette).
 - **Offen (AKRO/Steuerbüro):** Sätze und Lohnarten, Vorrangregeln der Zuschläge, steuerliche Behandlung; ob nur
   freigegebene Stunden bezahlt werden (Stundenfreigabe, P2).
+
+## 9. Stunden prüfen (Port P2) und Stundenzettel (Port P3), 13.10.2026, nicht eingespielt
+
+Herkunft: Cloud-Commits `0ff8e24`, Teil von `d35d168`, `5f4e78d` (Branch `claude/wizardly-cerf-cxbutc`), an die
+Hauptlinie angepasst. Seite „Stunden und Lohn“ (`/hours`) ersetzt die Lohnseite aus Abschnitt 8.
+
+- **Schichtbezug:** Jede Zeitbuchung gehört zu höchstens einer geplanten Schicht (`time_records.shiftId`): über den
+  Check-in, sonst die einzige veröffentlichte Schicht der Person, mit der sie sich überschneidet (Regel wie
+  `branchForTime`). Buchungen ohne Schicht stehen als eigene Zeile. Check-in und Zeiterfassung nutzen immer die
+  Live-Zeilen, auch wenn der Plan in Bearbeitung ist.
+- **Status je Schicht:** genehmigt, offen, **nicht erfasst** (Schicht vorbei, keine Buchung), geplant (Zukunft), läuft
+  (Stoppuhr). Eine Schicht ohne Buchung zählt nicht als gearbeitet; „Zeit wie geplant nachtragen“ erfasst sie mit
+  einem Klick – nur für Personen mit Konto.
+- **Genehmigen:** Administration, oder Disposition mit „Zeiterfassung bearbeiten“ am Standort der Buchung und „Stunden
+  einsehen“ für die Person; eigene Buchungen nur die Administration. Rücknahme möglich. Prüfende ändern fremde
+  Buchungen direkt (sofort wirksam, genehmigt, Vorher/Nachher als entschiedene Korrektur im Verlauf); Einträge der
+  Prüfenden für andere gelten als genehmigt. Mitarbeitende beantragen Korrekturen wie bisher (`time/corrections`).
+- **Automatisch genehmigen:** Einstellungen › Zeiterfassung › „Selbst erfasste Zeiten automatisch genehmigen“
+  (Vorgabe aus). Solche Buchungen haben keinen Prüfer und erscheinen als „automatisch übernommen“.
+- **Altbestand:** Die Migration `20261013110000_time_approval` (Cloud: `20261013090000_time_approval`) setzt für alle
+  abgeschlossenen Altbuchungen `approvedAt = updatedAt` ohne Prüfer (`approvedById` leer) – Anzeige „automatisch
+  übernommen“, im Stundenzettel „autom. übernommen“. Laufende Stoppuhren bleiben offen. Den Schichtbezug übernimmt
+  sie nur aus dem Check-in (je Buchung höchstens einer, `timeRecordId` eindeutig). Zeiten gelöschter Personen werden
+  ebenso behandelt.
+- **Gelöschte Personen:** Zeiten und vergangene Zuweisungen erscheinen nur für die Administration als eigene Zeile
+  („gelöscht“, Name aus `FormerEmployee`); genehmigen geht, ändern und nachtragen nicht. Kein Stundenzettel für
+  gelöschte Personen (Drucken der Seite bleibt möglich).
+- **Sub-Platzhalter:** haben keine Zeiten; eine nur mit Platzhaltern besetzte Schicht erzeugt keine Zeile und kein
+  „nicht erfasst“.
+- **Pläne in Bearbeitung:** Wer den Plan nicht live sieht (Mitarbeitende, Disposition ohne „Dienstplan ansehen“),
+  bekommt in „Stunden und Lohn“ und im Stundenzettel die Planspalte aus der Momentaufnahme
+  (`lib/schedule-frozen.ts`); Iststunden bleiben live. Planende sehen die Live-Zeilen.
+- **Stundenzettel (PDF):** je Person und Zeitraum mit Plan, Beginn, Ende, Pause, Stunden, Stunden je Zuschlag (ohne
+  Beträge; Feiertage nach Bundesland des Einsatzorts wie im Lohn), Nachweis (GPS, Check-in freigegeben, Stoppuhr,
+  manuell, Dauer), Status und Unterschriftsfeldern; Name immer mit Vor- und Nachname. Mitarbeitende erstellen ihren
+  eigenen unter Zeiterfassung › „Mein Stundenzettel“. **Leistungsnachweis (PDF)** je Einsatzort für den Kunden, wenn
+  oben ein Standort gewählt ist.
+- **Vorläufige Fachannahmen (AKRO entscheidet):** Die Genehmigung steuert Lohn, Lohnexport und Auswertung **nicht** –
+  offene Stunden werden mitbezahlt (der Exportdialog nennt ihre Zahl). „Nicht erfasst“ mit Nachtragen statt „Ist =
+  Plan“. Automatische Genehmigung standardmäßig aus. Soll später nur Genehmigtes bezahlt werden, setzt der Filter an
+  einer Stelle an: in `payrollData()` (`lib/payroll-service.ts`) in der Abfrage `db.timeRecord.findMany` zusätzlich
+  `approvedAt: { not: null }` – das wirkt dann auf Lohnseite, Lohnexport und Stundenzettel-Zuschläge gemeinsam.
 

@@ -28,13 +28,13 @@ export default async function DashboardLayout({
               Zum Inhalt springen
             </a>
             <div className="flex min-h-screen bg-background">
-              <AppSidebar />
+              <div className="contents print:hidden"><AppSidebar /></div>
               <div className="flex min-w-0 flex-1 flex-col">
-                <TopNav />
+                <div className="contents print:hidden"><TopNav /></div>
                 <MainContainer>{children}</MainContainer>
               </div>
             </div>
-            <MobileNav />
+            <div className="contents print:hidden"><MobileNav /></div>
             <Toaster
               position="top-right"
               // Meldungen tragen die Flaechen und Linien der Oberflaeche.

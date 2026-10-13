@@ -2,7 +2,7 @@ import { z } from "zod";
 import { api, body, serial, ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { canSeeTime, requireAccess, timeScope } from "@/lib/access";
-import { branchForTime, timeChange, validatedTimeChange } from "@/lib/time-service";
+import { reassign, timeChange, validatedTimeChange } from "@/lib/time-service";
 import { notify } from "@/lib/planning";
 
 /**
@@ -46,10 +46,10 @@ export async function PATCH(request: Request) {
         const before = c.before as { updatedAt: string };
         if (before.updatedAt !== c.record.updatedAt.toISOString()) throw new ApiError("Die Zeitbuchung wurde inzwischen geändert. Bitte Antrag ablehnen und neu erfassen.", 409);
         const change = await validatedTimeChange(tx, a.orgId, c.record, timeChange.parse(c.proposed));
-        const updated = await tx.timeRecord.update({ where: { id: c.recordId }, data: change });
-        // Zuordnungsregel erneut anwenden; ohne eindeutiges Ergebnis bleibt der bisherige Standort.
-        const branchId = await branchForTime(tx, a.orgId, userId, { date: updated.date.toISOString().slice(0, 10), timeFrom: updated.timeFrom, timeTo: updated.timeTo });
-        if (branchId && branchId !== updated.branchId) await tx.timeRecord.update({ where: { id: updated.id }, data: { branchId } });
+        // Die genehmigte Korrektur gilt auch als Genehmigung der Stunden.
+        const updated = await tx.timeRecord.update({ where: { id: c.recordId }, data: { ...change, approvedAt: new Date(), approvedById: a.userId } });
+        // Zuordnungsregel erneut anwenden; ohne eindeutiges Ergebnis bleiben Standort und Schicht.
+        await reassign(tx, a.orgId, updated);
       }
       const correction = await tx.timeCorrection.update({ where: { id }, data: { status, reviewedBy: a.userId, reviewedAt: new Date() } });
       await notify(tx, a.orgId, a.userId, [userId], status === "APPROVED" ? "Zeitkorrektur genehmigt" : "Zeitkorrektur abgelehnt", c.reason);

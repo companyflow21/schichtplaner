@@ -48,6 +48,7 @@ export async function GET() {
       warningsEnabled: false,
       warningsMaxHours: 10,
       useCategories: false,
+      autoApprove: false,
     },
     absenceCategories: org.absenceCategories,
     holidays: org.holidays,
@@ -85,6 +86,7 @@ const updateSettingsSchema = z.object({
       warningsEnabled: z.boolean().optional(),
       warningsMaxHours: z.number().int().min(1).max(24).optional(),
       useCategories: z.boolean().optional(),
+      autoApprove: z.boolean().optional(),
     })
     .optional(),
 
@@ -183,6 +185,7 @@ export async function PATCH(request: NextRequest) {
     if (ts.warningsMaxHours !== undefined)
       tsUpdate.warningsMaxHours = ts.warningsMaxHours;
     if (ts.useCategories !== undefined) tsUpdate.useCategories = ts.useCategories;
+    if (ts.autoApprove !== undefined) tsUpdate.autoApprove = ts.autoApprove;
 
     if (Object.keys(tsUpdate).length > 0) {
       await db.timeSettings.upsert({
