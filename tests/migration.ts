@@ -334,25 +334,44 @@ async function main() {
   check(surcharge.weekdays.length === 0 && surcharge.allPeople && surcharge.timeFrom === "00:00" && surcharge.timeTo === "00:00", "surcharge defaults: no days, everyone, whole day");
   await pay.close();
 
-  // Genehmigung: abgeschlossene Altbuchungen gelten als genehmigt, laufende nicht; Schicht aus dem Check-in.
-  const APPROVAL = "20261013090000_time_approval";
+  // Stunden genehmigen: nach dem Lohn. Abgeschlossene Altbuchungen gelten als genehmigt (approvedAt = updatedAt,
+  // ohne Pruefer - "automatisch uebernommen"), laufende Stoppuhren nicht; Schicht nur aus dem Check-in (timeRecordId
+  // ist eindeutig, also hoechstens ein Check-in je Buchung). Zeiten geloeschter Personen (userId NULL) ebenso.
+  const APPROVAL = "20261013110000_time_approval";
+  check(APPROVAL > PAYROLL && APPROVAL < RULES, "time approval migration is ordered after payroll and before the planning rules");
   const ap = await database(APPROVAL);
   await ap.exec(`
     INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('a1','Org Zeit',${now});
     INSERT INTO "users" ("id","email","firstName","lastName","updatedAt") VALUES ('aa','aa@akro-test.invalid','Anna','Alt',${now});
+    INSERT INTO "former_employees" ("id","organizationId","firstName","lastName") VALUES ('af','a1','Franz','Frueher');
     INSERT INTO "branches" ("id","organizationId","name") VALUES ('ab','a1','Objekt');
-    INSERT INTO "schedules" ("id","organizationId","branchId","weekNumber","year","updatedAt") VALUES ('ap','a1','ab',40,2026,${now});
-    INSERT INTO "shifts" ("id","scheduleId","dayOfWeek","shiftFrom","shiftTo") VALUES ('as','ap',1,'08:00','16:00');
-    INSERT INTO "time_records" ("id","userId","organizationId","date","type","timeFrom","timeTo","updatedAt") VALUES
-      ('t1','aa','a1','2026-09-28','MANUAL','08:00','16:00',${now}),
-      ('t2','aa','a1','2026-09-28','WATCH','08:00',null,${now}),
-      ('t3','aa','a1','2026-09-28','WATCH','08:00','16:00',${now});
-    INSERT INTO "checkins" ("id","organizationId","userId","shiftId","branchId","method","status","lateMinutes","timeRecordId") VALUES ('ac','a1','aa','as','ab','GPS','CONFIRMED',0,'t3');
+    INSERT INTO "schedules" ("id","organizationId","branchId","weekNumber","year","isPublic","updatedAt") VALUES ('ap','a1','ab',40,2026,true,${now});
+    INSERT INTO "shifts" ("id","scheduleId","dayOfWeek","shiftFrom","shiftTo") VALUES ('as','ap',1,'08:00','16:00'),('as2','ap',2,'08:00','16:00');
+    INSERT INTO "time_records" ("id","userId","formerEmployeeId","organizationId","branchId","date","type","timeFrom","timeTo","durationHours","updatedAt") VALUES
+      ('t1','aa',null,'a1','ab','2026-09-28','MANUAL','08:00','16:00',null,'2026-09-28 17:00:00'),
+      ('t2','aa',null,'a1','ab','2026-09-28','WATCH','08:00',null,null,${now}),
+      ('t3','aa',null,'a1','ab','2026-09-28','WATCH','08:00','16:00',null,'2026-09-28 16:00:00'),
+      ('t4',null,'af','a1','ab','2026-09-29','WATCH','08:00','16:00',null,'2026-09-29 16:00:00'),
+      ('t5','aa',null,'a1',null,'2026-09-30','MANUAL_DURATION',null,null,4,'2026-09-30 12:00:00');
+    INSERT INTO "checkins" ("id","organizationId","userId","formerEmployeeId","shiftId","branchId","method","status","lateMinutes","timeRecordId") VALUES
+      ('ac','a1','aa',null,'as','ab','GPS','CONFIRMED',0,'t3'),
+      ('ad','a1','aa',null,'as','ab','MANUAL','DECLINED',0,null),
+      ('ae','a1',null,'af','as2','ab','GPS','CONFIRMED',0,'t4');
   `);
   await ap.exec(await readFile("prisma/migrations/" + APPROVAL + "/migration.sql", "utf8"));
-  const approvals = await rows<{ id: string; approvedAt: Date | null; shiftId: string | null; timeTo: string | null }>(ap, `SELECT "id","approvedAt","shiftId","timeTo" FROM "time_records" ORDER BY "id"`);
-  check(approvals[0].approvedAt !== null && approvals[0].timeTo === "16:00" && approvals[1].approvedAt === null && approvals[2].approvedAt !== null, "finished legacy records count as approved, a running stopwatch stays open");
-  check(approvals[0].shiftId === null && approvals[1].shiftId === null && approvals[2].shiftId === "as", "the shift is taken over from the check-in only");
+  type Approval = { id: string; userId: string | null; formerEmployeeId: string | null; approvedAt: Date | null; approvedById: string | null; legacy: boolean; shiftId: string | null; timeTo: string | null };
+  const approvals = new Map((await rows<Approval>(ap, `SELECT "id","userId","formerEmployeeId","approvedAt","approvedById","approvedAt" = "updatedAt" AS "legacy","shiftId","timeTo" FROM "time_records"`)).map((r) => [r.id, r]));
+  const at = (id: string) => approvals.get(id)!;
+  check(["t1", "t3", "t4", "t5"].every((id) => at(id).approvedAt !== null && at(id).legacy) && at("t2").approvedAt === null, "finished legacy records (manual, stopwatch, duration) count as approved at their last change, a running stopwatch stays open");
+  check([...approvals.values()].every((r) => r.approvedById === null), "legacy approval has no reviewer (shown as 'automatisch übernommen')");
+  check(at("t4").userId === null && at("t4").formerEmployeeId === "af" && at("t4").legacy && at("t4").shiftId === "as2", "records of deleted people are approved the same way and keep their snapshot person");
+  check(at("t1").shiftId === null && at("t2").shiftId === null && at("t3").shiftId === "as" && at("t5").shiftId === null, "the shift is taken over from the check-in only (a declined check-in without record changes nothing)");
+  check(at("t1").timeTo === "16:00" && at("t2").timeTo === null, "times stay unchanged");
+  await assert.rejects(ap.exec(`INSERT INTO "checkins" ("id","organizationId","userId","shiftId","branchId","method","status","lateMinutes","timeRecordId") VALUES ('ax','a1','aa','as2','ab','GPS','DECLINED',0,'t3')`), /unique|duplicate/i);
+  check(true, "a time record has at most one check-in, so the shift taken over is unambiguous");
+  await ap.exec(`DELETE FROM "shifts" WHERE "id"='as2'`);
+  const orphan = (await rows<{ shiftId: string | null }>(ap, `SELECT "shiftId" FROM "time_records" WHERE "id"='t4'`))[0];
+  check(orphan && orphan.shiftId === null, "deleting a shift keeps the time record and only clears its shift link");
   const autoDefault = await rows<{ d: string }>(ap, `SELECT column_default AS "d" FROM information_schema.columns WHERE table_name='time_settings' AND column_name='autoApprove'`);
   check(autoDefault.length === 1 && autoDefault[0].d === "false", "auto-approval setting exists and defaults to off");
   await ap.close();

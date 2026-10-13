@@ -18,5 +18,7 @@ UPDATE "time_records" t SET "shiftId" = c."shiftId" FROM "checkins" c WHERE c."t
 
 -- Abgeschlossene Altbuchungen gelten als genehmigt (bisher gab es keine
 -- Genehmigung der Stunden, nur der Korrekturen). Laufende Stoppuhren bekommen
--- ihren Status beim Beenden.
+-- ihren Status beim Beenden. approvedById bleibt NULL: kein Pruefer, die
+-- Oberflaeche zeigt "automatisch uebernommen". Gilt auch fuer Zeiten
+-- geloeschter Personen (userId NULL, formerEmployeeId gesetzt).
 UPDATE "time_records" SET "approvedAt" = "updatedAt" WHERE NOT ("type" = 'WATCH' AND "timeTo" IS NULL);
