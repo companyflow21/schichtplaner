@@ -4,6 +4,7 @@ import { addDate, overlaps, rangeMinutes, shiftRange } from "./berlin";
 import { branchIds, can, type Access } from "./access";
 import { normalizeBranchRights } from "./access-shared";
 import { CHECKED_IN, wallToUtcMinutes } from "./checkin";
+import { isEditing, notifiesEmployees, scheduleStatus } from "./schedule-status";
 
 type Tx = Prisma.TransactionClient;
 
@@ -44,44 +45,61 @@ export function lastShiftDate(shift: { dayOfWeek: number; shiftFrom: string; shi
 
 /**
  * Pruefung einer Einteilung, getrennt nach Wirkung:
- * - blocks: harte Sperren, die keine Bestaetigung aufhebt. "Frei" ist, wer
- *   keine zeitliche Ueberschneidung, keine genehmigte Abwesenheit und keine
- *   ausdruecklich eingetragene Nichtverfuegbarkeit hat; dazu kommen inaktives
+ * - blocks: harte Sperren, die keine Bestaetigung aufhebt: genehmigte
+ *   Abwesenheit, ausdruecklich eingetragene Nichtverfuegbarkeit, inaktives
  *   Konto und inaktiver Einsatzort.
  * - warnings: kurze Hinweise, die die Planung mit einer Bestaetigung
- *   uebersteuert (fehlende Qualifikation, Taetigkeit, Arbeitsbereich, Schicht
- *   ausserhalb der eingetragenen Verfuegbarkeit).
+ *   uebersteuert (zeitliche Ueberschneidung, fehlende Qualifikation,
+ *   Taetigkeit, Arbeitsbereich, Schicht ausserhalb der eingetragenen
+ *   Verfuegbarkeit). "Frei" ist, wer weder Sperre noch Ueberschneidung hat.
  * - declared: fuer den Schichtzeitraum ist ausdruecklich Verfuegbarkeit
  *   eingetragen. Ohne Eintrag gilt eine Person als frei.
  */
 export type Assessment = { blocks: string[]; warnings: string[]; declared: boolean };
 
-export async function assessAssignment(tx: Tx, shift: PlannedShift, userId: string, excludeShiftId = shift.id): Promise<Assessment> {
-  const member = await tx.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: shift.schedule.organizationId, userId } } });
-  if (!member?.isActive) return { blocks: ["Mitarbeiter ist nicht aktiv."], warnings: [], declared: false };
-  const blocks: string[] = [], warnings: string[] = [];
-  if (shift.schedule.branchId) {
-    const branch = await tx.branch.findUnique({ where: { id: shift.schedule.branchId } });
-    if (!branch?.isActive) blocks.push("Einsatzort ist nicht aktiv.");
-    if (branch?.positions.length && !branch.positions.some(p => p.toLocaleLowerCase("de-DE") === member.position?.toLocaleLowerCase("de-DE"))) warnings.push("Tätigkeit passt nicht zum Einsatzort.");
-  }
-  const qualifications = new Set(member.qualifications.map(q => q.toLocaleLowerCase("de-DE")));
-  if (shift.divisionId) {
-    const division = await tx.division.findUnique({ where: { id: shift.divisionId }, include: { members: true } });
-    if (division && !division.isSystem && division.members.length && !division.members.some(m => m.userId === userId)) warnings.push("Gehört nicht zum Arbeitsbereich.");
-  }
-  const missing = shift.requiredQualifications.filter(q => !qualifications.has(q.toLocaleLowerCase("de-DE")));
-  if (missing.length) warnings.push("Erforderliche Qualifikation fehlt: " + missing.join(", ") + ".");
-  const range = shiftRange(shift);
-  const lastDate = lastShiftDate(shift);
-  const absences = await tx.absence.count({ where: { userId, status: "APPROVED", category: { organizationId: shift.schedule.organizationId }, dateFrom: { lte: new Date(lastDate) }, dateTo: { gte: new Date(range.date) } } });
-  // Die Art der Abwesenheit bleibt Personaldaten; die Planung erfaehrt nur, dass sie genehmigt ist.
-  if (absences) blocks.push("Genehmigte Abwesenheit.");
-  const bookings = await tx.booking.findMany({ where: { userId, shiftId: { not: excludeShiftId }, shift: { deletedAt: null, schedule: { deletedAt: null, organizationId: shift.schedule.organizationId, year: { gte: shift.schedule.year - 1, lte: shift.schedule.year + 1 } } } }, include: { shift: { include: { schedule: true } } } });
-  if (bookings.some(b => overlaps(range, shiftRange(b.shift)))) blocks.push("Zeitliche Überschneidung mit einer anderen Schicht.");
-  const windows = await tx.availability.findMany({ where: { organizationId: shift.schedule.organizationId, userId, date: { gte: new Date(addDate(range.date, -1)), lte: new Date(addDate(range.date, 1)) } } });
+/*
+ * Doppelbelegung derselben Person oder desselben Platzhalters zur selben Zeit
+ * (organisationsweit, ueber alle Standorte): seit der AKRO-Entscheidung vom
+ * 12.10.2026 ein Hinweis, den die Planung ausdruecklich bestaetigt, keine
+ * Sperre mehr. Antraege von Mitarbeitenden lehnt checkAssignment weiterhin
+ * ab. serial() verhindert weiterhin nur die doppelte Buchung derselben
+ * Schicht (und Ueberbesetzung), keine bestaetigte Ueberschneidung.
+ */
+const OVERLAP = "Zeitliche Überschneidung mit einer anderen Schicht.";
+
+/*
+ * Reine Vergleiche der Einteilungspruefung - gemeinsam fuer assessAssignment
+ * (einzelne Einteilung) und die Konfliktpruefung einer Standortwoche
+ * (lib/conflicts.ts), damit beide dieselben Regeln anwenden.
+ */
+const lower = (value: string) => value.toLocaleLowerCase("de-DE");
+
+/** Einsatzort verlangt Taetigkeiten, und die Taetigkeit der Person ist nicht darunter. */
+export function positionMismatch(positions: string[], position: string | null | undefined): boolean {
+  const own = position?.toLocaleLowerCase("de-DE");
+  return positions.length > 0 && !positions.some(p => lower(p) === own);
+}
+
+/** Erforderliche Qualifikationen, die die Person nicht hat (ohne Gross-/Kleinschreibung). */
+export function missingQualifications(required: string[], held: string[]): string[] {
+  const have = new Set(held.map(lower));
+  return required.filter(q => !have.has(lower(q)));
+}
+
+/** Arbeitsbereich mit Mitgliedern (kein Systembereich), zu denen die Person nicht gehoert. */
+export function outsideDivision(division: { isSystem: boolean; members: { userId: string }[] } | null, userId: string): boolean {
+  return !!division && !division.isSystem && division.members.length > 0 && !division.members.some(m => m.userId === userId);
+}
+
+/**
+ * Eingetragene Verfuegbarkeit gegen den Schichtzeitraum (Fenster vom Vortag
+ * bis Folgetag): unavailable = ein "nicht verfuegbar"-Fenster ueberschneidet
+ * sich; declared = fuer einen Schichttag ist Verfuegbarkeit eingetragen;
+ * outside = die Schicht ragt an einem solchen Tag ueber die Fenster hinaus.
+ */
+export function availabilityState(range: { date: string; start: number; end: number }, lastDate: string, windows: { date: Date; timeFrom: string; timeTo: string; available: boolean }[]) {
   const normalized = windows.map(w => { const start = w.date.getTime() / 60000 + Number(w.timeFrom.slice(0, 2)) * 60 + Number(w.timeFrom.slice(3)); return { ...w, start, end: start + rangeMinutes(w.timeFrom, w.timeTo) }; });
-  if (normalized.some(w => !w.available && overlaps(range, w))) blocks.push("Als nicht verfügbar eingetragen.");
+  const unavailable = normalized.some(w => !w.available && overlaps(range, w));
   let declared = false, outside = false;
   for (const day of [range.date, ...(lastDate !== range.date ? [lastDate] : [])]) {
     const start = Date.parse(day) / 60000, end = start + 1440;
@@ -94,11 +112,39 @@ export async function assessAssignment(tx: Tx, shift: PlannedShift, userId: stri
       if (covered < segment.end) outside = true;
     }
   }
-  if (outside) warnings.push("Schicht liegt außerhalb der eingetragenen Verfügbarkeit.");
-  return { blocks, warnings, declared: declared && !outside && !blocks.length };
+  return { unavailable, declared, outside };
 }
 
-/** Alle Einwaende ohne Unterscheidung - fuer Antraege von Mitarbeitenden, die nichts uebersteuern koennen. */
+export async function assessAssignment(tx: Tx, shift: PlannedShift, userId: string, excludeShiftId = shift.id): Promise<Assessment> {
+  const member = await tx.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: shift.schedule.organizationId, userId } } });
+  if (!member?.isActive) return { blocks: ["Mitarbeiter ist nicht aktiv."], warnings: [], declared: false };
+  const blocks: string[] = [], warnings: string[] = [];
+  if (shift.schedule.branchId) {
+    const branch = await tx.branch.findUnique({ where: { id: shift.schedule.branchId } });
+    if (!branch?.isActive) blocks.push("Einsatzort ist nicht aktiv.");
+    if (branch && positionMismatch(branch.positions, member.position)) warnings.push("Tätigkeit passt nicht zum Einsatzort.");
+  }
+  if (shift.divisionId) {
+    const division = await tx.division.findUnique({ where: { id: shift.divisionId }, include: { members: true } });
+    if (outsideDivision(division, userId)) warnings.push("Gehört nicht zum Arbeitsbereich.");
+  }
+  const missing = missingQualifications(shift.requiredQualifications, member.qualifications);
+  if (missing.length) warnings.push("Erforderliche Qualifikation fehlt: " + missing.join(", ") + ".");
+  const range = shiftRange(shift);
+  const lastDate = lastShiftDate(shift);
+  const absences = await tx.absence.count({ where: { userId, status: "APPROVED", category: { organizationId: shift.schedule.organizationId }, dateFrom: { lte: new Date(lastDate) }, dateTo: { gte: new Date(range.date) } } });
+  // Die Art der Abwesenheit bleibt Personaldaten; die Planung erfaehrt nur, dass sie genehmigt ist.
+  if (absences) blocks.push("Genehmigte Abwesenheit.");
+  const bookings = await tx.booking.findMany({ where: { userId, shiftId: { not: excludeShiftId }, shift: { deletedAt: null, schedule: { deletedAt: null, organizationId: shift.schedule.organizationId, year: { gte: shift.schedule.year - 1, lte: shift.schedule.year + 1 } } } }, include: { shift: { include: { schedule: true } } } });
+  if (bookings.some(b => overlaps(range, shiftRange(b.shift)))) warnings.push(OVERLAP);
+  const windows = await tx.availability.findMany({ where: { organizationId: shift.schedule.organizationId, userId, date: { gte: new Date(addDate(range.date, -1)), lte: new Date(addDate(range.date, 1)) } } });
+  const availability = availabilityState(range, lastDate, windows);
+  if (availability.unavailable) blocks.push("Als nicht verfügbar eingetragen.");
+  if (availability.outside) warnings.push("Schicht liegt außerhalb der eingetragenen Verfügbarkeit.");
+  return { blocks, warnings, declared: availability.declared && !availability.outside && !blocks.length };
+}
+
+/** Alle Einwaende ohne Unterscheidung (auch die Ueberschneidung) - fuer Antraege von Mitarbeitenden, die nichts uebersteuern koennen. */
 export async function checkAssignment(tx: Tx, shift: PlannedShift, userId: string, excludeShiftId = shift.id): Promise<string[]> {
   const { blocks, warnings } = await assessAssignment(tx, shift, userId, excludeShiftId);
   return [...blocks, ...warnings];
@@ -122,7 +168,7 @@ export async function assessContractorAssignment(tx: Tx, shift: PlannedShift, co
   }
   const range = shiftRange(shift);
   const bookings = await tx.booking.findMany({ where: { contractorWorkerId, shiftId: { not: excludeShiftId }, shift: { deletedAt: null, schedule: { deletedAt: null, organizationId: shift.schedule.organizationId, year: { gte: shift.schedule.year - 1, lte: shift.schedule.year + 1 } } } }, include: { shift: { include: { schedule: true } } } });
-  if (bookings.some(b => overlaps(range, shiftRange(b.shift)))) blocks.push("Zeitliche Überschneidung mit einer anderen Schicht.");
+  if (bookings.some(b => overlaps(range, shiftRange(b.shift)))) warnings.push(OVERLAP);
   return { blocks, warnings, declared: false };
 }
 
@@ -188,13 +234,14 @@ export async function planningPool(tx: Tx, a: Access, branchId: string | null): 
 /**
  * Auswahl fuer eine Schicht in genau dieser Reihenfolge:
  * 1 frei, Standort der Schicht
- * 2 belegt oder abwesend, Standort der Schicht (sichtbar, nicht waehlbar)
+ * 2 belegt oder abwesend, Standort der Schicht (belegt = Ueberschneidung,
+ *   waehlbar nach Bestaetigung; Gesperrte sichtbar, nicht waehlbar)
  * 3 frei, andere verwaltete Standorte desselben Kunden
  * 4 belegt oder abwesend, andere verwaltete Standorte desselben Kunden
  * 5 uebrige einplanbare Personen (freie waehlbar, gesperrte sichtbar)
- * Innerhalb einer Gruppe stehen ausdruecklich Verfuegbare zuerst. Hinweise
- * (etwa fehlende Qualifikation) aendern Gruppe und Reihenfolge nicht.
- * Ausgegeben werden nur Namen und kurze Gruende.
+ * Innerhalb einer Gruppe stehen waehlbare vor gesperrten, dann ausdruecklich
+ * Verfuegbare zuerst. Andere Hinweise (etwa fehlende Qualifikation) aendern
+ * Gruppe und Reihenfolge nicht. Ausgegeben werden nur Namen und kurze Gruende.
  */
 export async function shiftCandidates(tx: Tx, a: Access, shift: ShiftWithRelations) {
   const pool = await planningPool(tx, a, shift.schedule.branchId);
@@ -210,14 +257,15 @@ export async function shiftCandidates(tx: Tx, a: Access, shift: ShiftWithRelatio
     if (shift.bookings.some(b => b.userId === p.userId)) continue;
     const entry = pool.get(p.userId)!;
     const r = await assessAssignment(tx, shift, p.userId);
-    const free = r.blocks.length === 0;
+    const selectable = r.blocks.length === 0;
+    const free = selectable && !r.warnings.includes(OVERLAP);
     const group = entry.tier === "site" ? (free ? 1 : 2) : entry.tier === "customer" ? (free ? 3 : 4) : 5;
     const origin = entry.tier === "customer" ? ["Standort " + entry.sites.join(", ") + "."] : entry.tier === "rest" && !a.isAdmin ? ["Persönlich zugeordnet."] : [];
     const state = free ? [r.declared ? "Verfügbar eingetragen." : "Frei."] : r.blocks;
-    const hints = free ? r.warnings : [];
-    candidates.push({ userId: p.userId, firstName: p.user.firstName, lastName: p.user.lastName, group, selectable: free, confirm: hints.length > 0, declared: r.declared, reasons: [...origin, ...state], hints });
+    const hints = selectable ? r.warnings : [];
+    candidates.push({ userId: p.userId, firstName: p.user.firstName, lastName: p.user.lastName, group, selectable, confirm: hints.length > 0, declared: r.declared, reasons: [...origin, ...state], hints });
   }
-  // Stabil: Gruppe, dann waehlbar vor gesperrt (Gruppe 5), dann eingetragene Verfuegbarkeit, dann Name.
+  // Stabil: Gruppe, dann waehlbar vor gesperrt (Gruppen 2, 4, 5), dann eingetragene Verfuegbarkeit, dann Name.
   candidates.sort((x, y) => x.group - y.group || Number(y.selectable) - Number(x.selectable) || Number(y.declared) - Number(x.declared));
   const contractorWorkers: { id: string; name: string; subcontractor: { id: string; name: string }; selectable: boolean; confirm: boolean; reasons: string[]; hints: string[] }[] = [];
   if (a.isAdmin) {
@@ -225,8 +273,8 @@ export async function shiftCandidates(tx: Tx, a: Access, shift: ShiftWithRelatio
     for (const worker of workers) {
       if (shift.bookings.some(b => b.contractorWorkerId === worker.id)) continue;
       const r = await assessContractorAssignment(tx, shift, worker.id);
-      const free = r.blocks.length === 0;
-      contractorWorkers.push({ ...worker, selectable: free, confirm: free && r.warnings.length > 0, reasons: free ? ["Frei."] : r.blocks, hints: free ? r.warnings : [] });
+      const selectable = r.blocks.length === 0;
+      contractorWorkers.push({ ...worker, selectable, confirm: selectable && r.warnings.length > 0, reasons: selectable && !r.warnings.includes(OVERLAP) ? ["Frei."] : r.blocks, hints: selectable ? r.warnings : [] });
     }
   }
   return {
@@ -289,12 +337,12 @@ export async function placeContractorBooking(tx: Tx, a: Access, shift: ShiftWith
   return tx.booking.create({ data: { shiftId: shift.id, contractorWorkerId, ...plannerBooking(a) }, include: { contractorWorker: { select: contractorWorkerView } } });
 }
 
-/** Einteilen mit Nachricht an die Person (nur veroeffentlichte Plaene). */
+/** Einteilen mit Nachricht an die Person (nur veroeffentlichte Plaene ausserhalb der Bearbeitung). */
 export async function assign(tx: Tx, a: Access, shiftId: string, userId: string, confirm = false) {
   const shift = await findShift(tx, a.orgId, shiftId);
   if (!shift) throw new ApiError("Schicht nicht gefunden.", 404);
   const booking = await placeBooking(tx, a, shift, userId, confirm);
-  if (shift.schedule.isPublic) await notify(tx, a.orgId, a.userId, [userId], "Neue Schicht", shiftLabel(shift) + ": Du bist fest eingeteilt.", shiftId);
+  if (notifiesEmployees(shift.schedule)) await notify(tx, a.orgId, a.userId, [userId], "Neue Schicht", shiftLabel(shift) + ": Du bist fest eingeteilt.", shiftId);
   return { booking, shift };
 }
 
@@ -374,6 +422,8 @@ export function shiftView(shift: ShiftWithRelations, a: Access, ineffective: Set
     date: range.date, endsAt: new Date(wallToUtcMinutes(range.end) * 60000).toISOString(), endsNextDay: rangeMinutes(shift.shiftFrom, shift.shiftTo) + Number(shift.shiftFrom.slice(0, 2)) * 60 + Number(shift.shiftFrom.slice(3)) > 1440,
     plannedMinutes: plannedMinutes(shift),
     isPublic: shift.schedule.isPublic,
+    // Plan in Bearbeitung: Antraege, Tausch und Bestaetigen ruhen - fuer alle Leser, ohne Angaben zur Bearbeitung.
+    requestsPaused: isEditing(shift.schedule),
     branchId,
     branch: branch ? { id: branch.id, name: branch.name, address: branch.address, meetingPoint: branch.meetingPoint, notes: branch.notes, customer: branch.customer } : null,
     division: shift.division ? { id: shift.division.id, title: shift.division.title, color: shift.division.color } : null,
@@ -393,7 +443,8 @@ export function shiftView(shift: ShiftWithRelations, a: Access, ineffective: Set
     can: {
       edit: can(a, "EDIT_SHIFTS", branchId),
       handle: can(a, "HANDLE_REQUESTS", branchId),
-      request: shift.schedule.isPublic && can(a, "REQUEST_SHIFTS", branchId),
+      // Waehrend der Bearbeitung ruhen Antraege.
+      request: scheduleStatus(shift.schedule) === "PUBLISHED" && can(a, "REQUEST_SHIFTS", branchId),
       manageContractors: a.isAdmin,
     },
   };

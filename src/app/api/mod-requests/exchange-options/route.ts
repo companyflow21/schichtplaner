@@ -9,14 +9,14 @@ import { exchangeProblems, isFuture } from "@/lib/shift-requests";
 /** Suchfenster fuer Tauschpartner und hoechstens so viele Pruefungen je Anfrage. */
 const DAYS = 28, MAX_CHECKS = 40;
 
-/** Veroeffentlichte kuenftige Schichten der naechsten DAYS Tage, optional nur an bestimmten Standorten. */
+/** Veroeffentlichte kuenftige Schichten der naechsten DAYS Tage (ohne Plaene in Bearbeitung), optional nur an bestimmten Standorten. */
 async function upcoming(orgId: string, branches: string[] | null, where: Prisma.ShiftWhereInput = {}) {
   const today = berlinDate();
   const weeks = new Map<string, { year: number; weekNumber: number }>();
   for (let d = 0; d <= DAYS + 7; d += 7) { const w = isoWeek(addDate(today, d)); weeks.set(w.year + "-" + w.weekNumber, w); }
   const now = new Date(), until = Date.parse(addDate(today, DAYS) + "T00:00:00Z") / 60000;
   const shifts = await db.shift.findMany({
-    where: { deletedAt: null, ...where, schedule: { organizationId: orgId, deletedAt: null, isPublic: true, branchId: branches ? { in: branches } : { not: null }, OR: [...weeks.values()] } },
+    where: { deletedAt: null, ...where, schedule: { organizationId: orgId, deletedAt: null, isPublic: true, editingSince: null, branchId: branches ? { in: branches } : { not: null }, OR: [...weeks.values()] } },
     include: shiftInclude,
   });
   return shifts.filter(s => isFuture(s, now) && shiftRange(s).start < until).sort((x, y) => shiftRange(x).start - shiftRange(y).start);

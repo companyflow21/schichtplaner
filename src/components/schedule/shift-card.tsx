@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeftRight, Copy, Loader2, Pencil, Plus, X } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Ban, Copy, Loader2, Lock, Pencil, Plus, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -12,6 +12,7 @@ import { EmployeePicker } from "./employee-picker";
 import { CopyShiftDialog } from "./copy-shift-dialog";
 import { WishRequestButton, WishCountBadge } from "./wish-plan";
 import type { ShiftData, ScheduleLayout } from "@/types/schedule";
+import type { ConflictItem } from "@/types/conflicts";
 import type { WishRequest } from "./wish-plan";
 import { formatName } from "@/lib/names";
 import { useNameFormat } from "@/lib/hooks/use-current-member";
@@ -35,6 +36,12 @@ interface ShiftCardProps {
   userWishRequest?: WishRequest | null;
   /** Standort auf der Karte zeigen - im Plan eines Standorts steht er schon im Kopf. */
   zeigeStandort?: boolean;
+  /** Nur Planung: Konflikte und Hinweise der Zuweisungen dieser Schicht (GET /api/schedules/conflicts). */
+  conflicts?: ConflictItem[];
+  /** Element-ID der Karte als Sprungziel (Konfliktpanel). */
+  ankerId?: string;
+  /** Kurz hervorheben, etwa nach dem Sprung aus dem Konfliktpanel. */
+  hervorheben?: boolean;
 }
 
 function getInitials(firstName: string, lastName: string): string {
@@ -63,6 +70,9 @@ export function ShiftCard({
   showPauses = true,
   userWishRequest,
   zeigeStandort = true,
+  conflicts = [],
+  ankerId,
+  hervorheben = false,
 }: ShiftCardProps) {
   const queryClient = useQueryClient();
   const nameFormat = useNameFormat();
@@ -85,6 +95,9 @@ export function ShiftCard({
     ? shift.bookings.some((b) => b.userId === highlightUserId)
     : false;
   const isDimmed = highlightUserId ? !hasHighlightUser : false;
+  // Mindestens ein Konflikt: rot; nur Hinweise: wie eine offene Schicht orange.
+  const konflikt = conflicts.some((c) => c.severity === "fehler");
+  const nurHinweise = !konflikt && conflicts.length > 0;
 
   const hasPause = shift.pauseValue > 0;
   const pauseLabel =
@@ -221,15 +234,23 @@ export function ShiftCard({
     const canUnbook = canEdit && !ended && !!booking.userId;
     const canUnbookContractor = !!shift.can?.manageContractors && !ended && !!booking.contractorWorkerId;
     const name = formatName(booking.user, nameFormat, { contractor: !!booking.contractorWorkerId });
+    const eigene = conflicts.filter((c) => c.bookingId === booking.id);
     return (
       <div key={booking.id} className={cn("-mx-1 flex min-h-9 flex-wrap items-center gap-x-1.5 rounded-md px-1", highlightUserId && booking.userId === highlightUserId && "bg-primary/10")}>
-        <Avatar size="sm" className="shrink-0">
-          <AvatarFallback className="bg-primary/10 text-[10px] text-primary">{getInitials(booking.user.firstName, booking.user.lastName)}</AvatarFallback>
+        <Avatar size="sm" className="shrink-0 data-[size=sm]:size-7">
+          <AvatarFallback className="bg-primary/10 text-xs text-primary">{getInitials(booking.user.firstName, booking.user.lastName)}</AvatarFallback>
         </Avatar>
         {/* Schmale Tagesspalten: die Aktionen rutschen unter den Namen statt ihn zu quetschen. */}
-        <span className="min-w-20 flex-1 text-[12px] leading-4">
+        <span className="min-w-[4.5rem] flex-1 text-[12px] leading-4">
           {name}
-          {booking.unavailable && <span className="block text-[11px] font-medium text-warn">Nicht verfügbar</span>}
+          {/* Konto inaktiv und genehmigte Abwesenheit nennt die Konfliktpruefung genauer. */}
+          {booking.unavailable && !eigene.some((c) => c.kind === "inactive" || c.kind === "absence") && <span className="block text-xs font-medium text-warn">Nicht verfügbar</span>}
+          {eigene.map((c) => (
+            <span key={c.kind + (c.other?.shiftId ?? "")} className={cn("mt-0.5 flex items-start gap-1 text-xs font-medium", c.severity === "fehler" ? "text-destructive" : "text-warn")}>
+              {c.severity === "fehler" ? <Ban className="mt-0.5 size-3 shrink-0" aria-hidden="true" /> : <AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden="true" />}
+              <span>{c.text}</span>
+            </span>
+          ))}
         </span>
         {(canUnbook || canUnbookContractor) && (
           <div className="ml-auto flex shrink-0 items-center">
@@ -256,6 +277,12 @@ export function ShiftCard({
               <ConfirmDialog
                 title="Zuweisung aufheben"
                 description={`${name} wird aus dieser Schicht entfernt. Der Platz ist danach wieder offen.`}
+                details={
+                  <ul className="list-disc space-y-1 pl-5">
+                    <li>Offene Anträge der Person zu dieser Schicht (Übernahme, Tausch) werden abgelehnt.</li>
+                    <li>Die Person wird nur bei veröffentlichtem Plan benachrichtigt, nicht im Entwurf und nicht während der Bearbeitung.</li>
+                  </ul>
+                }
                 confirmLabel="Entfernen"
                 onConfirm={() => booking.userId && unbookMutation.mutate(booking.userId)}
                 disabled={isPending}
@@ -275,6 +302,7 @@ export function ShiftCard({
               <ConfirmDialog
                 title="Subunternehmer-Zuweisung aufheben"
                 description={`${name} wird aus dieser Schicht entfernt. Der Platz ist danach wieder offen.`}
+                details={<p>Der Platzhalter hat kein Benutzerkonto; es wird keine Mitteilung versendet.</p>}
                 confirmLabel="Entfernen"
                 onConfirm={() => booking.contractorWorkerId && contractorMutation.mutate({ method: "DELETE", contractorWorkerId: booking.contractorWorkerId })}
                 disabled={isPending}
@@ -298,15 +326,17 @@ export function ShiftCard({
 
   return (
     <article
+      id={ankerId}
+      tabIndex={ankerId ? -1 : undefined}
       aria-label={`Schicht ${shift.shiftFrom} bis ${shift.shiftTo}`}
       aria-busy={isPending}
       className={cn(
-        "overflow-hidden rounded-lg border bg-card transition-colors",
-        !isFull && "border-warn/40",
+        "scroll-mt-24 overflow-hidden rounded-lg border bg-card transition-colors",
+        konflikt ? "border-destructive/35" : (!isFull || nurHinweise) && "border-warn/40",
         canEdit && "hover:border-primary/60",
         isPending && "pointer-events-none opacity-70",
         isDimmed && "opacity-40",
-        highlightUserId && hasHighlightUser && "border-primary ring-1 ring-primary/20"
+        (hervorheben || (highlightUserId && hasHighlightUser)) && "border-primary ring-1 ring-primary/20"
       )}
       style={isLayout1 ? {} : { borderLeftWidth: "3px", borderLeftColor: divisionColor }}
     >
@@ -323,16 +353,16 @@ export function ShiftCard({
           </span>
           {canEdit && <Pencil className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />}
         </div>
-        {shift.endsNextDay && <p className="text-[11px] text-muted-foreground">Endet am nächsten Tag</p>}
+        {shift.endsNextDay && <p className="text-xs text-muted-foreground">Endet am nächsten Tag</p>}
         {zeigeStandort && shift.branch && <p className="text-[12px] leading-snug font-medium">{shift.branch.name}</p>}
         {showTitle && shift.title && <p className="text-[12px] leading-snug font-semibold">{shift.title}</p>}
         {shift.division && (
-          <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span aria-hidden="true" className="size-2 shrink-0 rounded-full" style={{ backgroundColor: divisionColor }} />
             <span>{shift.division.title}</span>
           </p>
         )}
-        {showPauses && hasPause && <p className="text-[11px] text-muted-foreground">{pauseLabel}</p>}
+        {showPauses && hasPause && <p className="text-xs text-muted-foreground">{pauseLabel}</p>}
       </button>
 
       <div className="space-y-1 px-3 pb-3">
@@ -355,7 +385,7 @@ export function ShiftCard({
               onSelectContractor={shift.can?.manageContractors ? (contractorWorkerId, confirm) => contractorMutation.mutate({ method: "POST", contractorWorkerId, confirm }) : undefined}
               shiftId={shift.id}
             >
-              <button type="button" className="mt-2 flex min-h-10 w-full items-center max-md:min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary gap-1.5 rounded-md border border-dashed border-warn/50 bg-warn/5 px-2 py-2 text-left text-[11px] font-medium text-warn">
+              <button type="button" className="mt-2 flex min-h-10 w-full items-center max-md:min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary gap-1.5 rounded-md border border-dashed border-warn/50 bg-warn/5 px-2 py-2 text-left text-xs font-medium text-warn">
                 <Plus className="size-3.5 shrink-0" aria-hidden="true" />
                 <span>Mitarbeiter zuweisen</span>
               </button>
@@ -368,12 +398,16 @@ export function ShiftCard({
         )}
 
         <div className="space-y-1 pt-2">
-          <StatusBadge ton={isFull ? "ok" : "hinweis"} klein className="max-w-full rounded-md">
-            {isFull ? "Voll besetzt" : `${emptySlots} ${emptySlots === 1 ? "Platz" : "Plätze"} offen`}
-          </StatusBadge>
-          <p className="tabular text-[11px] text-muted-foreground">{bookedCount} von {shift.maxEmployees} besetzt</p>
-          {ended && canEdit && <p className="text-[11px] text-muted-foreground">Schicht beendet · Zuweisungen bleiben erhalten.</p>}
-          {canEdit && offeneBestätigungen > 0 && <p className="text-[11px] text-warn">{offeneBestätigungen} {offeneBestätigungen === 1 ? "Bestätigung offen" : "Bestätigungen offen"}</p>}
+          <div className="flex flex-wrap gap-1">
+            {konflikt && <StatusBadge ton="fehler" klein className="max-w-full rounded-md">Konflikt</StatusBadge>}
+            {nurHinweise && <StatusBadge ton="hinweis" klein className="max-w-full rounded-md">Hinweis</StatusBadge>}
+            <StatusBadge ton={isFull ? "ok" : "hinweis"} klein className="max-w-full rounded-md">
+              {isFull ? "Voll besetzt" : `${emptySlots} ${emptySlots === 1 ? "Platz" : "Plätze"} offen`}
+            </StatusBadge>
+          </div>
+          <p className="tabular text-xs text-muted-foreground">{bookedCount} von {shift.maxEmployees} besetzt</p>
+          {ended && canEdit && <p className="text-xs text-muted-foreground">Schicht beendet · Zuweisungen bleiben erhalten.</p>}
+          {canEdit && offeneBestätigungen > 0 && <p className="text-xs text-warn">{offeneBestätigungen} {offeneBestätigungen === 1 ? "Bestätigung offen" : "Bestätigungen offen"}</p>}
         </div>
 
         {(shift.can?.handle || (!canEdit && shift.can?.request && currentUserId && !bookedUserIds.includes(currentUserId))) && (
@@ -384,16 +418,23 @@ export function ShiftCard({
             )}
           </div>
         )}
+        {/* Plan in Bearbeitung: statt der ausgeblendeten Antrags- und Wunschknoepfe der Grund (nicht fuer die Planung). */}
+        {!canEdit && shift.requestsPaused && (
+          <p className="flex items-start gap-1.5 pt-1 text-[12px] leading-snug text-muted-foreground">
+            <Lock className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
+            <span>Anträge und Tausch sind bis zur Veröffentlichung dieser Woche gesperrt.</span>
+          </p>
+        )}
         {/* Kapazität und Kopieren fuer die Planung */}
         {canEdit && (
           <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2 border-t pt-2">
-            <button type="button" className="flex min-h-8 items-center max-md:min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary gap-1.5 text-left text-[11px] text-muted-foreground transition-colors hover:text-primary" onClick={() => addPlaceMutation.mutate()}>
+            <button type="button" className="flex min-h-8 items-center max-md:min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary gap-1.5 whitespace-nowrap text-left text-xs text-muted-foreground transition-colors hover:text-primary" onClick={() => addPlaceMutation.mutate()}>
               <Plus className="size-3 shrink-0" aria-hidden="true" />Kapazität erhöhen
             </button>
             {shift.branchId && (
               <button
                 type="button"
-                className="flex min-h-8 items-center max-md:min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary gap-1 text-left text-[11px] text-muted-foreground transition-colors hover:text-primary"
+                className="flex min-h-8 items-center max-md:min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary gap-1 whitespace-nowrap text-left text-xs text-muted-foreground transition-colors hover:text-primary"
                 onClick={() => setKopieren(true)}
                 title="Schicht auf weitere Tage kopieren"
                 aria-label="Schicht auf weitere Tage kopieren"

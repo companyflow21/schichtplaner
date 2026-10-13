@@ -1,5 +1,79 @@
 # Fertigstellung – Arbeitsliste
 
+## Port Zeitkonten (P4), Abwesenheit wirkt und Urlaubskonto (P5) aus dem Cloud-Branch (13.10.2026, externer Ordner, nicht eingespielt)
+
+Basis `8ae705b` (mit Lohn P1, Freigabe/PDF P2/P3, Sicherheitsfix/P0, Planungsregeln). Übernommen per
+`git cherry-pick -x`: `0de1cc7`, `c21d5b3`, `ef304e8`, `8b69405` aus `claude/wizardly-cerf-cxbutc`; danach
+Anpassungscommits. Nichts aus Cloud-P6 (Veröffentlichen/Bearbeitungsmodus), keine Cloud-Doku. Regeln:
+`docs/AKRO-ERWEITERUNG.md` Abschnitt 10, Rechte: `docs/ROLLEN-UND-RECHTE.md`.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P0 | Rechte – `api/time-accounts/**`, `api/vacation/**`, `api/absences/effects`, `lib/absence-effects.ts` | Zeitkonto/Urlaubskonto ändern nur Admin (403/404); sehen: Admin, Disposition mit „Stunden einsehen“ bzw. „Abwesenheiten entscheiden“, Person selbst nur wenn freigegeben (sonst 404); Person austragen nur Admin oder „Schichten bearbeiten“ am Standort (403); Vorschau 404 für Person selbst, fremde Disposition, fremde Organisation; Lohnart-Code der Art nur Admin | bestanden (lokal) | `tests/time-accounts.ts`, `tests/absence-effects.ts`, `tests/vacation.ts` |
+| P1 | Migrationen `20261013120000_time_accounts`, `…130000_absence_effects`, `…140000_vacation_account` (Cloud `20261014/15/16090000_…`) | Zwischen `…110000_time_approval` und `…150000_planning_rules`; additiv; kein Konto/Soll für Bestand; genehmigte Altabwesenheiten ohne Wirkung (abwesend, 0 Stunden); Zuweisungen gelöschter Personen und Platzhalter unberührt; keine vorgegebenen Urlaubstage (Cloud: 30) | bestanden (lokal) | `npm run test:migration` 100/100 |
+| P1 | Person austragen – `lib/shift-requests.ts` (`releaseAssignment`, auch `DELETE /api/bookings`), `lib/absence-effects.ts`, `api/absences/**` | Wie „Zuweisung aufheben“: nicht nach Schichtende/Check-in (409, nichts gespeichert), offene Anträge abgelehnt, Nachricht nur bei veröffentlichtem Plan außerhalb der Bearbeitung, keine bei Plan in Bearbeitung/Entwurf (Sammelmitteilung beim Veröffentlichen), `booking:changed` + `schedule:updated`, Platzhalter und Kollegen bleiben | bestanden (lokal) | `tests/absence-effects.ts`; `tests/plan-lifecycle.ts` und `tests/permissions.ts` unverändert grün |
+| P1 | Wirkung in Stunden, Lohn, Export, Stundenzettel, Zeitkonto – `lib/hours.ts`, `lib/payroll-service.ts`, `lib/timesheet.ts`, `lib/time-account-service.ts` | Bezahlt = Planstunden mit Lohnart-Code der Art, 0 Stunden, ausgetragen; je Person und Schicht; nur veröffentlicht, solange zugewiesen; erfasste Zeit hat Vorrang; Art nur für Berechtigte; Rücknahme hebt auf | bestanden (lokal) | `tests/absence-effects.ts` |
+| P1 | Zeitkonto – Planminuten aus `planning.ts`, Plan in Bearbeitung | Planstunden der Person aus der Momentaufnahme, Admin live; nach Verwerfen wieder gleich | bestanden (lokal) | `tests/time-accounts.ts`, `npm run test:accounts` 15/15 |
+| P1 | Urlaubskonto – Feiertage je Einsatzort | Urlaubstag mit Schicht: Bundesland des Einsatzorts (NRW Fronleichnam frei, Thüringen nicht; Einsatzort ohne Land: kein Feiertag); ohne Schicht: Organisationsfeiertage | bestanden (lokal) | `tests/vacation.ts`, `npm run test:vacation` 12/12 |
+| P1 | Gelöschte Personen (`userId` null), Platzhalter | Kein Absturz; Zeilen gelöschter Personen ohne Saldo und ohne Abwesenheit; Konten 404; bezahlte Abwesenheit entfällt mit der Person (Hinweis an der Lohnzeile); Platzhalter ohne Konten und unberührt | bestanden (lokal) | `tests/absence-effects.ts` |
+| P1 | Konfliktpanel – `lib/conflicts.ts` | Genehmigte Abwesenheit mit „bezahlt“/„0 Stunden“ bleibt roter Konflikt mit Umgang, ohne Art | bestanden (lokal) | `tests/conflicts.ts`, `tests/absence-effects.ts` |
+| P2 | Oberfläche – Einstellungen › Zeitkonten/Urlaubskonto (`?bereich=accounts` bzw. `?bereich=vacation`), „Folgen der Abwesenheit“, Kontoauszüge, Saldo-Spalte | Namensformat, ConfirmDialog statt `confirm()`, ⓘ statt eigener Hilfetexte, Schrift ≥ 12 px, 375 px ohne Überbreite | bestanden (lokal, nur Administration) | Browser auf Produktions-Build (`tests/preview.ts`, Port 3419) bei 375 px: Einstellungen › Zeitkonten (Personenzeile, Löschdialog) und › Urlaubskonto, Zeitkonto-Dialog aus „Stunden und Lohn“, „Folgen der Abwesenheit“ (Person austragen genehmigt: Schicht offen, „Schichtzuweisung aufgehoben“ versandt), eigener Kontoauszug, „Urlaubskonten“ mit Kontoauszug und Löschdialog: Seite und Dialoge ohne Überbreite (`scrollWidth` = `clientWidth`), keine Schrift unter 12 px; bei 1280 px Spalte „Saldo“. Nicht im Browser geprüft: Sicht als Disposition und Mitarbeiter |
+| P1 | Saldo-Stichtag, Lohn/Saldo nur aus genehmigten Stunden | Entscheidung AKRO; vorläufig Saldo zum Ende des Zeitraums, Genehmigung steuert Lohn und Saldo nicht, beantragter Urlaub nur angezeigt | offen | Fachliche Entscheidung AKRO |
+| P1 | Lohnfortzahlung, Urlaubsregeln, Urlaubstage | Steuerbüro/AKRO (Lohnausfallprinzip, Zuschläge bei Abwesenheit, Übertrag/Verfall); Urlaubstage trägt AKRO ein | offen | Fachliche Entscheidung AKRO |
+
+Prüfungen (lokal, 13.10.2026): `tsc` 0 Fehler · `npm run lint` 0 Fehler / 25 Warnungen (unverändert) ·
+`test:migration` 100/100 · `test:migration:history` 29/29 · `test:migration:subcontractors` 21/21 · `test:payroll` 39/39 ·
+`test:pdf` 14/14 · `test:accounts` 15/15 · `test:vacation` 12/12 ·
+`TEST_ONLY=time-accounts,absence-effects,vacation,hours,timesheet,payroll,permissions,plan-lifecycle,conflicts` (Ports
+3419/55553) 1568/1568 · vollständiges `tests/workflows.ts` (alle Reihen, Ports 3419/55553) 4093/4093 · `npm run build`
+erfolgreich. Nicht ausgeführt: Kopiemigration, Betriebsnachweise, Browserprüfung als Disposition und Mitarbeiter.
+
+## Port Stunden prüfen (P2) und Stundenzettel (P3) aus dem Cloud-Branch (13.10.2026, externer Ordner, nicht eingespielt)
+
+Basis `588dbb9` (mit Lohn-Port P1 und Planungsregeln). Übernommen per `git cherry-pick -x`: `0ff8e24`, aus `d35d168`
+nur die Stundentabelle (Doku verworfen), `5f4e78d` aus `claude/wizardly-cerf-cxbutc`; danach Anpassungscommits.
+Nichts aus P4–P6, keine Cloud-Doku. Regeln: `docs/AKRO-ERWEITERUNG.md` Abschnitt 9, Rechte: `docs/ROLLEN-UND-RECHTE.md`.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P0 | Genehmigen – `api/time/approve` | Admin; Disposition mit „Zeit bearbeiten“ + „Stunden“; eigene nur Admin; ohne „Stunden“ 403, ohne Standortrecht/fremde Organisation 404; laufende Stoppuhr 409 | bestanden (lokal) | `tests/hours.ts` |
+| P0 | Lohn auf „Stunden und Lohn“ nur Admin – `lib/hours.ts` | Disposition bekommt keine Beträge, Sätze, Lohnart, Hinweise, Personalnummern; Lohnexport weiter `requireAdmin` | bestanden (lokal) | `tests/hours.ts`, `tests/payroll.ts` |
+| P1 | Migration `20261013110000_time_approval` (Cloud: `20261013090000_time_approval`) | Nach Lohn, vor Planungsregeln; Altbuchungen genehmigt ohne Prüfer („automatisch übernommen“), laufende offen, Schicht nur aus Check-in (eindeutig), gelöschte Personen gleich behandelt | bestanden (lokal) | `npm run test:migration` 84/84 |
+| P1 | Gelöschte Personen, Sub-Platzhalter – `lib/hours.ts`, `lib/timesheet.ts` | Eigene Zeile „gelöscht“ nur für Admin, genehmigen ja, ändern 409, kein Nachtragen; Platzhalter-Schicht ohne Zeile und ohne „nicht erfasst“ | bestanden (lokal) | `tests/hours.ts` |
+| P1 | Plan in Bearbeitung | Eigener Stundenzettel und eigene Stunden mit Planspalte aus der Momentaufnahme, Planende live, nach Verwerfen alter Stand | bestanden (lokal) | `tests/timesheet.ts` |
+| P1 | Feiertage im Stundenzettel | Fronleichnam-Stunden nur am Einsatzort in NRW, nicht in Thüringen; keine Beträge | bestanden (lokal) | `tests/timesheet.ts` |
+| P2 | Oberfläche „Stunden und Lohn“ (`/hours`, `/payroll` leitet um), Zeiterfassung › „Mein Stundenzettel“ | Lohnseite aufgegangen (Namensformat, „gelöscht“, Hinweise, Lohnart/Summen); 375 px ohne Seitenüberbreite, keine Schrift unter 12 px | bestanden (lokal) | Browser auf Produktions-Build (`tests/preview.ts`, Port 3418) bei Desktop und 375 px; die Tabelle mit Lohnspalte scrollt bei 375 px innerhalb der Karte (10 px), wie in der Cloud |
+| P1 | Lohn nur aus genehmigten Stunden | Entscheidung AKRO; vorläufig steuert die Genehmigung den Lohn nicht | offen | Ansatzpunkt: `payrollData()` in `lib/payroll-service.ts`, Abfrage `db.timeRecord.findMany` (+ `approvedAt: { not: null }`) |
+| P1 | „Ist = Plan“ ohne Erfassung, Inhalt/Unterschrift Stundenzettel | Entscheidung AKRO; vorläufig „nicht erfasst“ mit Nachtragen | offen | Fachliche Entscheidung AKRO |
+
+Prüfungen (lokal, 13.10.2026): `tsc` 0 Fehler · `npm run lint` 0 Fehler / 25 Warnungen (unverändert) ·
+`test:migration` 84/84 · `test:migration:history` 29/29 · `test:migration:subcontractors` 21/21 · `test:payroll` 39/39 ·
+`test:pdf` 14/14 · `TEST_ONLY=hours,timesheet,payroll,permissions,checkin,employee-delete,plan-lifecycle` (Ports
+3418/55552) 1521/1521 · `npm run build` erfolgreich. Nicht ausgeführt: vollständiges `test:workflows`, Kopiemigration,
+Betriebsnachweise, Browserprüfung als Disposition und Mitarbeiter.
+
+## Port Lohn (P1) aus dem Cloud-Branch (13.10.2026, externer Ordner, nicht eingespielt)
+
+Basis `e2bf1fa`. Übernommen per `git cherry-pick -x`: `8e6e865`, `4346c44`, `6c75b86` aus
+`claude/wizardly-cerf-cxbutc`; danach Anpassungscommits an die Hauptlinie. Nichts aus P0 außer der Datei
+`src/lib/csv.ts` (vom Lohnexport importiert), nichts aus P2–P6. Regeln: `docs/AKRO-ERWEITERUNG.md` Abschnitt 8.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P0 | Lohn nur Administration – `api/payroll/**`, Seite `/payroll` | Disposition und Mitarbeitende 403 auf jeder Lohn-Schnittstelle (auch eigene Personalnummer), fremde Organisation 404 | bestanden (lokal) | `tests/payroll.ts` |
+| P1 | Migration `20261013100000_payroll` (Cloud: `20261012090000_payroll`) | Nach `20261012120000_schedule_editing`, SQL unverändert, rein additiv; Zeiten gelöschter Personen und Bundesland je Einsatzort unberührt | bestanden (lokal) | `npm run test:migration` 72/72 |
+| P1 | Zeiten gelöschter Personen – `lib/payroll-service.ts` | `userId` null führt nicht zum Absturz; eigene Zeile mit Namen aus `FormerEmployee`, Arbeitsbereich über behaltene Zuweisung, Export ohne Personalnummer | bestanden (lokal) | `tests/payroll.ts`, `tests/payroll-unit.ts` |
+| P1 | Feiertage je Einsatzort – `lib/payroll.ts` (`holidaysForRecord`) | Fronleichnam in NRW mit, in Thüringen ohne Zuschlag; ohne Einsatzort Organisationsfeiertage; Einsatzort ohne Bundesland: 0 und sichtbarer Hinweis | bestanden (lokal) | `tests/payroll.ts`, `tests/payroll-unit.ts`; Browser (Hinweis sichtbar) |
+| P1 | Sub-Platzhalter | Kein Lohn, keine Zeile, stören die Schichtzuordnung nicht | bestanden (lokal) | `tests/payroll.ts` |
+| P2 | Oberfläche Lohn und Einstellungen › Lohnarten/Zuschläge | Namensformat der Organisation, „gelöscht“-Kennzeichen, `?bereich=payroll`, Navigation „Lohn“ (mobil unter „Mehr“), Löschen mit Bestätigungsdialog; 375 px ohne Überbreite | bestanden (lokal) | Browser auf Produktions-Build (`npm run preview:test`): Zuschlag angelegt, Person gelöscht, Lohnseite, Exportdialog und Einstellungen bei 375 px ohne Überbreite |
+| P1 | Steuerliche Behandlung, Sätze, Vorrangregeln | Mit Steuerbüro abgestimmt | offen | Fachliche Entscheidung AKRO |
+| P1 | Lohn nur aus freigegebenen Stunden | Entscheidung vor P2 (Stundenfreigabe) | offen | Fachliche Entscheidung AKRO |
+
+Prüfungen (lokal, 13.10.2026): `tsc` 0 Fehler · `npm run lint` 0 Fehler / 25 Warnungen (unverändert) ·
+`test:migration` 72/72 · `test:migration:history` 29/29 · `test:migration:subcontractors` 21/21 ·
+`test:payroll` 39/39 · `TEST_ONLY=payroll,permissions,employee-delete,subcontractors` (Ports 3416/55550)
+1161/1161 · `npm run build` erfolgreich. Nicht ausgeführt: vollständiges `test:workflows`, Kopiemigration,
+Betriebsnachweise.
 ## Mitarbeiterbetrieb: gemeldete Probleme (11.–12.10.2026)
 
 Ausgangsstand live: `1d2046d` (06.10.). **Seit 12.10.2026, 10:53 läuft `5052c3d` auf Netcup** (Auftrag „weiter“ auf die Frage nach Einspielen und Bundesländern).
@@ -84,6 +158,8 @@ Keine Konten, Freigaben, Planstatus oder Betriebsdateien verändert.
 | P1 | Standortfreigaben / Navigation | Eigene Einteilungen von vollständigen Standortplänen unterscheiden | bestanden (Diagnose) | Kein aktives, aktiviertes Mitarbeiterkonto besitzt `VIEW_SCHEDULE`. Vorhandene Mitarbeiterfreigaben enthalten ausschließlich `REQUEST_SHIFTS`. Eigene veröffentlichte Einteilungen benötigen keine zusätzliche Planfreigabe; der vollständige Standortplan benötigt ausdrücklich „Dienstplan ansehen“ |
 | P1 | `tests/workflows.ts`, `tests/permissions.ts`, `tests/staff-sites.ts` | Entwurfsschutz, veröffentlichte eigene Schichten und Standortfreigaben mit getrennten Testkonten nachweisen | bestanden (lokal) | 650/650 Prüfungen mit `TEST_ONLY=permissions,staff-sites` in flüchtiger PGlite-Datenbank, alle Migrationen angewandt; keine Betriebsdaten. Eigene veröffentlichte Schichten sichtbar, Entwürfe verborgen, vollständige Pläne nur mit zusätzlicher Freigabe. Erster Versuch durch lokale Netzwerksperre mit `EACCES` abgebrochen, anschließender Lauf außerhalb dieser Sperre erfolgreich |
 | P2 | `ANLEITUNG.md` | Veröffentlichung je Standort und Woche sowie zusätzliche Planfreigabe verständlich erklären | bestanden | Bedienweg und Unterschied zwischen gespeichertem Entwurf, eigenen Einteilungen und vollständigem Standortplan ergänzt |
+| P0 | `src/app/(auth)/login/page.tsx`, `register/page.tsx`, `activate/page.tsx` | Anmelde-, Registrierungs- und Aktivierungsformular senden E-Mail-Adresse und Passwort nie in der URL | bestanden (lokal) | Ursache: Ohne `method` sendet der Browser ein Formular, das vor der Hydration abgeschickt wird, per GET; E-Mail und Passwort stehen dann in der Adresszeile (Verlauf, Proxy- und Zugriffslogs). Fix aus dem Cloud-Branch (`66b7f62`, hier `47c178e`): `method="post"` an den drei Formularen. `onSubmit` mit `preventDefault` und `signIn("credentials", { redirect: false })` bleibt; `src/proxy.ts` lässt `/login`, `/register` und `/activate` öffentlich. Nachweis: Test-App (PGlite, Ports 3415/55549) liefert `<form method="post">`; ein Klick auf „Anmelden“ ohne Hydration (Playwright) sendet `POST /login` und lässt die Adresse bei `/login`, dasselbe Formular ohne `method` führte zu `/login?email=…&password=…` (Dummywerte). Regressionstest in `tests/abgleich-fixes.ts`: alle drei Seiten liefern `method="post"`, ein nativer POST wird ohne Weiterleitung mit 200 beantwortet. Offen: Betriebsinstallation und Original enthalten die Lücke bis zur Übernahme; wer vor der Hydration absendet, sieht keine Meldung und muss die Felder erneut füllen |
+| P1 | `src/app/api/absences/route.ts`, `src/components/employees/absence-form.tsx`, `src/components/portal/message-list.tsx`, `src/lib/csv.ts`, `src/app/api/reporting/export/route.ts` | Vier der fünf Korrekturen aus `9ee9618` (Cloud, Smartplan-Abgleich) gelten in der Hauptlinie | bestanden (lokal), Oberfläche nicht im Browser geprüft | Übernommen (`0102d1b`): (1) Einträge der Leitung gelten sofort, Kontrollkästchen „Direkt genehmigen“ im Abwesenheitsformular (der Server prüfte `status: APPROVED` schon, die Oberfläche sendete es nicht); (2) Abwesenheiten deaktivierter Personen bleiben für die Administration sichtbar, nicht entscheidbar, nicht bearbeitbar (Manager sehen sie nicht mehr, weil die Zuordnung mit der Deaktivierung endet); (3) Schaltfläche „Ungelesen“ im Postfach (die Schnittstelle konnte es schon); (4) CSV: negative Zahlen („-8,00“) bleiben Zahlen, Formelzeichen bei Text werden weiter entschärft (`src/lib/csv.ts`). Weggelassen: (5) „Reaktivieren“ im Mitarbeitermenü – in der Hauptlinie bereits über `activeMutation` und `PATCH isActive` gelöst. Nachweis: `tests/abgleich-fixes.ts` als `TEST_ONLY=abgleich-fixes` (auf den alten Routen schlagen die Fälle CSV-Export und Sichtbarkeit fehl); `TEST_ONLY=abgleich-fixes,permissions,messaging` 584/584; Typprüfung 0 Fehler, Lint 0/25, Migration 65/65. Keine Schemaänderung, keine Migration |
 
 Nächster Schritt im Betrieb: die fachlich fertigen Standort-/Wochenpläne über
 „Woche“ → „Veröffentlichen“ freigeben. Eine Veröffentlichung und weitergehende

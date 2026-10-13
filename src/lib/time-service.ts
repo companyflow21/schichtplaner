@@ -40,24 +40,53 @@ export async function validatedTimeChange(tx: Tx, org: string, record: TimeRecor
  * zurueckgegeben; sonst null (dann nur fuer die Person und Admins sichtbar).
  */
 export async function branchForTime(tx: Tx, orgId: string, userId: string, record: { date: string; timeFrom: string | null; timeTo: string | null }): Promise<string | null> {
+  const branches = new Set((await overlappingShifts(tx, orgId, userId, record)).map((s) => s.branchId));
+  return branches.size === 1 ? [...branches][0] : null;
+}
+
+/** Schicht nach derselben Regel: nur wenn sich genau eine Schicht ueberschneidet. */
+export async function shiftForTime(tx: Tx, orgId: string, userId: string, record: { date: string; timeFrom: string | null; timeTo: string | null }): Promise<string | null> {
+  const shifts = await overlappingShifts(tx, orgId, userId, record);
+  return shifts.length === 1 ? shifts[0].shiftId : null;
+}
+
+/** Veroeffentlichte Schichten mit Standort, denen die Person zugewiesen ist und die sich mit der Buchung ueberschneiden. */
+async function overlappingShifts(tx: Tx, orgId: string, userId: string, record: { date: string; timeFrom: string | null; timeTo: string | null }) {
   const weeks = [isoWeek(addDate(record.date, -1)), isoWeek(record.date), isoWeek(addDate(record.date, 1))];
   const bookings = await tx.booking.findMany({
     where: { userId, shift: { deletedAt: null, schedule: { organizationId: orgId, deletedAt: null, isPublic: true, branchId: { not: null }, OR: weeks.map((w) => ({ year: w.year, weekNumber: w.weekNumber })) } } },
     include: { shift: { include: { schedule: true } } },
   });
-  const candidates = new Set<string>();
-  for (const booking of bookings) {
-    const range = shiftRange(booking.shift);
-    const branchId = booking.shift.schedule.branchId!;
-    if (record.timeFrom) {
-      const start = Date.parse(record.date + "T00:00:00Z") / 60000 + minuteOfDay(record.timeFrom);
-      const length = record.timeTo ? rangeMinutes(record.timeFrom, record.timeTo) || 1440 : 1;
-      if (overlaps({ start, end: start + length }, range)) candidates.add(branchId);
-    } else if (range.date === record.date) {
-      candidates.add(branchId);
-    }
-  }
-  return candidates.size === 1 ? [...candidates][0] : null;
+  return bookings.filter((booking) => recordOverlaps(record, shiftRange(booking.shift))).map((b) => ({ shiftId: b.shiftId, branchId: b.shift.schedule.branchId! }));
+}
+
+/** Ueberschneidung einer Buchung (Wanduhr Europe/Berlin) mit einem Schichtzeitraum; ohne Uhrzeit zaehlt der Kalendertag. */
+export function recordOverlaps(record: { date: string; timeFrom: string | null; timeTo: string | null }, range: { date: string; start: number; end: number }): boolean {
+  if (!record.timeFrom) return range.date === record.date;
+  const start = Date.parse(record.date + "T00:00:00Z") / 60000 + minuteOfDay(record.timeFrom);
+  const length = record.timeTo ? rangeMinutes(record.timeFrom, record.timeTo) || 1440 : 1;
+  return overlaps({ start, end: start + length }, range);
+}
+
+/**
+ * Genehmigung einer neu erfassten oder beendeten Buchung: Eintraege der
+ * Pruefenden fuer andere und alles der Administration gelten als genehmigt,
+ * eigene Erfassung nur mit "automatisch genehmigen".
+ */
+export async function initialApproval(tx: Tx, orgId: string, actor: { userId: string; isAdmin: boolean }, recordUserId: string, reviewer: boolean): Promise<{ approvedAt: Date | null; approvedById: string | null }> {
+  if (actor.isAdmin || (reviewer && recordUserId !== actor.userId)) return { approvedAt: new Date(), approvedById: actor.userId };
+  const settings = await tx.timeSettings.findUnique({ where: { organizationId: orgId }, select: { autoApprove: true } });
+  return settings?.autoApprove ? { approvedAt: new Date(), approvedById: null } : { approvedAt: null, approvedById: null };
+}
+
+/** Nach einer Aenderung Standort und Schicht neu zuordnen; ohne eindeutiges Ergebnis bleibt der bisherige Wert. */
+export async function reassign(tx: Tx, orgId: string, record: TimeRecord) {
+  // Zeiten geloeschter Personen bleiben unveraendert (keine Zuweisungen mit Konto mehr).
+  if (!record.userId) return record;
+  const span = { date: record.date.toISOString().slice(0, 10), timeFrom: record.timeFrom, timeTo: record.timeTo };
+  const [branchId, shiftId] = await Promise.all([branchForTime(tx, orgId, record.userId, span), shiftForTime(tx, orgId, record.userId, span)]);
+  const data = { ...(branchId && branchId !== record.branchId ? { branchId } : {}), ...(shiftId && shiftId !== record.shiftId ? { shiftId } : {}) };
+  return Object.keys(data).length ? tx.timeRecord.update({ where: { id: record.id }, data }) : record;
 }
 
 /**

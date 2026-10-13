@@ -6,6 +6,7 @@ import { staffMember } from "@/lib/staff";
 import { deleteEmployee } from "@/lib/employee-delete";
 import { emitToBranch, emitToUsers, refreshRealtime } from "@/lib/emit";
 import { catalogQualifications } from "@/lib/qualifications";
+import { signalBookedSites } from "@/lib/conflicts";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -92,6 +93,8 @@ export async function PATCH(request: Request, context: Context) {
       });
     });
     if (isActive === false) await refreshRealtime([target.userId]);
+    // Taetigkeit, Qualifikationen und Kontostatus gehen in die Konfliktpruefung der Plaene mit Zuweisungen der Person ein.
+    if (position !== undefined || data.qualifications !== undefined || isActive !== undefined) await signalBookedSites(a.orgId, [target.userId], "schedule:updated");
     return updated;
   });
 }

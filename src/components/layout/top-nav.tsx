@@ -4,7 +4,9 @@ import { useSyncExternalStore } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Bell } from "lucide-react";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
+import { useUnreadCount } from "@/lib/hooks/use-unread-count";
 import { seitenTitel } from "./nav-config";
 import { UserMenu } from "./user-menu";
 import { ConnectionStatus } from "./connection-status";
@@ -55,6 +57,31 @@ function Dienstzeit() {
 }
 
 /**
+ * Glocke rechts in der Kopfschiene: fuehrt in den Posteingang, wo alle
+ * Benachrichtigungen liegen, und zeigt die ungelesenen an.
+ */
+function Glocke() {
+  const unread = useUnreadCount();
+  return (
+    <Link
+      href="/portal/inbox"
+      aria-label={`Posteingang, ${unread} ungelesen`}
+      className="relative flex size-11 shrink-0 items-center justify-center rounded-[var(--radius)] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    >
+      <Bell className="size-5" />
+      {unread > 0 && (
+        <span
+          aria-hidden="true"
+          className="akro-kennzahl absolute top-1 right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[12px] text-primary-foreground"
+        >
+          {unread > 99 ? "99+" : unread}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+/**
  * Kopfschiene der Arbeitsoberflaeche. Auf dem Handy traegt sie die
  * Wortmarke, ab Tablet den Namen des aktuellen Bereichs - die
  * Navigation selbst steht dann links in der Seitenleiste.
@@ -94,6 +121,7 @@ export function TopNav() {
             <Dienstzeit />
           </span>
           <ConnectionStatus />
+          <Glocke />
           <span className="md:hidden">
             <UserMenu collapsed />
           </span>

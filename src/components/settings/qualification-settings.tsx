@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Loader2, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { json, useAction } from "@/components/workforce/client";
@@ -74,15 +75,17 @@ export function QualificationSettings() {
                     <span className="break-words">{q.name}</span>
                     <div className="flex gap-2">
                       <Button type="button" size="sm" variant="outline" disabled={action.isPending} onClick={() => setEditing({ id: q.id, name: q.name })}>Umbenennen</Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
+                      <ConfirmDialog
+                        title="Qualifikation löschen?"
+                        description={"Die Qualifikation „" + q.name + "“ wird aus dem Katalog gelöscht. Das geht nur, solange kein aktiver Mitarbeiter und keine künftige Schicht sie noch nutzt; vergangene Schichten behalten ihren Text."}
+                        confirmLabel="Löschen"
                         disabled={action.isPending}
-                        onClick={() => { if (confirm("Qualifikation „" + q.name + "“ wirklich löschen?")) action.mutate({ url: "/api/qualifications/" + q.id, method: "DELETE", message: "Qualifikation gelöscht" }); }}
+                        onConfirm={() => action.mutate({ url: "/api/qualifications/" + q.id, method: "DELETE", message: "Qualifikation gelöscht" })}
                       >
-                        Löschen
-                      </Button>
+                        <Button type="button" size="sm" variant="outline" disabled={action.isPending}>
+                          Löschen
+                        </Button>
+                      </ConfirmDialog>
                     </div>
                   </>
                 )}

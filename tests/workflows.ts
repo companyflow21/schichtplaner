@@ -27,6 +27,18 @@ import { assignmentTests } from "./assignment";
 import { shiftDeleteTests } from "./shift-delete";
 import { employeeDeleteTests } from "./employee-delete";
 import { subcontractorTests } from "./subcontractors";
+import { conflictTests } from "./conflicts";
+import { planLifecycleTests } from "./plan-lifecycle";
+import { dashboardTaskTests } from "./dashboard-tasks";
+import { planFrozenTests } from "./plan-frozen";
+import { planningRuleTests } from "./planning-rules";
+import { payrollTests } from "./payroll";
+import { abgleichFixTests } from "./abgleich-fixes";
+import { hoursTests } from "./hours";
+import { timesheetTests } from "./timesheet";
+import { timeAccountTests } from "./time-accounts";
+import { absenceEffectTests } from "./absence-effects";
+import { vacationTests } from "./vacation";
 import webpush from "web-push";
 
 async function main() {
@@ -163,8 +175,9 @@ try {
   check(changed.bookings[0].confirmation === "PLANNER" && changed.bookings[0].confirmedAt === planned.confirmedAt, "change keeps the binding assignment");
   check(changed.pauseValue === 30 && changed.requiredQualifications.includes("Erste Hilfe"), "partial change keeps pause and qualifications");
   const conflict = (await admin.request("/api/shifts", "POST", { ...create, shiftFrom: "23:00", shiftTo: "04:00" })).shifts[0];
-  await admin.request("/api/bookings", "POST", { shiftId: conflict.id, userId: users.employee.id }, 409);
-  const window = (await replacement.request("/api/availability", "POST", { date: day, timeFrom: "21:00", timeTo: "07:00", available: false })).availability;
+  const overlap = await admin.request("/api/bookings", "POST", { shiftId: conflict.id, userId: users.employee.id }, 409);
+  check(overlap.confirm === true && overlap.warnings.includes("Zeitliche Überschneidung mit einer anderen Schicht."), "overlapping night shift asks the planner for confirmation instead of blocking");
+  const window =(await replacement.request("/api/availability", "POST", { date: day, timeFrom: "21:00", timeTo: "07:00", available: false })).availability;
   const unavailable = (await admin.request("/api/shifts/" + conflict.id + "/candidates")).candidates.find((m:any) => m.userId === users.replacement.id);
   check(unavailable && !unavailable.selectable && unavailable.reasons.includes("Als nicht verfügbar eingetragen."), "unavailable candidate shown with reason, not selectable");
   await replacement.request("/api/availability", "DELETE", { id: window.id });
@@ -178,6 +191,9 @@ try {
   await admin.request("/api/mod-requests/" + request.id, "PATCH", { state: "ACCEPTED" }, 409);
   const swapped = (await admin.request(schedulePath)).schedule.shifts.find((s:any) => s.id === shift.id);
   check(swapped.bookings.length === 1 && swapped.bookings[0].userId === users.replacement.id, "swap replaces assignment atomically");
+  // Mitarbeitende koennen eine Ueberschneidung nicht bestaetigen: der Antrag wird abgelehnt.
+  const selfOverlap = await replacement.request("/api/mod-requests", "POST", { shiftId: conflict.id }, 409);
+  check(selfOverlap.error.includes("Überschneidung") && !selfOverlap.confirm, "employee takeover request for an overlapping shift is refused");
   await employee.request("/api/mod-requests", "POST", { shiftId: conflict.id }, 404);
   await admin.request("/api/employees/" + users.employee.memberId + "/access", "PUT", { kind: "branch", branchId: branch.id, rights: ["REQUEST_SHIFTS"] });
   const takeover = (await employee.request("/api/mod-requests", "POST", { shiftId: conflict.id })).request;
@@ -271,6 +287,18 @@ try {
   if (run("shift-delete")) await shiftDeleteTests(context);
   if (run("employee-delete")) await employeeDeleteTests(context);
   if (run("subcontractors")) await subcontractorTests(context);
+  if (run("conflicts")) await conflictTests(context);
+  if (run("plan-lifecycle")) await planLifecycleTests(context);
+  if (run("dashboard-tasks")) await dashboardTaskTests(context);
+  if (run("plan-frozen")) await planFrozenTests(context);
+  if (run("planning-rules")) await planningRuleTests(context);
+  if (run("payroll")) await payrollTests(context);
+  if (run("abgleich-fixes")) await abgleichFixTests(context);
+  if (run("hours")) await hoursTests(context);
+  if (run("timesheet")) await timesheetTests(context);
+  if (run("time-accounts")) await timeAccountTests(context);
+  if (run("absence-effects")) await absenceEffectTests(context);
+  if (run("vacation")) await vacationTests(context);
   console.log("FINAL SUCCESS: " + checks + " assertions / HTTP checks passed.");
   if (process.argv.includes("--serve")) {
     console.log("BROWSER_PREVIEW " + base + " — admin@akro-test.invalid / " + password);

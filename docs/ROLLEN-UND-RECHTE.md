@@ -90,7 +90,11 @@ Grundregeln (`src/lib/access.ts`, Funktionen `can`, `canStaff`, `timeScope`):
 Einstellungen · Kunden und Einsatzorte samt GPS · Arbeitsbereiche · Qualifikationskatalog · Abwesenheits- und
 Zeitkategorien, Feiertagsregion · Rollen und Freigaben vergeben · Konten deaktivieren/reaktivieren · Einladungslinks für
 jedes Konto · Kontaktdaten anderer ändern · Zeitbuchungen einem Standort zuordnen · Altpläne ohne Standort · Dateiordner
-anlegen · Themen löschen · KI.
+anlegen · Themen löschen · KI · Lohn (Lohnseite, Lohnarten/Zuschläge, Personalnummern, Lohnexport; `/api/payroll/**`
+antwortet Disposition und Mitarbeitenden mit 403, auch für die eigene Personalnummer) [Port P1, nicht eingespielt] ·
+Zeitkonten einrichten (Soll, Berechnungsart, Ausgleich buchen/löschen), Urlaubskonto einrichten (Regeln je Person,
+Korrekturen in halben Tagen), Lohnart-Code einer Abwesenheitsart (`/api/time-accounts/**` außer dem Lesen eines Kontos,
+`/api/vacation/settings|members|adjustments`: Disposition und Mitarbeitende 403) [Port P4/P5, nicht eingespielt].
 
 ### 3.2 Standortrechte (je Einsatzort)
 
@@ -122,8 +126,8 @@ Zugeordnet werden können Mitarbeiter und auch andere Manager.
 | **In Schichten einplanen** | Person steht beim Besetzen zur Auswahl („Persönlich zugeordnet“) – auch an Standorten ohne ihre Standortzuordnung; Verfügbarkeiten sichtbar; Standortzuordnung an eigenen Planungsstandorten pflegen | Profil/Kontaktdaten |
 | **Personalprofil ansehen** | Profilseite: E-Mail, Telefon, Tätigkeit, Qualifikationen; Kontaktdaten in der Liste | Beschäftigungsart, Sollstunden, Notizen; nichts ändern |
 | **Stammdaten bearbeiten** | Tätigkeit, Beschäftigungsart, Sollstunden/Monat, Qualifikationen ändern; Notizen lesen/schreiben. Schließt „ansehen“ ein. | **Name, E-Mail, Telefon** ändern (nur Admin oder die Person selbst); Rolle, Status |
-| **Abwesenheiten einsehen und entscheiden** | Abwesenheiten der Person sehen, eintragen (auf Wunsch direkt genehmigt), genehmigen/ablehnen | Eigene Abwesenheiten |
-| **Stunden einsehen** | Zeiten und Monatswerte der Person – **nur an Standorten mit „Zeiterfassung einsehen“** | Allein wirkungslos; kein Soll |
+| **Abwesenheiten einsehen und entscheiden** | Abwesenheiten der Person sehen, eintragen (auf Wunsch direkt genehmigt), genehmigen/ablehnen. [Port P5] Beim Genehmigen die Folgen je Schicht festlegen (zählt Stunden/0 Stunden), Urlaubskonto der Person und Übersicht „Urlaubskonten“, Art der Abwesenheit in „Stunden und Lohn“ | Eigene Abwesenheiten; „Person austragen“ nur zusätzlich mit „Schichten bearbeiten“ am Standort der Schicht; Urlaubskonto korrigieren |
+| **Stunden einsehen** | Zeiten und Monatswerte der Person – **nur an Standorten mit „Zeiterfassung einsehen“**. [Port P4] Zeitkonto (Saldo und Perioden) der Person, auch ohne Standortrecht | Allein wirkungslos für Zeiten; kein Soll; Zeitkonto ändern; Art einer Abwesenheit |
 | **Mitarbeiter löschen** [Neu] | Endgültiges Löschen (nur Rolle Mitarbeiter). Schließt „ansehen“ ein. Nie per Voreinstellung. | Manager/Admins löschen |
 
 Voreinstellungen: „Einplanen“ (einplanen + Profil ansehen), „Personalverantwortung“ (alles außer Löschen).
@@ -133,6 +137,12 @@ Eigene veröffentlichte Schichten, eigene Zeiten ansehen, Stoppuhr mit Pause, Ze
 Freigabe**), Korrektur beantragen, Abwesenheit beantragen (solange offen ändern/zurückziehen), Verfügbarkeit,
 Check-in, eigene Monatsstunden inkl. Soll, Nachrichten, Push, eigene Schicht anbieten oder tauschen, alte unbestätigte
 Zuweisung bestätigen. Eigene Kontaktdaten ändern: nur über die Schnittstelle (keine Profilseite).
+[Port P2/P3, nicht eingespielt] Eigene Nachträge, Stoppuhr- und Check-in-Zeiten zählen sofort, gelten in „Stunden und
+Lohn“ aber bis zur Genehmigung als „offen“ (außer mit „Selbst erfasste Zeiten automatisch genehmigen“); eigene Stunden
+genehmigt nur die Administration. Eigener Stundenzettel (PDF) unter Zeiterfassung › „Mein Stundenzettel“.
+[Port P4/P5, nicht eingespielt] Eigenes Zeitkonto (Zeiterfassung › „Zeitkonto“) und eigenes Urlaubskonto (Abwesenheiten,
+Kontoauszug) nur, wenn die Administration es freigibt (Zeitkonten: Vorgabe aus; Urlaubskonto: Vorgabe an); sonst 404.
+Im Antrag zeigt das Formular „verfügbar · dieser Zeitraum · danach“.
 
 ### 3.5 Abhängigkeiten und Kombinationen
 - **Eingeschlossen:** „bearbeiten“, „veröffentlichen“, „Anträge“ → „Dienstplan ansehen“; **„Dienstplan ansehen“ →
@@ -265,8 +275,10 @@ fallen dann auseinander).
 - Wo: Schichtkarte – „Mitarbeiter zuweisen“, X, Wechsel-Symbol ⇆ [Neu].
 - Wer: „bearbeiten“; Person im Planungskreis.
 - Auswahl in Gruppen: frei am Standort → belegt/abwesend am Standort → frei an anderen Standorten desselben Kunden →
-  belegt/abwesend dort → übrige einplanbare Personen. Hinweise (z. B. fehlende Qualifikation) einmal bestätigen; harte
-  Sperren (Überschneidung, genehmigte Abwesenheit, „nicht verfügbar“, inaktiv) nicht übergehbar.
+  belegt/abwesend dort → übrige einplanbare Personen. Hinweise (z. B. fehlende Qualifikation) einmal bestätigen; eine
+  zeitliche Überschneidung ist ein Hinweis mit Bestätigung durch die Planung („belegt“, aber wählbar); Mitarbeitende
+  können sich nicht selbst überschneidend einteilen. Harte Sperren (genehmigte Abwesenheit, „nicht verfügbar“,
+  inaktiv) nicht übergehbar.
 - Danach: je eine Nachricht an jede betroffene Person.
 - Grenzen: kein Entfernen/Wechseln nach Schichtende oder nach dem Check-in der Person [Neu].
 
@@ -298,6 +310,11 @@ Fensters erzeugt einen Hinweis.
 - Danach: Nachricht an die Person; genehmigte Abwesenheit sperrt Einteilung, bestehende Zuweisungen erscheinen
   „nicht verfügbar“.
 - Grenzen: D nicht für sich selbst; **Admins können eigene genehmigen**; Kategorien und Feiertagsregion pflegt A.
+- [Port P5] Beim Genehmigen legt „Folgen der Abwesenheit“ je Schicht fest: zählt Stunden (bezahlt), 0 Stunden oder Person
+  austragen (wie „Zuweisung aufheben“: nur A oder „Schichten bearbeiten“ am Standort, nicht nach Schichtende/Check-in,
+  offene Anträge werden abgelehnt, Nachricht nur bei veröffentlichten Plänen außerhalb der Bearbeitung). Bleibt die
+  Person eingeteilt, bleibt der rote Konflikt „Genehmigte Abwesenheit (bezahlt/0 Stunden)“. Standort und Titel der
+  Schichten nennt die Vorschau nur mit „Dienstplan ansehen“.
 
 **Übernahme, Abgabe, Tausch** – UI
 - Wo: Startseite → „Anträge“; Schichtkarte „Übernahme anfragen“.
@@ -316,6 +333,19 @@ Fensters erzeugt einen Hinweis.
 - Grenzen: **eigene Nachträge wirken ohne Freigabe**; bestehende Buchungen nur per begründetem Korrekturantrag
   (Entscheidung durch „Zeit bearbeiten“ + „Stunden“, nicht für eigene – **Admins doch**); Löschen für niemanden;
   Buchungen ohne Standort sieht nur A.
+- [Port P2] Prüfende (A; D mit „Zeit bearbeiten“ am Standort der Buchung + „Stunden“) ändern fremde Buchungen in
+  „Stunden und Lohn“ direkt: sofort wirksam, genehmigt, Vorher/Nachher als entschiedene Korrektur im Verlauf.
+  Mitarbeitende beantragen weiter. Zeiten gelöschter Personen bleiben unverändert (409), A kann sie genehmigen.
+
+**Stunden und Lohn** [Port P2/P3, nicht eingespielt] – UI
+- Wo: Navigation „Stunden und Lohn“ (`/hours`; `/payroll` leitet dorthin), Gruppe Organisation, mobil unter „Mehr“.
+- Wer: sehen wie die Auswertung (eigene; fremde mit „Zeit einsehen“ am Standort + „Stunden“); genehmigen und
+  zurücknehmen A oder D mit „Zeit bearbeiten“ + „Stunden“, eigene nur A (`POST /api/time/approve`: nicht sichtbare
+  Buchung ohne Standortrecht 404, sonst 403). Lohnspalten, Lohnart, Hinweise und Lohnexport nur A. Gelöschte Personen
+  (eigene Zeile „gelöscht“) nur A.
+- Stundenzettel (PDF): eigener für jede Person; fremder mit denselben Rechten wie „Stunden und Lohn“; Personalnummer
+  und Soll nur A und die Person selbst. Leistungsnachweis je Einsatzort (PDF): „Zeit einsehen“ am Standort, Zeilen nur
+  für Personen mit „Stunden“.
 
 **Check-in mit Standortprüfung** – UI
 - Wo: Startseite „Jetzt einchecken“ (ab 30 Minuten vor Beginn bis Schichtende, nur HTTPS); bei Problemen manueller Antrag.
@@ -334,8 +364,8 @@ Fensters erzeugt einen Hinweis.
   Korrekturentscheidungen, Check-in-Entscheidungen. Push-Hinweise ohne Inhalt, wenn der Server Push-Schlüssel hat.
 - Grenzen: **keine E-Mails**.
 
-**Dateien** – Teilweise: alle sehen Ordner, nur A legt Ordner an; **Datei-Upload nicht umgesetzt** („kommt bald“),
-obwohl die README ihn nennt.
+**Dateien** – Teilweise: alle sehen Ordner, nur A legt Ordner an; **Datei-Upload nicht umgesetzt** (kein Upload-Endpunkt; der
+deaktivierte Knopf „Datei hochladen“ wurde entfernt), obwohl die README ihn nennt.
 
 **Themen (Forum)** – UI: jede Person kann Themen und Beiträge anlegen (organisationsweit sichtbar); löschen nur A.
 
@@ -394,6 +424,15 @@ Profilseite, kein Wechsel zwischen Organisationen** (bei mehreren Mitgliedschaft
 | Fremde Zeiten nachtragen, Korrekturen entscheiden | ✔ (auch eigene) | ✔ (auch eigene) | F: Zeit bearbeiten + Stunden | ✖ | D nicht eigene |
 | Check-in | Eigene | Eigene | Eigene; Team: F: Zeit einsehen + Stunden | Eigene | nur eigene Schicht |
 | Auswertung/CSV | alle mit Soll | alle mit Soll | Eigene + F: Zeit einsehen + Stunden | Eigene | D ohne Soll anderer |
+| Lohn, Lohnarten/Zuschläge, Lohnexport [Port P1] | ✔ | ✔ | ✖ | ✖ | keine Freigabe öffnet Lohndaten |
+| Stunden genehmigen, fremde Buchung direkt ändern [Port P2] | ✔ (auch eigene) | ✔ (auch eigene) | F: Zeit bearbeiten + Stunden | ✖ | D nicht eigene; gelöschte Personen nur A |
+| Stundenzettel (PDF) [Port P3] | alle | alle | Eigener + F: Zeit einsehen + Stunden | Eigener | Personalnummer/Soll nur A und Person |
+| Zeitkonten einrichten, Soll, Ausgleich [Port P4] | ✔ | ✔ | ✖ | ✖ | |
+| Zeitkonto/Saldo sehen [Port P4] | alle | alle | Eigenes (wenn sichtbar) + F: Stunden | Eigenes (wenn sichtbar) | Saldo zum Ende des Zeitraums |
+| Folgen einer Abwesenheit festlegen [Port P5] | ✔ (auch eigene) | ✔ (auch eigene) | F: Abwesenheiten | ✖ | austragen zusätzlich F: bearbeiten am Standort |
+| Urlaubskonto einrichten, korrigieren [Port P5] | ✔ | ✔ | ✖ | ✖ | Korrekturen in halben Tagen |
+| Urlaubskonto sehen, Übersicht [Port P5] | alle | alle | Eigenes (wenn sichtbar) + F: Abwesenheiten | Eigenes (wenn sichtbar) | |
+| Leistungsnachweis je Einsatzort (PDF) [Port P3] | ✔ | ✔ | F: Zeit einsehen (Zeilen mit Stunden) | ✖ | |
 | PDF-Export [Neu] | alle | alle | sichtbare Pläne | sichtbare Pläne | |
 | Nachrichten | alle | alle | sichtbare Personen | sichtbare Personen | keine E-Mails |
 | Standortmeldungen | ✔ | ✔ | F: Standortmeldungen | ✖ | |

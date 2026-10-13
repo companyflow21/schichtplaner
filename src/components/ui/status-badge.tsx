@@ -39,7 +39,7 @@ export function StatusBadge({
       title={title}
       className={cn(
         "tabular inline-flex shrink-0 items-center gap-1 rounded-full border font-medium whitespace-nowrap",
-        klein ? "px-1.5 py-px text-[11px] leading-4" : "px-2 py-0.5 text-[12px] leading-4",
+        klein ? "px-1.5 py-px text-xs leading-4" : "px-2 py-0.5 text-[12px] leading-4",
         klasse,
         className
       )}

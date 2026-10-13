@@ -4,26 +4,28 @@ import { addDate, berlinDate, berlinTime, minuteOfDay, shiftRange } from "@/lib/
 import { branchIds, can, requireAccess, staffIds, timeScope, type Access } from "@/lib/access";
 import { checkAssignment, shiftInclude, shiftView } from "@/lib/planning";
 import { monthlyReport } from "@/lib/report";
+import { dashboardTasks } from "@/lib/dashboard-tasks";
 import { planningOverview } from "@/lib/overview";
+import { frozenView } from "@/lib/schedule-frozen";
 
-/** Eigene, veroeffentlichte Schichten ab jetzt (60 Tage). */
+/** Eigene, veroeffentlichte Schichten ab jetzt (60 Tage); Plaene in Bearbeitung ohne Planungssicht im veroeffentlichten Stand. */
 async function ownShifts(a: Access, today: string) {
   const year = Number(today.slice(0, 4));
-  const shifts = await db.shift.findMany({
+  const shifts = await frozenView(db, a, await db.shift.findMany({
     where: { deletedAt: null, bookings: { some: { userId: a.userId } }, schedule: { organizationId: a.orgId, deletedAt: null, isPublic: true, year: { gte: year - 1, lte: year + 1 } } },
     include: shiftInclude,
-  });
+  }), { year: { gte: year - 1, lte: year + 1 } }, (s) => s.bookings.some((b) => b.userId === a.userId));
   const now = Date.parse(today) / 60000 + minuteOfDay(berlinTime());
   return shifts.map((s) => ({ s, r: shiftRange(s) })).filter(({ r }) => r.end > now && r.date <= addDate(today, 60)).sort((x, y) => x.r.start - y.r.start).map(({ s }) => shiftView(s, a));
 }
 
-/** Offene Schichten an Standorten mit Freigabe "Offene Schichten sehen und anfragen". */
+/** Offene Schichten an Standorten mit Freigabe "Offene Schichten sehen und anfragen" - nicht aus Plaenen in Bearbeitung (Antraege ruhen). */
 async function requestableShifts(a: Access, today: string) {
   const ids = branchIds(a, "REQUEST_SHIFTS");
   if (ids && !ids.length) return [];
   const year = Number(today.slice(0, 4));
   const shifts = await db.shift.findMany({
-    where: { deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null, isPublic: true, branchId: ids ? { in: ids } : { not: null }, year: { gte: year - 1, lte: year + 1 } } },
+    where: { deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null, isPublic: true, editingSince: null, branchId: ids ? { in: ids } : { not: null }, year: { gte: year - 1, lte: year + 1 } } },
     include: shiftInclude,
   });
   const now = Date.parse(today) / 60000 + minuteOfDay(berlinTime());
@@ -74,6 +76,7 @@ export async function GET() {
     return {
       ...base,
       manager: true,
+      tasks: await dashboardTasks(a, overview),
       overview: cards,
       todayShifts,
       counts: {

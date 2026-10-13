@@ -15,11 +15,22 @@ import {
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
 import { useUnreadCount } from "@/lib/hooks/use-unread-count";
 import {
-  isNavActive,
+  isNavItemActive,
   mobileNavItems,
   navFooterItems,
   navGroups,
+  type NavItem,
 } from "./nav-config";
+
+/** Schmale Markenkante am oberen Rand des aktiven Eintrags. */
+function AktivKante() {
+  return (
+    <span
+      aria-hidden="true"
+      className="absolute inset-x-5 top-0 h-[2px] rounded-full bg-primary"
+    />
+  );
+}
 
 /**
  * Feste untere Navigation auf dem Handy: vier haeufige Ziele plus "Mehr".
@@ -35,10 +46,16 @@ export function MobileNav() {
   const groups = navGroups(me);
   const footer = navFooterItems(me);
   const hauptZiele = new Set(items.map((item) => item.href));
+  const istAktiv = (item: NavItem) => isNavItemActive(item, pathname, me?.role);
+  // "Mehr" leuchtet, wenn das aktuelle Ziel nur im Sheet liegt.
+  const mehrAktiv =
+    groups.some((group) =>
+      group.items.some((item) => !hauptZiele.has(item.href) && istAktiv(item))
+    ) || footer.some(istAktiv);
 
   const eintragKlasse = (active: boolean) =>
     cn(
-      "relative flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
+      "relative flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors",
       active ? "bg-primary/5 text-primary" : "text-muted-foreground"
     );
 
@@ -49,7 +66,7 @@ export function MobileNav() {
     >
       {items.map((item) => {
         const Icon = item.icon;
-        const active = isNavActive(item.href, pathname);
+        const active = istAktiv(item);
         return (
           <Link
             key={item.key}
@@ -58,12 +75,7 @@ export function MobileNav() {
             className={eintragKlasse(active)}
           >
             {/* Aktiv: schmale Markenkante, kein farbiger Kasten. */}
-            {active && (
-              <span
-                aria-hidden="true"
-                className="absolute inset-x-5 top-0 h-[2px] rounded-full bg-primary"
-              />
-            )}
+            {active && <AktivKante />}
             <Icon className="size-5" />
             {item.label}
           </Link>
@@ -71,11 +83,12 @@ export function MobileNav() {
       })}
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger className={cn(eintragKlasse(false), "relative")}>
+        <SheetTrigger className={eintragKlasse(mehrAktiv)}>
+          {mehrAktiv && <AktivKante />}
           <MoreHorizontal className="size-5" />
           Mehr
           {unread > 0 && (
-            <span className="absolute top-2 right-1/4 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+            <span className="absolute top-1.5 right-1/4 flex min-w-5 items-center justify-center rounded-full bg-primary px-1 py-0.5 text-xs font-semibold text-primary-foreground">
               {unread > 9 ? "9+" : unread}
               <span className="sr-only"> ungelesene Nachrichten</span>
             </span>
@@ -93,13 +106,13 @@ export function MobileNav() {
               if (weitere.length === 0) return null;
               return (
                 <div key={group.title} className="mb-4 last:mb-0">
-                  <p className="mb-1.5 px-2 text-[11px] font-semibold tracking-wide text-muted-foreground">
+                  <p className="mb-1.5 px-2 text-xs font-semibold tracking-wide text-muted-foreground">
                     {group.title}
                   </p>
                   <ul>
                     {weitere.map((item) => {
                       const Icon = item.icon;
-                      const active = isNavActive(item.href, pathname);
+                      const active = istAktiv(item);
                       const count = item.badge === "unread" ? unread : 0;
                       return (
                         <li key={item.key}>
@@ -115,7 +128,7 @@ export function MobileNav() {
                             <Icon className="size-5 text-muted-foreground" />
                             {item.label}
                             {count > 0 && (
-                              <span className="ml-auto flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
+                              <span className="ml-auto flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-xs font-semibold text-primary-foreground">
                                 {count > 99 ? "99+" : count}
                                 <span className="sr-only"> ungelesene Nachrichten</span>
                               </span>
@@ -131,12 +144,17 @@ export function MobileNav() {
 
             {footer.map((item) => {
               const Icon = item.icon;
+              const active = istAktiv(item);
               return (
                 <Link
                   key={item.key}
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className="flex min-h-11 items-center gap-3 border-t px-3 py-3 text-[14px] font-medium"
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex min-h-11 items-center gap-3 border-t px-3 py-3 text-[14px] font-medium",
+                    active && "bg-accent text-accent-foreground"
+                  )}
                 >
                   <Icon className="size-5 text-muted-foreground" />
                   {item.label}

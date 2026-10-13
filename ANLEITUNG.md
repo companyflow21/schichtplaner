@@ -42,7 +42,7 @@ Zeiten und Abwesenheiten. Details: `docs/AKRO-ERWEITERUNG.md`, Abschnitte 5 und 
   Die Platzhalter haben keine E-Mail-Adresse, Einladung, Anmeldung oder eigene Zeiterfassung.
 - In der Wochenansicht „Mitarbeiter zuweisen“ öffnen und einen Platzhalter aus „Subunternehmer“ wählen.
   Der Plan zeigt den Unternehmensnamen und den Platzhalter. Jeder zählt als ein belegter Platz.
-  Volle Schichten und zeitliche Überschneidungen sind gesperrt. Nicht hinterlegte fachliche Angaben
+  Volle Schichten sind gesperrt. Zeitliche Überschneidungen und nicht hinterlegte fachliche Angaben
   (Qualifikation, Tätigkeit oder Arbeitsbereich) erfordern die Bestätigung der Planung.
 - Eine Einteilung vor Schichtende kann mit Sicherheitsabfrage entfernt werden. Vergangene Einsätze bleiben erhalten.
 - In der Subunternehmerverwaltung einen Monat auswählen: die Einsatzliste zeigt Standort, Schicht und Platzhalter,

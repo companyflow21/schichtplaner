@@ -5,7 +5,8 @@ import type { Access } from "./access";
 import { ApiError } from "./errors";
 import { addDate, isoWeek, shiftRange, validDate } from "./berlin";
 import { shiftInclude, shiftView } from "./planning";
-import { ineffectiveFor, mergedScope, visibleFor } from "./schedule-visibility";
+import { ineffectiveFor, inMergedScope, mergedScope, visibleFor } from "./schedule-visibility";
+import { frozenView } from "./schedule-frozen";
 import type { ScheduleExport, ScheduleExportRow } from "@/types/schedule-export";
 
 type Tx = Prisma.TransactionClient;
@@ -67,16 +68,20 @@ export async function scheduleExport(tx: Tx, a: Access, q: ExportQuery): Promise
   const member = q.userId && a.isAdmin ? await tx.organizationMember.findFirst({ where: { userId: q.userId, organizationId: a.orgId }, select: { user: { select: { firstName: true, lastName: true } } } }) : null;
   if (q.userId && a.isAdmin && !member) throw notFound();
 
+  const plans: Prisma.ScheduleWhereInput = { organizationId: a.orgId, deletedAt: null, ...(q.branchId ? { branchId: q.branchId } : {}), ...(q.customerId ? { branch: { customerId: q.customerId } } : {}) };
+  const windows = weekWindows(q.from, q.to);
   const where: Prisma.ShiftWhereInput = {
     deletedAt: null,
-    schedule: { organizationId: a.orgId, deletedAt: null, ...(q.branchId ? { branchId: q.branchId } : {}), ...(q.customerId ? { branch: { customerId: q.customerId } } : {}) },
+    schedule: plans,
     AND: [
-      { OR: weekWindows(q.from, q.to).map(w => ({ dayOfWeek: { gte: w.first, lte: w.last }, schedule: { year: w.year, weekNumber: w.weekNumber } })) },
+      { OR: windows.map(w => ({ dayOfWeek: { gte: w.first, lte: w.last }, schedule: { year: w.year, weekNumber: w.weekNumber } })) },
       { OR: mergedScope(a) },
     ],
   };
   if (await tx.shift.count({ where }) > EXPORT_MAX_SHIFTS) throw new ApiError("Zu viele Schichten (mehr als " + EXPORT_MAX_SHIFTS + "). Bitte Zeitraum oder Filter einschränken.");
-  const shifts = (await tx.shift.findMany({ where, include: shiftInclude })).filter(visibleFor(a)).filter(s => {
+  // Plaene in Bearbeitung ohne Planungssicht im veroeffentlichten Stand (Momentaufnahme) - wie im Dienstplan.
+  const live = await tx.shift.findMany({ where, include: shiftInclude });
+  const shifts = (await frozenView(tx, a, live, { ...plans, OR: windows.map(w => ({ year: w.year, weekNumber: w.weekNumber })) }, inMergedScope(a))).filter(visibleFor(a)).filter(s => {
     const date = shiftRange(s).date;
     return date >= q.from && date <= q.to;
   });

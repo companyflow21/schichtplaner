@@ -8,6 +8,7 @@ import {
   MessageSquare,
   Settings,
   Users,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import type { CurrentMember } from "@/lib/hooks/use-current-member";
@@ -59,6 +60,7 @@ function faehigkeiten(me?: CurrentMember) {
     plans: summaryCan(access, "VIEW_SCHEDULE"),
     staff: admin || Object.keys(access?.staff ?? {}).length > 0,
     locations: admin || Object.keys(access?.branches ?? {}).length > 0,
+    hours: admin || summaryCan(access, "VIEW_TIME"),
   };
 }
 
@@ -111,6 +113,7 @@ export function navGroups(me?: CurrentMember): NavGroup[] {
       items: [
         ...(can.locations ? [{ key: "divisions", href: "/divisions", label: "Einsatzorte", icon: Building2 }] : []),
         { key: "reporting", href: "/reporting", label: "Auswertung", icon: BarChart3 },
+        ...(can.hours ? [{ key: "hours", href: "/hours", label: "Stunden und Lohn", icon: Wallet }] : []),
         { key: "portal", href: "/portal/inbox", label: "Nachrichten", icon: MessageSquare, badge: "unread" as const },
       ],
     },
@@ -164,6 +167,18 @@ export function seitenTitel(pathname: string, me?: CurrentMember): string {
   }
   const treffer = weitereTitel.find(([pfad]) => pathname.startsWith(pfad));
   return treffer ? treffer[1] : "Übersicht";
+}
+
+/**
+ * Ist dieser Eintrag aktiv? Fuer die Planung gehoeren alle Ansichten unter
+ * /schedule (Monat, flexibel, klassisch, Mitarbeiter) zum Punkt "Dienstplan".
+ * Gemeinsam genutzt von Seitenleiste und unterer Navigation.
+ */
+export function isNavItemActive(item: NavItem, pathname: string, role?: string): boolean {
+  if (item.key === "schedule" && isPlanner(role)) {
+    return pathname === "/schedule" || pathname.startsWith("/schedule/");
+  }
+  return isNavActive(item.href, pathname);
 }
 
 /** Ist dieser Navigationspunkt zur aktuellen Adresse aktiv? */

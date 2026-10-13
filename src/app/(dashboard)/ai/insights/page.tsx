@@ -235,7 +235,7 @@ export default function AiInsightsPage() {
                         <td className="px-4 py-2">
                           <span className="font-medium">{dp.label}</span>
                           {dp.isForecast && (
-                            <span className="ml-1.5 text-[10px] text-warn dark:text-warn font-medium">
+                            <span className="ml-1.5 text-xs text-warn dark:text-warn font-medium">
                               PROGNOSE
                             </span>
                           )}

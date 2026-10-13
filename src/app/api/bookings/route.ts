@@ -2,9 +2,11 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { api, body, requireMember, serial, ApiError } from "@/lib/api";
 import { assertCan, requireAccess, type Access } from "@/lib/access";
-import { assertReleasable, assign, findShift, notify, placeBooking, planningPool, shiftLabel, type ShiftWithRelations } from "@/lib/planning";
-import { closeOpenRequests, requestParties } from "@/lib/shift-requests";
+import { assertReleasable, assign, findShift, notify, placeBooking, planningPool, shiftLabel } from "@/lib/planning";
+import { closeOpenRequests, informParties, releaseAssignment, releasedRequests, requestParties } from "@/lib/shift-requests";
 import { emitToBranch } from "@/lib/emit";
+import { shiftDays, signalBookedSites } from "@/lib/conflicts";
+import { EDITING_REQUESTS, notifiesEmployees } from "@/lib/schedule-status";
 
 type Tx = Prisma.TransactionClient;
 const input = z.object({ shiftId: z.string().min(1), userId: z.string().min(1) });
@@ -33,6 +35,8 @@ export async function POST(request: Request) {
       return assign(tx, a, data.shiftId, data.userId, data.confirm === true);
     }, { retry: true });
     emitToBranch(a.orgId, shift.schedule.branchId, "booking:changed", [data.userId]);
+    // Ueberschneidungen gelten ueber Standorte hinweg: auch deren Plaene neu pruefen lassen.
+    await signalBookedSites(a.orgId, [data.userId], "booking:changed", shiftDays(shift), shift.schedule.branchId);
     return { booking };
   });
 }
@@ -47,20 +51,6 @@ async function editableBooking(tx: Tx, a: Access, shiftId: string, userId: strin
   if (!shift) throw new ApiError("Schicht nicht gefunden.", 404);
   assertCan(a, "EDIT_SHIFTS", shift.schedule.branchId);
   return { shift, booking: shift.bookings.find(b => b.userId === userId) };
-}
-
-/**
- * Offene Antraege der geloesten Person zu dieser Schicht sind hinfaellig:
- * eigene Antraege auf diese Schicht und Tauschanfragen anderer, die genau
- * diese Zuweisung betreffen.
- */
-function releasedRequests(shiftId: string, userId: string): Prisma.ModRequestWhereInput {
-  return { OR: [{ shiftId, userId }, { targetShiftId: shiftId, targetUserId: userId }] };
-}
-
-/** Kurze Information an weitere Beteiligte geschlossener Antraege. */
-async function informParties(tx: Tx, a: Access, shift: ShiftWithRelations, parties: string[]) {
-  if (parties.length) await notify(tx, a.orgId, a.userId, parties, "Schichtantrag erledigt", shiftLabel(shift) + ": Die Planung hat die Zuweisung geändert. Ein offener Antrag dazu ist damit erledigt.", shift.id);
 }
 
 /**
@@ -90,14 +80,16 @@ export async function PUT(request: Request) {
         ...await closeOpenRequests(tx, a, { shiftId: shift.id, userId: data.replacementUserId, kind: "TAKEOVER" }, "Direkt eingeteilt.", "ACCEPTED"),
       ];
       const parties = requestParties(closed, [data.userId, data.replacementUserId]);
-      if (shift.schedule.isPublic) {
+      if (notifiesEmployees(shift.schedule)) {
         await notify(tx, a.orgId, a.userId, [data.userId], "Schichtzuweisung geändert", shiftLabel(shift) + ": Du bist für diese Schicht nicht mehr eingeteilt.", shift.id);
         await notify(tx, a.orgId, a.userId, [data.replacementUserId], "Neue Schicht", shiftLabel(shift) + ": Du bist fest eingeteilt.", shift.id);
-        await informParties(tx, a, shift, parties);
       }
-      return { booking: created, branchId: shift.schedule.branchId, parties };
+      // Geschlossene Antraege sind eine Entscheidung: auch waehrend der Bearbeitung mitteilen.
+      if (shift.schedule.isPublic) await informParties(tx, a, shift, parties);
+      return { booking: created, branchId: shift.schedule.branchId, days: shiftDays(shift), parties };
     }, { retry: true });
     emitToBranch(a.orgId, result.branchId, "booking:changed", [data.userId, data.replacementUserId, ...result.parties]);
+    await signalBookedSites(a.orgId, [data.userId, data.replacementUserId], "booking:changed", result.days, result.branchId);
     return { booking: result.booking };
   });
 }
@@ -112,19 +104,12 @@ export async function DELETE(request: Request) {
     const a = await requireAccess();
     const data = await body(request, input);
     const result = await serial(async tx => {
-      const { shift, booking } = await editableBooking(tx, a, data.shiftId, data.userId);
-      if (!booking) throw new ApiError("Zuweisung nicht gefunden.", 404);
-      await assertReleasable(tx, shift, data.userId);
-      await tx.booking.delete({ where: { id: booking.id } });
-      const closed = await closeOpenRequests(tx, a, releasedRequests(shift.id, data.userId), "Zuweisung wurde von der Planung aufgehoben.");
-      const parties = requestParties(closed, [data.userId]);
-      if (shift.schedule.isPublic) {
-        await notify(tx, a.orgId, a.userId, [data.userId], "Schichtzuweisung aufgehoben", shiftLabel(shift) + ": Deine Zuweisung wurde aufgehoben.", shift.id);
-        await informParties(tx, a, shift, parties);
-      }
-      return { branchId: shift.schedule.branchId, parties };
+      const { shift } = await editableBooking(tx, a, data.shiftId, data.userId);
+      const { parties } = await releaseAssignment(tx, a, shift, data.userId);
+      return { branchId: shift.schedule.branchId, days: shiftDays(shift), parties };
     }, { retry: true });
     emitToBranch(a.orgId, result.branchId, "booking:changed", [data.userId, ...result.parties]);
+    await signalBookedSites(a.orgId, [data.userId], "booking:changed", result.days, result.branchId);
     return { success: true };
   });
 }
@@ -133,7 +118,8 @@ export async function DELETE(request: Request) {
  * Eigene, veroeffentlichte Schicht bestaetigen - nur fuer Altbestand ohne
  * Herkunft (confirmation leer). Zuweisungen der Planung (PLANNER) sind
  * bereits verbindlich, selbst bestaetigte (EMPLOYEE) bleiben unveraendert;
- * dann ist die Anfrage ohne Wirkung. Gleichzeitige Bestaetigungen
+ * dann ist die Anfrage ohne Wirkung. Waehrend der Bearbeitung des Plans 409
+ * (EDITING_REQUESTS). Gleichzeitige Bestaetigungen
  * kollidieren leicht; die Transaktion wird dann begrenzt neu ausgefuehrt.
  */
 export async function PATCH(request: Request) {
@@ -141,6 +127,8 @@ export async function PATCH(request: Request) {
     const member = await requireMember();
     const data = await body(request, z.object({ shiftId: z.string() }));
     const result = await serial(async tx => {
+      // Waehrend der Bearbeitung ruht die Bestaetigung wie Antraege: Mitarbeitende sehen noch den veroeffentlichten Stand.
+      if (await tx.schedule.count({ where: { organizationId: member.organizationId, deletedAt: null, isPublic: true, editingSince: { not: null }, shifts: { some: { id: data.shiftId } } } })) throw new ApiError(EDITING_REQUESTS, 409);
       const booking = await tx.booking.findFirst({ where: { shiftId: data.shiftId, userId: member.userId, shift: { deletedAt: null, schedule: { organizationId: member.organizationId, isPublic: true, deletedAt: null } } }, include: { shift: { include: { schedule: true } } } });
       if (!booking) throw new ApiError("Schicht nicht gefunden.", 404);
       const updated = booking.confirmation ? booking : await tx.booking.update({ where: { id: booking.id }, data: { confirmedAt: new Date(), confirmation: "EMPLOYEE" } });

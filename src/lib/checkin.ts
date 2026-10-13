@@ -118,6 +118,8 @@ export async function bookedShifts(tx: Tx, orgId: string, userId: string, now: D
     include: { shift: { include: { schedule: { include: { branch: true } } } } },
   });
   return bookings
+    // Erst waehrend der Bearbeitung des Plans angelegte Schichten sind noch nicht veroeffentlicht.
+    .filter((b) => !b.shift.schedule.editingSince || b.shift.createdAt < b.shift.schedule.editingSince)
     .map((b) => ({ shift: b.shift, branch: b.shift.schedule.branch!, window: checkinWindow(b.shift, now) }))
     .sort((a, b) => shiftRange(a.shift).start - shiftRange(b.shift).start);
 }
@@ -144,8 +146,8 @@ export async function watchStartBlock(tx: Tx, orgId: string, userId: string, now
 }
 
 /** Daten einer laufenden Stoppuhr ab einem Serverzeitpunkt. */
-export function watchRecord(orgId: string, userId: string, branchId: string, at: Date) {
-  return { organizationId: orgId, userId, type: "WATCH" as const, date: new Date(berlinDate(at)), timeFrom: berlinTime(at), startedAt: at, branchId };
+export function watchRecord(orgId: string, userId: string, branchId: string, shiftId: string, at: Date) {
+  return { organizationId: orgId, userId, type: "WATCH" as const, date: new Date(berlinDate(at)), timeFrom: berlinTime(at), startedAt: at, branchId, shiftId };
 }
 
 /** Verstaendliche Meldung zu einem Fehlschlag der Positionspruefung. */

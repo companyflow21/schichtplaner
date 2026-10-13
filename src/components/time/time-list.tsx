@@ -36,6 +36,8 @@ import { useCurrentMember } from "@/lib/hooks/use-current-member";
 import { summaryCan } from "@/lib/access-shared";
 import { json, useAction } from "@/components/workforce/client";
 import { TimeRecordForm } from "./time-record-form";
+import { TimesheetButton } from "@/components/reporting/timesheet-button";
+import { OwnAccountButton } from "@/components/reporting/time-account-dialog";
 import { Stopwatch } from "./stopwatch";
 import { AnomalyBadge, EmployeeAnomalyIndicator } from "./anomaly-badge";
 
@@ -302,7 +304,9 @@ export function TimeList() {
             Arbeitszeiten erfassen und verwalten
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <OwnAccountButton from={monthKey + "-01"} to={format(endOfMonth(currentMonth), "yyyy-MM-dd")} />
+          <TimesheetButton from={monthKey + "-01"} to={format(endOfMonth(currentMonth), "yyyy-MM-dd")} label="Mein Stundenzettel" />
           <Button
             variant="outline"
             size="sm"
@@ -518,7 +522,7 @@ export function TimeList() {
                                         {record.category && (
                                           <Badge
                                             variant="outline"
-                                            className="text-[10px] px-1.5 py-0"
+                                            className="text-xs px-1.5 py-0"
                                           >
                                             {record.category.name}
                                           </Badge>
@@ -599,7 +603,7 @@ export function TimeList() {
                                   {record.category && (
                                     <Badge
                                       variant="outline"
-                                      className="text-[10px] px-1.5 py-0"
+                                      className="text-xs px-1.5 py-0"
                                     >
                                       {record.category.name}
                                     </Badge>

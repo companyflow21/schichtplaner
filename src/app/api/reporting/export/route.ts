@@ -1,11 +1,7 @@
 import { api, ApiError } from "@/lib/api";
 import { requireAccess } from "@/lib/access";
 import { monthlyReport, reportPeriod } from "@/lib/report";
-
-function cell(value: string | number) {
-  const safe = String(value).replace(/^[=+@\-\t\r]/, "'$&");
-  return '"' + safe.replaceAll('"', '""') + '"';
-}
+import { csvFile } from "@/lib/csv";
 
 /** CSV mit genau den Zeilen und Werten, die die Auswertung auch anzeigt. */
 export async function GET(request: Request) {
@@ -20,6 +16,6 @@ export async function GET(request: Request) {
     const target = (e: (typeof report.employees)[number]) => e.targetStatus === "set" ? hours(e.targetMinutes) : e.targetStatus === "unset" ? "" : "–";
     // Geloeschte Personen stehen mit Name aus der Momentaufnahme und dem Zusatz "(gelöscht)", ohne Soll.
     const rows = report.employees.map((e) => [e.lastName, e.former ? e.firstName + " (gelöscht)" : e.firstName, target(e), hours(e.plannedMinutes), hours(e.totalMinutes), hours(e.deviationMinutes), e.shiftCount]);
-    return new Response("﻿" + [headers, ...rows].map((row) => row.map(cell).join(";")).join("\r\n"), { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="Stunden_' + year + "-" + month + '.csv"' } });
+    return csvFile([headers, ...rows], "Stunden_" + year + "-" + month + ".csv");
   });
 }

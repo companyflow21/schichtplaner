@@ -21,6 +21,8 @@ interface ConfirmDialogProps {
   title: string;
   /** Was genau passiert und was sich nicht rueckgaengig machen laesst. */
   description: string;
+  /** Weitere Folgen unter der Beschreibung, etwa als Liste oder Warnzeile. */
+  details?: React.ReactNode;
   confirmLabel: string;
   onConfirm: () => void;
   /** Rot einfaerben, wenn Daten verloren gehen. */
@@ -38,6 +40,7 @@ export function ConfirmDialog({
   onOpenChange,
   title,
   description,
+  details,
   confirmLabel,
   onConfirm,
   destructive = true,
@@ -71,6 +74,7 @@ export function ConfirmDialog({
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
+          {details && <div className="text-[13px] leading-5">{details}</div>}
           <DialogFooter className="gap-2 sm:justify-end">
             <Button variant="outline" onClick={() => setOpen(false)}>
               Abbrechen

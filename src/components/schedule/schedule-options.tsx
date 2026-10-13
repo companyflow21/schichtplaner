@@ -14,7 +14,6 @@ import {
   Loader2,
   Trash2,
   Save,
-  Send,
   Sparkles,
   Undo2,
 } from "lucide-react";
@@ -41,6 +40,7 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { PublishDialog } from "./publish-dialog";
 import type { ScheduleData, ScheduleLayout, BriefingData, DivisionOption } from "@/types/schedule";
 
 interface ScheduleOptionsProps {
@@ -117,15 +117,17 @@ export function ScheduleOptions({
 // ─── Veröffentlichen / Zurückziehen ────────────────────────────────
 
 /**
- * Ein Entwurf wird mit einem Klick veröffentlicht, ein veröffentlichter Plan
- * zurückgezogen. Beides benachrichtigt das Team - deshalb eine kurze
- * Rückfrage. Das Recht prüft der Server.
+ * Ein Entwurf wird über den Veröffentlichen-Dialog mit Änderungsübersicht
+ * veröffentlicht (publish-dialog.tsx), ein veröffentlichter Plan nach kurzer
+ * Rückfrage zurückgezogen - das benachrichtigt das Team. Das Recht prüft der
+ * Server.
  */
 export function VisibilityToggle({
   scheduleId,
   isPublic,
   wochenLabel = "Dienstplan",
   hauptaktion = true,
+  disabled = false,
   className,
 }: {
   scheduleId: string;
@@ -134,23 +136,25 @@ export function VisibilityToggle({
   wochenLabel?: string;
   /** Veröffentlichen als blaue Hauptaktion oder als Nebenaktion. */
   hauptaktion?: boolean;
+  /** Zurückziehen gesperrt, etwa während der Bearbeitung. */
+  disabled?: boolean;
   className?: string;
 }) {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: async (newValue: boolean) => {
+    mutationFn: async () => {
       const res = await fetch(`/api/schedules/${scheduleId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isPublic: newValue }),
+        body: JSON.stringify({ isPublic: false }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || (newValue ? "Veröffentlichen fehlgeschlagen" : "Zurückziehen fehlgeschlagen"));
+      if (!res.ok) throw new Error(data.error || "Zurückziehen fehlgeschlagen");
       return data;
     },
-    onSuccess: (_data, newValue) => {
-      toast.success(newValue ? `${wochenLabel} veröffentlicht` : `${wochenLabel} zurückgezogen`);
+    onSuccess: () => {
+      toast.success(`${wochenLabel} zurückgezogen`);
       queryClient.invalidateQueries();
     },
     onError: (error: Error) => {
@@ -158,36 +162,22 @@ export function VisibilityToggle({
     },
   });
 
-  if (isPublic) {
-    return (
-      <ConfirmDialog
-        title={`${wochenLabel} zurückziehen?`}
-        description="Mitarbeitende sehen den Plan danach nicht mehr und werden benachrichtigt."
-        confirmLabel="Zurückziehen"
-        destructive={false}
-        disabled={mutation.isPending}
-        onConfirm={() => mutation.mutate(false)}
-      >
-        <Button variant="outline" size="sm" className={cn("gap-1.5", className)} disabled={mutation.isPending}>
-          {mutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Undo2 className="size-3.5" />}
-          Veröffentlichung zurückziehen
-        </Button>
-      </ConfirmDialog>
-    );
+  if (!isPublic) {
+    return <PublishDialog scheduleId={scheduleId} wochenLabel={wochenLabel} hauptaktion={hauptaktion} size="sm" className={className} />;
   }
 
   return (
     <ConfirmDialog
-      title={`${wochenLabel} veröffentlichen?`}
-      description="Mitarbeitende sehen den Plan danach und werden benachrichtigt."
-      confirmLabel="Veröffentlichen"
+      title={`${wochenLabel} zurückziehen?`}
+      description="Mitarbeitende sehen den Plan danach nicht mehr und werden benachrichtigt."
+      confirmLabel="Zurückziehen"
       destructive={false}
-      disabled={mutation.isPending}
-      onConfirm={() => mutation.mutate(true)}
+      disabled={disabled || mutation.isPending}
+      onConfirm={() => mutation.mutate()}
     >
-      <Button variant={hauptaktion ? "default" : "outline"} size="sm" className={cn("gap-1.5", className)} disabled={mutation.isPending}>
-        {mutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
-        Veröffentlichen
+      <Button variant="outline" size="sm" className={cn("gap-1.5", className)} disabled={disabled || mutation.isPending}>
+        {mutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Undo2 className="size-3.5" />}
+        Veröffentlichung zurückziehen
       </Button>
     </ConfirmDialog>
   );
@@ -508,24 +498,27 @@ export function BriefingButton({
         {isManager && (
           <SheetFooter className="flex-row gap-2">
             {hasBriefing && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (confirm("Briefing wirklich löschen?")) {
-                    deleteMutation.mutate();
-                  }
-                }}
+              <ConfirmDialog
+                title="Briefing löschen"
+                description="Das Briefing dieser Woche wird endgültig gelöscht und lässt sich nicht wiederherstellen. Mitarbeitende sehen es danach nicht mehr; benachrichtigt wird niemand."
+                confirmLabel="Löschen"
+                onConfirm={() => deleteMutation.mutate()}
                 disabled={isPending}
-                className="text-destructive hover:text-destructive"
               >
-                {deleteMutation.isPending ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="size-3.5" />
-                )}
-                Löschen
-              </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isPending}
+                  className="text-destructive hover:text-destructive"
+                >
+                  {deleteMutation.isPending ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-3.5" />
+                  )}
+                  Löschen
+                </Button>
+              </ConfirmDialog>
             )}
             <Button
               size="sm"

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ComposeMessage } from "./compose-message";
@@ -157,6 +158,17 @@ export function MessageList({ folder }: Props) {
                 size="sm"
                 disabled={actionPending || isError}
                 onClick={() =>
+                  patchMutation.mutate({ ids: Array.from(selected), patch: { isRead: false } })
+                }
+              >
+                <Mail className="mr-1 size-4" />
+                Ungelesen
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={actionPending || isError}
+                onClick={() =>
                   patchMutation.mutate({ ids: Array.from(selected), patch: { isDeleted: true } })
                 }
               >
@@ -178,16 +190,23 @@ export function MessageList({ folder }: Props) {
                 <RotateCcw className="mr-1 size-4" />
                 Wiederherstellen
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
+              <ConfirmDialog
+                title="Endgültig löschen?"
+                description={(selected.size === 1 ? "Die ausgewählte Nachricht wird endgültig gelöscht und lässt sich nicht wiederherstellen." : `${selected.size} Nachrichten werden endgültig gelöscht und lassen sich nicht wiederherstellen.`) + " Bei anderen Empfängern bleibt die Nachricht erhalten."}
+                confirmLabel="Endgültig löschen"
                 disabled={actionPending || isError}
-                className="text-destructive"
-                onClick={() => deleteMutation.mutate(Array.from(selected))}
+                onConfirm={() => deleteMutation.mutate(Array.from(selected))}
               >
-                <Trash2 className="mr-1 size-4" />
-                Endgültig löschen
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={actionPending || isError}
+                  className="text-destructive"
+                >
+                  <Trash2 className="mr-1 size-4" />
+                  Endgültig löschen
+                </Button>
+              </ConfirmDialog>
             </>
           )}
         </div>

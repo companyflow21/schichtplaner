@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowRight, Building2, ChevronRight, Clock, EyeOff, MapPin } from "lucide-react";
+import { AlertTriangle, ArrowRight, Building2, ChevronRight, Clock, EyeOff, Lock, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
 import { monthLinkForOpen } from "@/components/schedule/month-grid";
+import { BEARBEITUNG_HINWEIS } from "@/components/schedule/employee-grid";
 import { dateLabel, ErrorMessage, json, useAction } from "./client";
 import { Requests } from "./requests";
 import { CheckinUebersicht, EigenerCheckin } from "./checkins";
@@ -24,6 +25,8 @@ type Shift = {
   maxEmployees: number;
   missing: number;
   isPublic: boolean;
+  /** Plan in Bearbeitung: Bestaetigen und Antraege ruhen. */
+  requestsPaused?: boolean;
   description: string | null;
   branch: {
     name: string;
@@ -70,6 +73,8 @@ type Reports = {
 type Base = { firstName: string; userId: string; today: string; unread: number; own: Shift[]; reports: Reports };
 type ManagerData = Base & {
   manager: true;
+  // Offene Aufgaben aus src/lib/dashboard-tasks.ts; null: ohne Zustaendigkeit.
+  tasks: { notActivated: number | null; draftWeeks: number | null; draftHref: string | null };
   overview: {
     horizon: { from: string; to: string; days: number };
     customers: { id: string; name: string; isActive: boolean; branches: BranchCard[] }[];
@@ -168,10 +173,12 @@ function ManagerStart({ data }: { data: ManagerData }) {
       <OffeneAufgaben
         eintraege={[
           { zahl: counts.openSlots, label: "offene Plätze", zusatz: `nächste ${overview.horizon.days} Tage`, href: "#kunden", dringend: true },
+          { zahl: data.tasks.draftWeeks, label: data.tasks.draftWeeks === 1 ? "Woche im Entwurf" : "Wochen im Entwurf", zusatz: `nächste ${overview.horizon.days} Tage · für Mitarbeitende unsichtbar`, href: data.tasks.draftHref ?? "/schedule/month" },
           { zahl: counts.unconfirmed, label: "Bestätigungen offen", zusatz: "ältere Zuweisungen", href: "/schedule/month" },
           { zahl: anträge, label: "Anträge offen", href: "#antraege" },
           { zahl: counts.pendingAbsences, label: "Abwesenheiten zur Freigabe", href: "/employees/absences" },
           { zahl: counts.openIssues, label: "Standortmeldungen offen", href: "#kunden" },
+          { zahl: data.tasks.notActivated, label: data.tasks.notActivated === 1 ? "Person nicht freigeschaltet" : "Mitarbeitende nicht freigeschaltet", zusatz: "jetzt einladen", href: "/employees?status=not_activated" },
           { zahl: data.unread, label: "neue Nachrichten", href: "/portal/inbox" },
         ]}
       />
@@ -390,8 +397,15 @@ function MitarbeiterStart({ data, action }: { data: EmployeeData; action: Return
                 <Button variant="outline" size="sm" onClick={adresseKopieren}>Adresse kopieren</Button>
               </div>
             )}
+            {/* Plan in Bearbeitung: Bestaetigen ruht - der Grund statt des Knopfs. */}
+            {!bestätigt && nächste.requestsPaused && (
+              <p className="flex items-start gap-1.5 text-[13px] leading-5 text-muted-foreground">
+                <Lock className="mt-1 size-3.5 shrink-0" aria-hidden="true" />
+                <span>{BEARBEITUNG_HINWEIS}</span>
+              </p>
+            )}
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              {!bestätigt && (
+              {!bestätigt && !nächste.requestsPaused && (
                 <Button
                   disabled={action.isPending}
                   onClick={() => action.mutate({ url: "/api/bookings", method: "PATCH", data: { shiftId: nächste.id }, message: "Schicht bestätigt" })}

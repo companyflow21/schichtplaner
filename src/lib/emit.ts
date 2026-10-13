@@ -27,6 +27,13 @@ export function emitToBranch(orgId: string, branchId: string | null, event: stri
   io.to([rooms.admins(orgId), ...(branchId ? [rooms.branch(branchId)] : []), ...affectedUserIds.map(rooms.user)]).emit(event, {});
 }
 
+/** Mehrere Standortplaene zugleich (plus Admins) - je Verbindung genau ein Signal. */
+export function emitToBranches(orgId: string, branchIds: string[], event: string): void {
+  const io = getIO();
+  if (!io || !branchIds.length) return;
+  io.to([rooms.admins(orgId), ...branchIds.map(rooms.branch)]).emit(event, {});
+}
+
 export function emitToUsers(userIds: string[], event: string): void {
   const io = getIO();
   if (!io || !userIds.length) return;

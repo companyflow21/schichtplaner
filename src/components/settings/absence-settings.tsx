@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -25,6 +26,7 @@ type AbsenceCategory = {
   name: string;
   color: string;
   isPaid: boolean;
+  payCode?: string | null;
 };
 
 // German states by country
@@ -106,6 +108,7 @@ export function AbsenceSettings({
   const [editName, setEditName] = useState("");
   const [editColor, setEditColor] = useState("#ef4444");
   const [editIsPaid, setEditIsPaid] = useState(true);
+  const [editPayCode, setEditPayCode] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState("#3b82f6");
@@ -153,6 +156,7 @@ export function AbsenceSettings({
       name: string;
       color: string;
       isPaid: boolean;
+      payCode: string | null;
     }) => {
       const res = await fetch("/api/absences/categories", {
         method: "PATCH",
@@ -201,6 +205,7 @@ export function AbsenceSettings({
     setEditName(cat.name);
     setEditColor(cat.color);
     setEditIsPaid(cat.isPaid);
+    setEditPayCode(cat.payCode ?? "");
   }
 
   function handleSaveEdit() {
@@ -210,6 +215,7 @@ export function AbsenceSettings({
       name: editName.trim(),
       color: editColor,
       isPaid: editIsPaid,
+      payCode: editPayCode.trim() || null,
     });
   }
 
@@ -220,12 +226,6 @@ export function AbsenceSettings({
       color: newColor,
       isPaid: newIsPaid,
     });
-  }
-
-  function handleDelete(id: string) {
-    if (confirm("Kategorie wirklich löschen?")) {
-      deleteMutation.mutate(id);
-    }
   }
 
   return (
@@ -259,10 +259,10 @@ export function AbsenceSettings({
         <div className="space-y-2">
           {categories.map((cat) =>
             editingId === cat.id ? (
-              // Editing mode
+              // Editing mode (bricht auf schmalen Bildschirmen um; der Lohnart-Code kam mit der Abwesenheitswirkung dazu)
               <div
                 key={cat.id}
-                className="flex items-center gap-3 rounded-lg border p-3"
+                className="flex flex-wrap items-center gap-3 rounded-lg border p-3"
               >
                 <Input
                   value={editName}
@@ -293,6 +293,14 @@ export function AbsenceSettings({
                     size="sm"
                   />
                 </div>
+                <Input
+                  value={editPayCode}
+                  onChange={(e) => setEditPayCode(e.target.value)}
+                  className="h-8 w-24"
+                  placeholder="Lohncode"
+                  aria-label="Lohnart-Code für bezahlte Abwesenheit"
+                  maxLength={20}
+                />
                 <Button
                   size="xs"
                   onClick={handleSaveEdit}
@@ -324,7 +332,7 @@ export function AbsenceSettings({
                 />
                 <span className="flex-1 text-sm font-medium">{cat.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {cat.isPaid ? "Bezahlt" : "Unbezahlt"}
+                  {cat.isPaid ? "Bezahlt" : "Unbezahlt"}{cat.payCode ? " · Code " + cat.payCode : ""}
                 </span>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button
@@ -334,14 +342,22 @@ export function AbsenceSettings({
                   >
                     <Pencil className="size-3" />
                   </Button>
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={() => handleDelete(cat.id)}
+                  <ConfirmDialog
+                    title="Kategorie löschen?"
+                    description={`Die Kategorie „${cat.name}“ wird gelöscht. Das geht nur, solange noch keine Abwesenheit sie verwendet.`}
+                    confirmLabel="Löschen"
                     disabled={deleteMutation.isPending}
+                    onConfirm={() => deleteMutation.mutate(cat.id)}
                   >
-                    <Trash2 className="size-3 text-destructive" />
-                  </Button>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      title="Löschen"
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="size-3 text-destructive" />
+                    </Button>
+                  </ConfirmDialog>
                 </div>
               </div>
             )

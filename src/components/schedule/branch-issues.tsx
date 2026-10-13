@@ -87,7 +87,7 @@ export function BranchIssues({ branchId }: { branchId: string }) {
             <li key={issue.id} className="space-y-2 px-4 py-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <p className="text-[14px] font-medium">{issue.title}</p>
-                <span className={cn("rounded-full px-2 py-0.5 text-[11.5px] font-medium", issue.status === "RESOLVED" ? "bg-muted text-muted-foreground" : issue.status === "IN_PROGRESS" ? "bg-accent text-accent-foreground" : "bg-warn/10 text-warn")}>
+                <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", issue.status === "RESOLVED" ? "bg-muted text-muted-foreground" : issue.status === "IN_PROGRESS" ? "bg-accent text-accent-foreground" : "bg-warn/10 text-warn")}>
                   {STATUS[issue.status]}
                 </span>
               </div>

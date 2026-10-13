@@ -8,7 +8,6 @@ import {
   Folder,
   FileText,
   Plus,
-  Upload,
   ChevronRight,
   Home,
   Pencil,
@@ -16,6 +15,7 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -66,6 +66,7 @@ export function FileBrowser() {
   const [folderName, setFolderName] = useState("");
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string; type: "folder" | "file" } | null>(null);
   const [renameName, setRenameName] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; type: "folder" | "file" } | null>(null);
 
   const { data, isLoading } = useQuery<{
     folders: FolderItem[];
@@ -153,21 +154,10 @@ export function FileBrowser() {
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">Dateien</h1>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            className="gap-2"
-            disabled
-            title="Datei-Upload kommt bald"
-          >
-            <Upload className="size-4" />
-            Datei hochladen
-          </Button>
-          <Button onClick={() => setCreateFolderOpen(true)} className="gap-2">
-            <Plus className="size-4" />
-            Neuer Ordner
-          </Button>
-        </div>
+        <Button onClick={() => setCreateFolderOpen(true)} className="gap-2">
+          <Plus className="size-4" />
+          Neuer Ordner
+        </Button>
       </div>
 
       {/* Breadcrumb */}
@@ -262,7 +252,7 @@ export function FileBrowser() {
                             className="text-destructive"
                             onClick={(e) => {
                               e.stopPropagation();
-                              deleteMutation.mutate(folder.id);
+                              setDeleteTarget({ id: folder.id, name: folder.name, type: "folder" });
                             }}
                           >
                             <Trash2 className="mr-2 size-4" />
@@ -318,7 +308,7 @@ export function FileBrowser() {
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-destructive"
-                            onClick={() => deleteMutation.mutate(file.id)}
+                            onClick={() => setDeleteTarget({ id: file.id, name: file.name, type: "file" })}
                           >
                             <Trash2 className="mr-2 size-4" />
                             Löschen
@@ -402,6 +392,20 @@ export function FileBrowser() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title={deleteTarget?.type === "folder" ? "Ordner löschen?" : "Datei löschen?"}
+        description={
+          deleteTarget?.type === "folder"
+            ? `Der Ordner „${deleteTarget.name}“ wird gelöscht. Enthaltene Dateien und Unterordner bleiben erhalten und liegen danach im Stammordner.`
+            : `Die Datei „${deleteTarget?.name}“ wird endgültig gelöscht. Das lässt sich nicht rückgängig machen.`
+        }
+        confirmLabel="Löschen"
+        onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id); }}
+      />
     </div>
   );
 }

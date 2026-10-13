@@ -48,6 +48,10 @@ export async function GET() {
       warningsEnabled: false,
       warningsMaxHours: 10,
       useCategories: false,
+      autoApprove: false,
+      accountsEnabled: false,
+      accountMethod: "ACTUAL_MINUS_TARGET",
+      accountVisible: false,
     },
     absenceCategories: org.absenceCategories,
     holidays: org.holidays,
@@ -85,6 +89,10 @@ const updateSettingsSchema = z.object({
       warningsEnabled: z.boolean().optional(),
       warningsMaxHours: z.number().int().min(1).max(24).optional(),
       useCategories: z.boolean().optional(),
+      autoApprove: z.boolean().optional(),
+      accountsEnabled: z.boolean().optional(),
+      accountMethod: z.enum(["ACTUAL_MINUS_TARGET", "PLAN_MINUS_TARGET", "ACTUAL_MINUS_PLAN"]).optional(),
+      accountVisible: z.boolean().optional(),
     })
     .optional(),
 
@@ -183,6 +191,10 @@ export async function PATCH(request: NextRequest) {
     if (ts.warningsMaxHours !== undefined)
       tsUpdate.warningsMaxHours = ts.warningsMaxHours;
     if (ts.useCategories !== undefined) tsUpdate.useCategories = ts.useCategories;
+    if (ts.autoApprove !== undefined) tsUpdate.autoApprove = ts.autoApprove;
+    if (ts.accountsEnabled !== undefined) tsUpdate.accountsEnabled = ts.accountsEnabled;
+    if (ts.accountMethod !== undefined) tsUpdate.accountMethod = ts.accountMethod;
+    if (ts.accountVisible !== undefined) tsUpdate.accountVisible = ts.accountVisible;
 
     if (Object.keys(tsUpdate).length > 0) {
       await db.timeSettings.upsert({

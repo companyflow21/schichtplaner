@@ -159,8 +159,9 @@ export async function staffSiteTests(t: TestContext) {
   check(order[0] === p.Anna.user.id && reasons(p.Anna).includes("Verfügbar eingetragen"), "explicitly available person first within the group");
   check(reasons(p.Bert).includes("Frei") && !c(p.Bert).confirm, "no availability entry counts as free");
   check(c(p.Cora).group === 1 && c(p.Cora).confirm && c(p.Cora).hints.join().includes("Erforderliche Qualifikation fehlt: Erste Hilfe") && order.indexOf(p.Cora.user.id) < order.indexOf(p.Bert.user.id), "missing qualification keeps group and name order, shows a hint");
-  check([p.Dora, p.Emil, p.Fritz].every((m) => c(m)?.group === 2 && !c(m).selectable), "group 2: busy or absent employees of this location, not selectable");
-  check(reasons(p.Dora).includes("Genehmigte Abwesenheit") && reasons(p.Emil).includes("Als nicht verfügbar eingetragen") && reasons(p.Fritz).includes("Überschneidung"), "group 2 shows the reason");
+  check([p.Dora, p.Emil].every((m) => c(m)?.group === 2 && !c(m).selectable), "group 2: absent or unavailable employees of this location, not selectable");
+  check(c(p.Fritz)?.group === 2 && c(p.Fritz).selectable && c(p.Fritz).confirm && c(p.Fritz).hints.includes("Zeitliche Überschneidung mit einer anderen Schicht.") && !reasons(p.Fritz).includes("Frei") && order.indexOf(p.Fritz.user.id) < order.indexOf(p.Dora.user.id), "group 2: busy employee (overlap) is selectable after one confirmation, listed before blocked ones");
+  check(reasons(p.Dora).includes("Genehmigte Abwesenheit") && reasons(p.Emil).includes("Als nicht verfügbar eingetragen"), "group 2 shows the reason");
   check(c(udo)?.group === 3 && c(udo).selectable && reasons(udo).includes("Standort Anlage 2"), "group 3: free employees of another managed location of the same customer");
   check(c(q.Ida)?.group === 4 && !c(q.Ida).selectable && reasons(q.Ida).includes("Abwesenheit"), "group 4: absent employees of that location, with reason");
   check(c(q.Lea)?.group === 5 && c(q.Lea).selectable && reasons(q.Lea).includes("Persönlich zugeordnet") && c(q.Mo)?.group === 5 && !c(q.Mo).selectable && order.indexOf(q.Lea.user.id) < order.indexOf(q.Mo.user.id), "group 5: personally assigned staff, free before blocked");
@@ -189,10 +190,12 @@ export async function staffSiteTests(t: TestContext) {
   await mP.request("/api/shifts/" + shift.id, "PATCH", { title: "Objektschutz Nord" });
   check((await mP.request(plan(s1))).schedule.shifts.find((s: any) => s.id === shift.id).title === "Objektschutz Nord", "a confirmed hint does not block later changes");
   await mP.request("/api/shifts/" + shift.id, "PATCH", { requiredQualifications: ["Erste Hilfe", "Brandschutz"] }, 409);
-  for (const m of [p.Dora, p.Emil, p.Fritz, q.Ida, q.Mo]) {
+  for (const m of [p.Dora, p.Emil, q.Ida, q.Mo]) {
     const hart = await mP.request("/api/bookings", "POST", { shiftId: shift.id, userId: m.user.id, confirm: true }, 409);
     check(!hart.confirm, "hard block for " + m.user.firstName + " stays despite confirmation");
   }
+  const doppelt = await mP.request("/api/bookings", "POST", { shiftId: shift.id, userId: p.Fritz.user.id }, 409);
+  check(doppelt.confirm === true && doppelt.warnings.includes("Zeitliche Überschneidung mit einer anderen Schicht."), "overlap asks for one confirmation instead of blocking");
   await mP.request("/api/bookings", "POST", { shiftId: shift.id, userId: udo.user.id, confirm: true });
   check(ids((await access(udo.id)).grants) === [s2.id, s6.id].sort().join(), "a temporary assignment elsewhere does not change the location assignment");
   await mP.request("/api/bookings", "POST", { shiftId: shift.id, userId: q.Lea.user.id });

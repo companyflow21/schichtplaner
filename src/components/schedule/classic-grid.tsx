@@ -7,9 +7,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { dayNames, formatDateShort } from "@/lib/utils/calendar";
 import { cn } from "@/lib/utils";
-import type { ScheduleData, ShiftData } from "@/types/schedule";
+import type { ScheduleResponse, ShiftData } from "@/types/schedule";
 import { formatName } from "@/lib/names";
 import { useNameFormat } from "@/lib/hooks/use-current-member";
+import { PlanStatusBanner } from "./plan-status-banner";
 
 interface ClassicGridProps {
   weekNumber: number;
@@ -26,7 +27,7 @@ interface ClassicGridProps {
  */
 export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGridProps) {
   const nameFormat = useNameFormat();
-  const { data, isLoading } = useQuery<{ schedule: ScheduleData }>({
+  const { data, isLoading } = useQuery<ScheduleResponse>({
     queryKey: ["schedule", weekNumber, year, standort ?? "alle"],
     queryFn: async () => {
       const res = await fetch(`/api/schedules?kw=${weekNumber}&year=${year}${standort ? "&standort=" + encodeURIComponent(standort) : ""}`);
@@ -84,15 +85,23 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
     return <ClassicGridSkeleton />;
   }
 
+  // Statusbalken (Entwurf, in Bearbeitung) nur im Plan eines Standorts.
+  const balken = standort ? <PlanStatusBanner schedule={schedule} access={data?.access} standort={standort} /> : null;
+
   if (timeSlots.length === 0) {
     return (
-      <div className="akro-panel p-6 text-[14px] text-muted-foreground">
-        Keine Schichten in dieser Woche.
-      </div>
+      <>
+        {balken}
+        <div className="akro-panel p-6 text-[14px] text-muted-foreground">
+          Keine Schichten in dieser Woche.
+        </div>
+      </>
     );
   }
 
   return (
+    <>
+    {balken}
     <div className="akro-panel overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
@@ -111,7 +120,7 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
                   )}
                 >
                   <div>{dayNames[idx]}</div>
-                  <div className="text-[10px] text-muted-foreground font-normal">
+                  <div className="text-xs text-muted-foreground font-normal">
                     {formatDateShort(date)}
                   </div>
                 </th>
@@ -135,10 +144,10 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
                       {slot.from}–{slot.to}
                     </div>
                     {slot.branchName && (
-                      <div className="text-[10px] text-muted-foreground truncate max-w-[100px]">{slot.branchName}</div>
+                      <div className="text-xs text-muted-foreground truncate max-w-[100px]">{slot.branchName}</div>
                     )}
                     {slot.divisionTitle && (
-                      <div className="text-[10px] text-muted-foreground truncate max-w-[100px]">
+                      <div className="text-xs text-muted-foreground truncate max-w-[100px]">
                         {slot.divisionTitle}
                       </div>
                     )}
@@ -162,7 +171,7 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
                     )}
                   >
                     {cellShifts.length === 0 ? (
-                      <span className="text-[10px] text-muted-foreground/40">--</span>
+                      <span className="text-xs text-muted-foreground/40">--</span>
                     ) : (
                       <div className="space-y-0.5">
                         {cellShifts.flatMap((shift) => {
@@ -172,7 +181,7 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
                             ...shift.bookings.map((booking) => (
                               <div
                                 key={booking.id}
-                                className="text-[11px] truncate"
+                                className="text-xs truncate"
                               >
                                 {formatName(booking.user, nameFormat, { contractor: !!booking.contractorWorkerId })}
                               </div>
@@ -192,6 +201,7 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 

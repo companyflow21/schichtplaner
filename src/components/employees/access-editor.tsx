@@ -7,6 +7,7 @@ import { Building2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { InfoHint } from "@/components/ui/info-hint";
 import { ErrorMessage, json, selectClass, useAction } from "@/components/workforce/client";
 import {
   BRANCH_PRESETS,
@@ -209,7 +210,20 @@ function RechteZeile<K extends string>({
               <p className="text-sm font-medium">{titel}</p>
             )}
             <p className="tabular text-xs text-muted-foreground">{untertitel}</p>
-            {!offen && <p className="mt-1 text-sm">{rights.map(label).join(" · ")}</p>}
+            {!offen && (
+              <p className="mt-1 text-sm">
+                {rights.map(label).join(" · ")}{" "}
+                {/* Kurztexte aus access-shared.ts - dieselben wie in der Einzelauswahl. */}
+                <InfoHint thema={`Rechte für ${titel}`}>
+                  <ul className="space-y-1.5">
+                    {rights.map((key) => {
+                      const o = options.find((x) => x.key === key);
+                      return <li key={key}><span className="font-medium">{label(key)}</span>{o ? `: ${o.hint}` : ""}</li>;
+                    })}
+                  </ul>
+                </InfoHint>
+              </p>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">

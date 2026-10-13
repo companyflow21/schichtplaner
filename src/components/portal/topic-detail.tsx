@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
@@ -145,14 +146,21 @@ export function TopicDetail({ topicId }: Props) {
               </span>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-destructive hover:text-destructive"
-            onClick={() => deleteMutation.mutate()}
+          <ConfirmDialog
+            title="Thema löschen?"
+            description={`Das Thema „${topic.title}“ wird endgültig gelöscht, samt aller Beiträge (${topic.posts.length}). Das lässt sich nicht rückgängig machen.`}
+            confirmLabel="Thema löschen"
+            onConfirm={() => deleteMutation.mutate()}
           >
-            <Trash2 className="size-4" />
-          </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              aria-label="Thema löschen"
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </ConfirmDialog>
         </div>
 
         {/* Posts */}

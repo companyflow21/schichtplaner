@@ -8,6 +8,10 @@ import {
   Umbrella,
   Building2,
   BadgeCheck,
+  ListChecks,
+  Wallet,
+  Scale,
+  Palmtree,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +25,11 @@ const sections = [
     key: "time",
     label: "Zeiterfassung",
     icon: Clock,
+  },
+  {
+    key: "payroll",
+    label: "Lohnarten/Zuschläge",
+    icon: Wallet,
   },
   {
     key: "wishplan",
@@ -46,6 +55,21 @@ const sections = [
     key: "account",
     label: "Account",
     icon: Building2,
+  },
+  {
+    key: "rules",
+    label: "Planungsregeln",
+    icon: ListChecks,
+  },
+  {
+    key: "accounts",
+    label: "Zeitkonten",
+    icon: Scale,
+  },
+  {
+    key: "vacation",
+    label: "Urlaubskonto",
+    icon: Palmtree,
   },
 ] as const;
 

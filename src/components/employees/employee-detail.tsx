@@ -25,14 +25,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Select,
   SelectContent,
@@ -416,12 +409,6 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
                   Reaktivieren
                 </DropdownMenuItem>
               )}
-              {canErase && (
-                <DropdownMenuItem variant="destructive" onClick={() => setEraseOpen(true)}>
-                  <Trash2 className="size-4" />
-                  Mitarbeiter löschen
-                </DropdownMenuItem>
-              )}
               {canChangeRole && (
                 <>
                   <DropdownMenuSeparator />
@@ -435,6 +422,16 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
                         Rolle zu {getRoleLabel(r)} ändern
                       </DropdownMenuItem>
                     ))}
+                </>
+              )}
+              {/* Löschen: rot und als Letztes, abgesetzt von allen anderen Aktionen. */}
+              {canErase && (
+                <>
+                  {(canDeactivate || canChangeRole) && <DropdownMenuSeparator />}
+                  <DropdownMenuItem variant="destructive" onClick={() => setEraseOpen(true)}>
+                    <Trash2 className="size-4" />
+                    Mitarbeiter löschen
+                  </DropdownMenuItem>
                 </>
               )}
             </DropdownMenuContent>
@@ -661,36 +658,15 @@ export function EmployeeDetail({ memberId }: { memberId: string }) {
       {employee.permissions.manageAccess && <AccessEditor memberId={employee.id} />}
       <DeleteEmployeeDialog memberId={memberId} open={eraseOpen} onOpenChange={setEraseOpen} />
       {/* Deactivate Confirmation Dialog */}
-      <Dialog open={deactivateOpen} onOpenChange={setDeactivateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Mitarbeiter deaktivieren?</DialogTitle>
-            <DialogDescription>
-              {employee.user.firstName} {employee.user.lastName} wird
-              deaktiviert und hat keinen Zugriff mehr auf die Organisation. Diese
-              Aktion kann rückgängig gemacht werden.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeactivateOpen(false)}>
-              Abbrechen
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                activeMutation.mutate(false);
-                setDeactivateOpen(false);
-              }}
-              disabled={activeMutation.isPending}
-            >
-              {activeMutation.isPending && (
-                <Loader2 className="size-4 animate-spin" />
-              )}
-              Deaktivieren
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={deactivateOpen}
+        onOpenChange={setDeactivateOpen}
+        title="Mitarbeiter deaktivieren?"
+        description={`${employee.user.firstName} ${employee.user.lastName} wird deaktiviert und hat keinen Zugriff mehr auf die Organisation. Bereits eingeteilte Schichten bleiben bestehen und erscheinen im Plan als „Nicht verfügbar“. Über „Reaktivieren“ lässt sich das jederzeit rückgängig machen.`}
+        confirmLabel="Deaktivieren"
+        destructive={false}
+        onConfirm={() => activeMutation.mutate(false)}
+      />
     </div>
   );
 }

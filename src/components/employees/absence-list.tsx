@@ -32,7 +32,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
+import { formatName } from "@/lib/names";
 import { AbsenceForm, getStatusBadge, calculateDays } from "./absence-form";
+import { AbsenceEffectsDialog, type EffectsInput } from "./absence-effects-dialog";
 import type { AbsenceData, EmployeeOption } from "./absence-form";
 
 // ---------- Types ----------
@@ -120,12 +122,13 @@ export function AbsenceList() {
   const employeeOptions: EmployeeOption[] = data?.people ?? [];
 
   // Approve mutation
+  const [approving, setApproving] = useState<AbsenceData | null>(null);
   const approveMutation = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async ({ id, effects }: { id: string; effects: EffectsInput }) => {
       const res = await fetch(`/api/absences/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "APPROVED" }),
+        body: JSON.stringify({ status: "APPROVED", effects }),
       });
       if (!res.ok) {
         const d = await res.json();
@@ -135,6 +138,7 @@ export function AbsenceList() {
     },
     onSuccess: () => {
       toast.success("Abwesenheit genehmigt");
+      setApproving(null);
       queryClient.invalidateQueries({ queryKey: ["absences"] });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -179,7 +183,7 @@ export function AbsenceList() {
   });
 
   const LOESCH_HINWEIS =
-    "Der Eintrag wird entfernt. Ein genehmigter Zeitraum gilt danach nicht mehr als Abwesenheit.";
+    "Der Eintrag wird endgültig entfernt; die Person wird darüber nicht benachrichtigt. Ein genehmigter Zeitraum gilt danach nicht mehr als Abwesenheit: bezahlte Abwesenheitsstunden entfallen aus Stunden, Lohn und Zeitkonto; aus Schichten ausgetragene Zuweisungen bleiben offen.";
 
   function handleEdit(absence: AbsenceData) {
     setEditingAbsence(absence);
@@ -344,9 +348,10 @@ export function AbsenceList() {
                               <Button
                                 variant="ghost"
                                 size="icon-xs"
-                                onClick={() => approveMutation.mutate(absence.id)}
+                                onClick={() => setApproving(absence)}
                                 disabled={approveMutation.isPending}
                                 title="Genehmigen"
+                                aria-label="Genehmigen"
                               >
                                 <Check className="size-3.5 text-ok" />
                               </Button>
@@ -356,6 +361,7 @@ export function AbsenceList() {
                                 onClick={() => declineMutation.mutate(absence.id)}
                                 disabled={declineMutation.isPending}
                                 title="Ablehnen"
+                                aria-label="Ablehnen"
                               >
                                 <X className="size-3.5 text-destructive" />
                               </Button>
@@ -449,7 +455,8 @@ export function AbsenceList() {
                           <Button
                             variant="ghost"
                             size="icon-xs"
-                            onClick={() => approveMutation.mutate(absence.id)}
+                            onClick={() => setApproving(absence)}
+                            aria-label="Genehmigen"
                           >
                             <Check className="size-3.5 text-ok" />
                           </Button>
@@ -457,6 +464,7 @@ export function AbsenceList() {
                             variant="ghost"
                             size="icon-xs"
                             onClick={() => declineMutation.mutate(absence.id)}
+                            aria-label="Ablehnen"
                           >
                             <X className="size-3.5 text-destructive" />
                           </Button>
@@ -496,6 +504,15 @@ export function AbsenceList() {
             })}
           </div>
         </>
+      )}
+
+      {approving && (
+        <AbsenceEffectsDialog
+          userId={approving.userId} name={formatName(approving.user, currentMember?.nameFormat)}
+          from={approving.dateFrom.slice(0, 10)} to={approving.dateTo.slice(0, 10)} categoryId={approving.categoryId} absenceId={approving.id}
+          confirmLabel="Genehmigen" pending={approveMutation.isPending}
+          onCancel={() => setApproving(null)} onConfirm={(effects) => approveMutation.mutate({ id: approving.id, effects })}
+        />
       )}
 
       {/* Absence form dialog */}

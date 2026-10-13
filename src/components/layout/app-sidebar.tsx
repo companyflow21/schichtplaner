@@ -8,7 +8,7 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
 import { useUnreadCount } from "@/lib/hooks/use-unread-count";
-import { isNavActive, isPlanner, navFooterItems, navGroups } from "./nav-config";
+import { isNavActive, isNavItemActive, navFooterItems, navGroups } from "./nav-config";
 import { UserMenu } from "./user-menu";
 
 const SPEICHER_SCHLUESSEL = "akro:sidebar-eingeklappt";
@@ -130,16 +130,14 @@ export function AppSidebar() {
                 aria-hidden="true"
               />
             ) : (
-              <p className="mb-1.5 px-3 text-[11px] font-semibold tracking-[0.06em] text-[color:var(--schiene-gedimmt)] uppercase opacity-70">
+              <p className="mb-1.5 px-3 text-xs font-semibold tracking-[0.06em] text-[color:var(--schiene-gedimmt)] uppercase opacity-70">
                 {group.title}
               </p>
             )}
             <ul className="space-y-0.5">
               {group.items.map((item) => {
                 const Icon = item.icon;
-                const active = item.key === "schedule" && isPlanner(me?.role)
-                  ? pathname === "/schedule" || pathname.startsWith("/schedule/")
-                  : isNavActive(item.href, pathname);
+                const active = isNavItemActive(item, pathname, me?.role);
                 const count = item.badge === "unread" ? unread : 0;
                 return (
                   <li key={item.key}>
@@ -162,7 +160,7 @@ export function AppSidebar() {
                       {count > 0 && (
                         <span
                           className={cn(
-                            "akro-kennzahl flex min-w-5 items-center justify-center rounded-full bg-[var(--brand)] px-1.5 py-0.5 text-[11px] text-white",
+                            "akro-kennzahl flex min-w-5 items-center justify-center rounded-full bg-[var(--brand)] px-1.5 py-0.5 text-xs text-white",
                             collapsed ? "absolute top-0.5 right-2 min-w-4 px-1" : "ml-auto"
                           )}
                         >

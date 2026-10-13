@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { InfoHint } from "@/components/ui/info-hint";
 import { dateLabel, ErrorMessage, json, useAction } from "./client";
 
 type Failure = "DENIED" | "UNAVAILABLE" | "INACCURATE" | "STALE" | "OUTSIDE" | "NO_COORDINATES";
@@ -136,7 +137,13 @@ export function EigenerCheckin() {
   return (
     <section className="akro-panel overflow-hidden" aria-labelledby="checkin-titel">
       <div className="akro-panel-kopf flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
-        <h2 id="checkin-titel" className="text-[14px] font-semibold tracking-[-0.02em]">Check-in</h2>
+        <div className="flex items-center gap-1">
+          <h2 id="checkin-titel" className="text-[14px] font-semibold tracking-[-0.02em]">Check-in</h2>
+          <InfoHint thema="Check-in">
+            <p>Einchecken kannst du ab 30 Minuten vor Schichtbeginn bis zum Schichtende. Danach läuft die Zeiterfassung mit Pause, Fortsetzen und Auschecken.</p>
+            <p>Klappt der Check-in nicht, kannst du mit Begründung eine manuelle Freigabe beantragen.</p>
+          </InfoHint>
+        </div>
         {c && (gueltig(c.status) ? <StatusBadge ton="ok" klein>eingecheckt</StatusBadge> : c.status === "PENDING" ? <StatusBadge ton="hinweis" klein>Freigabe beantragt</StatusBadge> : <StatusBadge ton="fehler" klein>abgelehnt</StatusBadge>)}
       </div>
       <div className="space-y-3 p-4">

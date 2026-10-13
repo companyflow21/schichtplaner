@@ -3,7 +3,7 @@ import { z } from "zod";
 import { api, body, ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { canSee, requireAccess, visiblePeople } from "@/lib/access";
-import { recipientsFor, resolveMessageReference, messageReference, referenceInclude } from "@/lib/messages";
+import { recipientsFor, resolveMessageReference, messageReference, referenceInclude, frozenReferences } from "@/lib/messages";
 import { emitToUsers } from "@/lib/emit";
 
 const sender = { select: { id: true, firstName: true, lastName: true, profileImage: true } } as const;
@@ -19,17 +19,17 @@ export async function GET(request: NextRequest) {
           where: { organizationId: a.orgId, senderId: a.userId },
           include: { sender, recipients: { include: { user: { select: { id: true, firstName: true, lastName: true } } } }, ...referenceInclude },
           orderBy: { createdAt: "desc" },
-        }),
+        }).then((rows) => frozenReferences(a, rows)),
         visiblePeople(a),
       ]);
       return { messages: messages.map((m) => ({ ...m, ...recipientsFor(m.recipients, people, a.userId), reference: messageReference(m) })) };
     }
     const deleted = folder === "trash";
-    const messages = await db.message.findMany({
+    const messages = await frozenReferences(a, await db.message.findMany({
       where: { organizationId: a.orgId, recipients: { some: { userId: a.userId, isDeleted: deleted } } },
       include: { sender, recipients: { where: { userId: a.userId }, select: { isRead: true, isDeleted: true } }, ...referenceInclude },
       orderBy: { createdAt: "desc" },
-    });
+    }));
     if (deleted) return { messages: messages.map((m) => ({ ...m, reference: messageReference(m) })) };
     const unreadCount = await db.messageRecipient.count({ where: { userId: a.userId, isRead: false, isDeleted: false, message: { organizationId: a.orgId } } });
     return { messages: messages.map((m) => ({ ...m, reference: messageReference(m) })), unreadCount };

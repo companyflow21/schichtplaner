@@ -1,10 +1,12 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { api, body, ApiError } from "@/lib/api";
+import { api, body, serial, ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { canStaff, requireAccess, staffHolders, staffIds } from "@/lib/access";
 import { validDate } from "@/lib/berlin";
 import { notify } from "@/lib/planning";
+import { signalBookedSites } from "@/lib/conflicts";
+import { applyEffects, effectsSchema, signalReleased, type Released } from "@/lib/absence-effects";
 
 const include = {
   user: { select: { id: true, firstName: true, lastName: true, profileImage: true } },
@@ -21,8 +23,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const managed = staffIds(a, "MANAGE_ABSENCES");
     const scope = managed ? [a.userId, ...managed] : null;
-    const active = await db.organizationMember.findMany({ where: { organizationId: a.orgId, isActive: true, ...(scope ? { userId: { in: scope } } : {}) }, select: { userId: true } });
-    const userIds = active.map((m) => m.userId);
+    // Abwesenheiten deaktivierter Personen bleiben sichtbar (Verlauf); eintragen nur fuer aktive.
+    const members = await db.organizationMember.findMany({ where: { organizationId: a.orgId, ...(scope ? { userId: { in: scope } } : {}) }, select: { userId: true, isActive: true } });
+    const userIds = members.map((m) => m.userId);
+    const activeIds = members.filter((m) => m.isActive).map((m) => m.userId);
     const where: Record<string, unknown> = { category: { organizationId: a.orgId }, userId: { in: userIds } };
     const yearParam = searchParams.get("year"), monthParam = searchParams.get("month");
     if (yearParam && !Number.isNaN(parseInt(yearParam, 10))) {
@@ -44,9 +48,9 @@ export async function GET(request: NextRequest) {
     const [absences, all, people] = await Promise.all([
       db.absence.findMany({ where, include, orderBy: { dateFrom: "asc" } }),
       db.absence.findMany({ where: { category: { organizationId: a.orgId }, userId: { in: userIds } }, select: { status: true } }),
-      canManage ? db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, firstName: true, lastName: true }, orderBy: [{ lastName: "asc" }, { firstName: "asc" }] }) : Promise.resolve([]),
+      canManage ? db.user.findMany({ where: { id: { in: activeIds } }, select: { id: true, firstName: true, lastName: true }, orderBy: [{ lastName: "asc" }, { firstName: "asc" }] }) : Promise.resolve([]),
     ]);
-    const decides = (userId: string) => canStaff(a, "MANAGE_ABSENCES", userId) && (a.isAdmin || userId !== a.userId);
+    const decides = (userId: string) => activeIds.includes(userId) && canStaff(a, "MANAGE_ABSENCES", userId) && (a.isAdmin || userId !== a.userId);
     return {
       absences: absences.map((x) => ({ ...x, canDecide: decides(x.userId) })),
       counts: { all: all.length, pending: all.filter((x) => x.status === "PENDING").length, approved: all.filter((x) => x.status === "APPROVED").length, declined: all.filter((x) => x.status === "DECLINED").length },
@@ -64,6 +68,8 @@ const createAbsenceSchema = z.object({
   dateTo: z.string().refine(validDate, "Ungültiges Datum."),
   note: z.string().max(2000).optional(),
   status: z.enum(["PENDING", "APPROVED"]).optional(),
+  /** Wirkung auf die Schichten im Zeitraum, nur bei sofortiger Genehmigung. */
+  effects: effectsSchema.optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -78,12 +84,18 @@ export async function POST(request: NextRequest) {
     const category = await db.absenceCategory.findFirst({ where: { id: data.categoryId, organizationId: a.orgId } });
     if (!category) throw new ApiError("Kategorie nicht gefunden.", 404);
     if (data.dateFrom > data.dateTo) throw new ApiError("Enddatum liegt vor dem Beginn.");
-    const absence = await db.$transaction(async (tx) => {
-      const created = await tx.absence.create({ data: { userId: data.userId, categoryId: data.categoryId, dateFrom: new Date(data.dateFrom), dateTo: new Date(data.dateTo), note: data.note || null, status }, include });
+    if (data.effects && status !== "APPROVED") throw new ApiError("Die Wirkung auf Schichten legt fest, wer die Abwesenheit genehmigt.", 400);
+    // Austragen ist eine Planaenderung wie beim Aufheben: serialisiert, bei Kollision begrenzt neu.
+    const { absence, released } = await serial(async (tx) => {
+      const created = await tx.absence.create({ data: { userId: data.userId, categoryId: data.categoryId, dateFrom: new Date(data.dateFrom), dateTo: new Date(data.dateTo), note: data.note || null, status, ...(status === "APPROVED" ? { approvedById: a.userId, approvedAt: new Date() } : {}) }, include });
+      const released: Released[] = status === "APPROVED" ? (await applyEffects(tx, a, created, category, data.effects)).released : [];
       const recipients = status === "PENDING" ? await staffHolders(tx, a.orgId, data.userId, "MANAGE_ABSENCES") : [data.userId];
       await notify(tx, a.orgId, a.userId, recipients, status === "PENDING" ? "Neuer Abwesenheitsantrag" : "Abwesenheit genehmigt", data.dateFrom + " bis " + data.dateTo + " · " + category.name);
-      return created;
-    });
+      return { absence: created, released };
+    }, { retry: true });
+    // Genehmigte Abwesenheit macht Zuweisungen in diesem Zeitraum zum Konflikt: betroffene Plaene neu pruefen lassen.
+    if (status === "APPROVED") await signalBookedSites(a.orgId, [data.userId], "schedule:updated", { from: data.dateFrom, to: data.dateTo });
+    await signalReleased(a.orgId, data.userId, released);
     return Response.json({ absence }, { status: 201 });
   });
 }

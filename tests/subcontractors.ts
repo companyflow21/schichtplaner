@@ -93,11 +93,15 @@ export async function subcontractorTests(t: TestContext) {
   const foreignWorker = (await foreign.request("/api/subcontractors/" + foreignSub.id + "/workers", "POST", { name: "MA 1" })).worker;
   await book(first.id, foreignWorker.id, 404);
 
-  // Wiederverwendung an anderen Standorten bleibt gegen Ueberschneidung geschuetzt.
+  // Wiederverwendung an anderen Standorten: eine Ueberschneidung ist ein Hinweis, den die Administration bestaetigt.
   const clash = await shift(date, "12:00", "18:00", {}, otherBranch.id);
-  await book(clash.id, a.id, 409);
+  const clashHint = await admin.request("/api/contractor-bookings", "POST", { shiftId: clash.id, contractorWorkerId: a.id }, 409);
+  check(clashHint.confirm === true && clashHint.warnings.join() === "Zeitliche Überschneidung mit einer anderen Schicht." && (await current(clash.id)).bookings.length === 0, "overlapping placeholder assignment asks for confirmation and stores nothing");
+  await book(clash.id, a.id);
+  check((await current(clash.id)).bookings[0]?.contractorWorkerId === a.id && (await current(first.id)).bookings.some((x: any) => x.contractorWorkerId === a.id), "confirmed overlap: the placeholder is assigned at both sites");
+  // Angrenzend ist keine Ueberschneidung: ohne Bestaetigung moeglich.
   const later = await shift(date, "18:00", "20:00", {}, otherBranch.id);
-  await book(later.id, a.id);
+  await admin.request("/api/contractor-bookings", "POST", { shiftId: later.id, contractorWorkerId: a.id });
   // Ohne Freigabe am anderen Standort sieht der Manager dort auch keine Sub-Besetzung.
   await manager.request(planPath(date, otherBranch.id), "GET", undefined, 404);
   await admin.request("/api/shifts/" + later.id, "PATCH", { shiftFrom: "15:00" }, 409);
@@ -130,15 +134,16 @@ export async function subcontractorTests(t: TestContext) {
   const r2 = await shift(addDate(date, 5), "08:00", "10:00");
   await race(r2.id, [b, c].map(w => ({ path: "/api/contractor-bookings", data: { shiftId: r2.id, contractorWorkerId: w.id, confirm: true } })));
 
-  // Nachtschicht ueber Monats- und Jahresgrenze: gleiche Person darf nicht doppelt arbeiten.
+  // Nachtschicht ueber Monats- und Jahresgrenze: die Ueberschneidung wird auch dort erkannt (Hinweis mit Bestaetigung).
   const nextYear = Number(berlinDate().slice(0, 4)) + 1;
   const newYear = nextYear + "-01-01", newYearsEve = (nextYear - 1) + "-12-31";
   const night = await shift(newYearsEve, "22:00", "06:00");
   await book(night.id, a.id);
   const morning = await shift(newYear, "05:00", "08:00", {}, otherBranch.id);
-  await book(morning.id, a.id, 409);
+  const morningHint = await admin.request("/api/contractor-bookings", "POST", { shiftId: morning.id, contractorWorkerId: a.id }, 409);
+  check(morningHint.confirm === true && morningHint.warnings.join() === "Zeitliche Überschneidung mit einer anderen Schicht.", "overlap with a night shift across the year boundary asks for confirmation");
   const touching = await shift(newYear, "06:00", "08:00", {}, otherBranch.id);
-  await book(touching.id, a.id);
+  await admin.request("/api/contractor-bookings", "POST", { shiftId: touching.id, contractorWorkerId: a.id });
   const january = await admin.request(assignmentPath(nextYear + "-01"));
   check(january.month === nextYear + "-01" && january.assignments.some((x: any) => x.shiftId === night.id && x.date === newYearsEve && x.contractorWorkerId === a.id && x.branchName === branch.name) && january.assignments.some((x: any) => x.shiftId === touching.id), "January assignment overview includes previous December's touching night shift and actual January assignments");
   const december = await admin.request(assignmentPath((nextYear - 1) + "-12"));
@@ -174,11 +179,11 @@ export async function subcontractorTests(t: TestContext) {
   where.set(onlyCopy.id, planPath(addDate(onlyDate, 1)));
   const storedCopy = await current(onlyCopy.id);
   check(storedCopy.bookings.length === 2 && storedCopy.occupiedCount === 2 && storedCopy.missing === 0 && [a.id, b.id].every(id => storedCopy.bookings.some((x: any) => x.contractorWorkerId === id && x.userId === null && x.former === false)), "copy of a placeholder-only shift persists both placeholders as occupied places");
-  // Kopie auf einen Termin, an dem ein Platzhalter schon eingesetzt ist: alles oder nichts.
+  // Kopie auf einen Termin, an dem ein Platzhalter schon eingesetzt ist: ohne Bestaetigung nichts angelegt.
   const planSize = async (d: string) => (await admin.request(planPath(d))).schedule.shifts.length;
   const sizeBefore = await planSize(date);
-  const overlapCopy = await admin.request("/api/shifts/" + only.id + "/copy", "POST", { date, withAssignments: true, confirm: true }, 409);
-  check(overlapCopy.conflicts?.some((x: any) => x.userId === "contractor:" + a.id && x.name === "Sub Test A umbenannt · MA 1 umbenannt") && await planSize(date) === sizeBefore, "copy onto an overlapping placeholder assignment names the placeholder and creates nothing");
+  const overlapCopy = await admin.request("/api/shifts/" + only.id + "/copy", "POST", { date, withAssignments: true }, 409);
+  check(overlapCopy.confirm === true && !overlapCopy.conflicts && overlapCopy.warnings?.some((x: any) => x.userId === "contractor:" + a.id && x.name === "Sub Test A umbenannt · MA 1 umbenannt" && x.reasons.join() === "Zeitliche Überschneidung mit einer anderen Schicht.") && await planSize(date) === sizeBefore, "copy onto an overlapping placeholder assignment names the placeholder, asks for confirmation and creates nothing");
 
   // Deaktivierter Platzhalter: nicht mehr waehlbar, bestehender Einsatz bleibt bearbeitbar, Kopie legt ihn nicht neu an.
   await admin.request(workerPath(b.id), "PATCH", { isActive: false });
@@ -202,11 +207,15 @@ export async function subcontractorTests(t: TestContext) {
   check(shared.map((x: any) => x.contractorWorkerId).sort().join() === [a.id, b.id].sort().join(), "monthly overview lists each placeholder of a shared shift separately");
 
   // Parallel: derselbe Platzhalter in zwei ueberlappenden Schichten bzw. zweimal in derselben Schicht.
+  // Ohne confirm gelingt genau eine Einteilung; die zweite sieht die erste und
+  // fragt nach (409 mit confirm). Mit confirm waeren beide gewollt - die
+  // Ueberschneidung ist seit dem 12.10.2026 ein bestaetigbarer Hinweis.
   const raceDate = addDate(date, 14);
   const left = await shift(raceDate, "08:00", "12:00"), right = await shift(raceDate, "10:00", "14:00", {}, otherBranch.id);
-  const crossing = await parallel([left, right].map(s => ({ path: "/api/contractor-bookings", data: { shiftId: s.id, contractorWorkerId: a.id, confirm: true } })));
+  const crossing = await parallel([left, right].map(s => ({ path: "/api/contractor-bookings", data: { shiftId: s.id, contractorWorkerId: a.id } })));
   const placed = (await current(left.id)).bookings.length + (await current(right.id)).bookings.length;
-  check(crossing.map(r => r.status).sort().join() === "200,409" && placed === 1, "concurrent assignments of one placeholder to overlapping shifts store exactly one: " + crossing.map(r => r.status).join());
+  const askedCross = JSON.parse(crossing.find(r => r.status === 409)?.body ?? "{}");
+  check(crossing.map(r => r.status).sort().join() === "200,409" && placed === 1 && askedCross.confirm === true, "concurrent unconfirmed assignments of one placeholder to overlapping shifts: one stored, the other asks for confirmation: " + crossing.map(r => r.status).join());
   const twice = await shift(addDate(date, 15), "08:00", "10:00", { maxEmployees: 2 });
   const doubled = await parallel([0, 1].map(() => ({ path: "/api/contractor-bookings", data: { shiftId: twice.id, contractorWorkerId: a.id, confirm: true } })));
   check(doubled.map(r => r.status).sort().join() === "200,409" && (await current(twice.id)).bookings.length === 1, "concurrent double assignment of one placeholder to the same shift stores exactly one: " + doubled.map(r => r.status).join());

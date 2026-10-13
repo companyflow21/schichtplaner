@@ -2,7 +2,7 @@ import { z } from "zod";
 import { api, body, ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { requireAccess, visiblePeople } from "@/lib/access";
-import { recipientsFor, messageReference, referenceInclude } from "@/lib/messages";
+import { recipientsFor, messageReference, referenceInclude, frozenReferences } from "@/lib/messages";
 
 type Context = { params: Promise<{ id: string }> };
 const person = { select: { id: true, firstName: true, lastName: true, profileImage: true } } as const;
@@ -13,7 +13,7 @@ export async function GET(_request: Request, context: Context) {
     const a = await requireAccess();
     const { id } = await context.params;
     const involved = { OR: [{ senderId: a.userId }, { recipients: { some: { userId: a.userId } } }] };
-    const message = await db.message.findFirst({
+    const found = await db.message.findFirst({
       where: { id, organizationId: a.orgId, ...involved },
       include: {
         sender: person,
@@ -23,7 +23,8 @@ export async function GET(_request: Request, context: Context) {
         ...referenceInclude,
       },
     });
-    if (!message) throw new ApiError("Nicht gefunden.", 404);
+    if (!found) throw new ApiError("Nicht gefunden.", 404);
+    const [message] = await frozenReferences(a, [found]);
     // Gelesen ist, was im Verlauf angezeigt wird: die Nachricht und ihre Antworten.
     await db.messageRecipient.updateMany({ where: { messageId: { in: [id, ...message.replies.map((r) => r.id)] }, userId: a.userId }, data: { isRead: true } });
     return { message: { ...message, ...recipientsFor(message.recipients, await visiblePeople(a), a.userId), reference: messageReference(message) } };

@@ -78,9 +78,11 @@ function getInitials(firstName: string, lastName: string): string {
 /**
  * Auswahl beim Besetzen: zuerst der Standort der Schicht, dann andere
  * verwaltete Standorte desselben Kunden, dann persönlich zugeordnete
- * Personen. Belegte und abwesende Personen stehen mit Grund in ihrer Gruppe,
- * sind aber nicht wählbar. Hinweise wie eine fehlende Qualifikation ändern
- * die Reihenfolge nicht und verlangen genau eine Bestätigung.
+ * Personen. Abwesende und gesperrte Personen stehen mit Grund in ihrer
+ * Gruppe, sind aber nicht wählbar. Belegte (zeitliche Überschneidung) stehen
+ * ebenfalls dort und sind nach genau einer Bestätigung wählbar. Andere
+ * Hinweise wie eine fehlende Qualifikation ändern die Reihenfolge nicht und
+ * verlangen genau eine Bestätigung.
  */
 export function EmployeePicker({
   bookedUserIds,
@@ -152,8 +154,8 @@ export function EmployeePicker({
                       >
                         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                           <div className="flex items-center gap-2">
-                            <Avatar size="sm">
-                              <AvatarFallback className="text-[9px]">
+                            <Avatar size="sm" className="data-[size=sm]:size-7">
+                              <AvatarFallback className="text-xs">
                                 {getInitials(c.firstName, c.lastName)}
                               </AvatarFallback>
                             </Avatar>
@@ -161,7 +163,7 @@ export function EmployeePicker({
                               {formatName(c, nameFormat)}
                             </span>
                           </div>
-                          <span className="flex items-start gap-1 pl-8 text-[11.5px] leading-snug text-muted-foreground">
+                          <span className="flex items-start gap-1 pl-9 text-xs leading-snug text-muted-foreground">
                             {!c.selectable ? (
                               <Ban className="mt-px size-3 shrink-0" aria-hidden="true" />
                             ) : c.reasons.includes("Verfügbar eingetragen.") ? (
@@ -170,7 +172,7 @@ export function EmployeePicker({
                             {c.reasons.join(" ")}
                           </span>
                           {c.hints.length > 0 && (
-                            <span className="flex items-start gap-1 pl-8 text-[11.5px] leading-snug text-warn">
+                            <span className="flex items-start gap-1 pl-9 text-xs leading-snug text-warn">
                               <AlertTriangle className="mt-px size-3 shrink-0" aria-hidden="true" />
                               {c.hints.join(" ")}
                             </span>
@@ -199,8 +201,8 @@ export function EmployeePicker({
                     >
                       <div className="flex min-w-0 flex-col gap-0.5">
                         <span className="text-sm">{worker.subcontractor.name} · {worker.name}</span>
-                        <span className="text-[11.5px] text-muted-foreground">{worker.reasons.join(" ")}</span>
-                        {worker.hints.length > 0 && <span className="text-[11.5px] text-warn">{worker.hints.join(" ")}</span>}
+                        <span className="text-xs text-muted-foreground">{worker.reasons.join(" ")}</span>
+                        {worker.hints.length > 0 && <span className="text-xs text-warn">{worker.hints.join(" ")}</span>}
                       </div>
                     </CommandItem>
                   ))}

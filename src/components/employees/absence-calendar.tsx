@@ -299,7 +299,7 @@ function MonthGrid({
           <div
             key={i}
             className={cn(
-              "text-center text-[10px] font-medium",
+              "text-center text-xs font-medium",
               i >= 5 ? "text-muted-foreground/60" : "text-muted-foreground"
             )}
           >
@@ -377,7 +377,7 @@ function DayCell({
       type="button"
       onClick={onClick}
       className={cn(
-        "aspect-square flex items-center justify-center rounded-sm text-[11px] tabular-nums transition-colors cursor-pointer",
+        "aspect-square flex items-center justify-center rounded-sm text-xs tabular-nums transition-colors cursor-pointer",
         "hover:ring-1 hover:ring-primary/50",
         weekend && !absence && !holiday && "text-muted-foreground/50",
         today && "font-bold ring-1 ring-primary",
