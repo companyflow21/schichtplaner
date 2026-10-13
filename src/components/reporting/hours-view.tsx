@@ -179,8 +179,8 @@ export function HoursView() {
                         <td className="hidden px-3 py-2 text-right tabular-nums sm:table-cell">{hours(p.plannedMinutes)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{hours(p.istMinutes)}</td>
                         <td className="hidden px-3 py-2 text-right tabular-nums sm:table-cell">{signed(p.istMinutes - p.plannedMinutes)}</td>
-                        {data.showPay && <td className="px-3 py-2 text-right font-medium tabular-nums">{euro(p.totalCents ?? 0)}</td>}
-                        <td className="px-3 py-2 text-right">
+                        {data.showPay && <td className="whitespace-nowrap px-3 py-2 text-right font-medium tabular-nums">{euro(p.totalCents ?? 0)}</td>}
+                        <td className="whitespace-nowrap px-3 py-2 text-right">
                           {p.openCount > 0 ? <span className="rounded-full bg-warn/10 px-2 py-0.5 text-xs text-warn">{p.openCount} offen</span>
                             : p.missingCount > 0 ? <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive">{p.missingCount} fehlt</span>
                             : p.rows.length ? <Check className="ml-auto size-4 text-ok" aria-label="alles genehmigt" /> : null}
