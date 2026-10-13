@@ -52,7 +52,7 @@ export async function timesheet(a: Access, userId: string, from: string, to: str
     const site = row.shift ? [row.shift.branchName, row.shift.customerName].filter(Boolean).join(" · ") || null : null;
     const plan = { planFrom: row.shift?.from ?? null, planTo: row.shift?.to ?? null };
     if (!row.records.length) {
-      const status = row.absence ? "abwesend: " + row.absence.category + (row.absence.handling === "PAID" ? " (bezahlt)" : "") : STATUS_TEXT[row.status];
+      const status = row.absence ? "abwesend" + (row.absence.category ? ": " + row.absence.category : "") + (row.absence.handling === "PAID" ? " (bezahlt)" : "") : STATUS_TEXT[row.status];
       return [{ date: row.date, site, ...plan, timeFrom: null, timeTo: null, breakMinutes: 0, minutes: row.istMinutes, surcharges: [], status, proof: null, comment: null }];
     }
     return row.records.map((r, i) => ({

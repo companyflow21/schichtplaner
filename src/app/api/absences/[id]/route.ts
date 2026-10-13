@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { api, body, ApiError } from "@/lib/api";
+import { api, body, serial, ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { canStaff, requireAccess, type Access } from "@/lib/access";
 import { validDate } from "@/lib/berlin";
 import { notify } from "@/lib/planning";
 import { signalBookedSites } from "@/lib/conflicts";
-import { applyEffects, effectsSchema } from "@/lib/absence-effects";
+import { applyEffects, effectsSchema, signalReleased, type Released } from "@/lib/absence-effects";
 
 type Context = { params: Promise<{ id: string }> };
 const include = {
@@ -51,7 +51,9 @@ export async function PATCH(request: Request, context: Context) {
     if (data.categoryId && !await db.absenceCategory.findFirst({ where: { id: data.categoryId, organizationId: a.orgId } })) throw new ApiError("Kategorie nicht gefunden.", 404);
     const nextStatus = data.status ?? absence.status;
     if (data.effects && (!manages || nextStatus !== "APPROVED")) throw new ApiError("Die Wirkung auf Schichten legt fest, wer die Abwesenheit genehmigt.", 400);
-    const updated = await db.$transaction(async (tx) => {
+    // Austragen ist eine Planaenderung wie beim Aufheben: serialisiert, bei Kollision begrenzt neu.
+    const { updated, released } = await serial(async (tx) => {
+      let released: Released[] = [];
       const result = await tx.absence.update({
         where: { id: absence.id },
         data: {
@@ -66,13 +68,14 @@ export async function PATCH(request: Request, context: Context) {
         include,
       });
       // Genehmigt: Wirkung (neu) anwenden; nicht mehr genehmigt: Wirkung entfaellt (freigegebene Schichten bleiben offen).
-      if (nextStatus === "APPROVED" && (absence.status !== "APPROVED" || data.effects || data.dateFrom || data.dateTo || data.categoryId)) await applyEffects(tx, a, result, result.category, data.effects);
+      if (nextStatus === "APPROVED" && (absence.status !== "APPROVED" || data.effects || data.dateFrom || data.dateTo || data.categoryId)) released = (await applyEffects(tx, a, result, result.category, data.effects)).released;
       if (nextStatus !== "APPROVED" && absence.status === "APPROVED") await tx.absenceShift.deleteMany({ where: { absenceId: absence.id, handling: { not: "RELEASED" } } });
       if (data.status && data.status !== absence.status) await notify(tx, a.orgId, a.userId, [absence.userId], "Abwesenheitsantrag " + (data.status === "APPROVED" ? "genehmigt" : data.status === "DECLINED" ? "abgelehnt" : "zur Prüfung"), result.dateFrom.toISOString().slice(0, 10) + " bis " + result.dateTo.toISOString().slice(0, 10));
-      return result;
-    });
+      return { updated: result, released };
+    }, { retry: true });
     // Genehmigt vorher oder nachher: Konflikte im alten und neuen Zeitraum koennen sich aendern.
     if (absence.status === "APPROVED" || updated.status === "APPROVED") await signalBookedSites(a.orgId, [absence.userId], "schedule:updated", spanOf(absence, updated));
+    await signalReleased(a.orgId, absence.userId, released);
     return { absence: updated };
   });
 }

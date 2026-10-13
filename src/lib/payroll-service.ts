@@ -4,7 +4,7 @@ import { ApiError } from "./errors";
 import { addDate, isoWeek, minuteOfDay, overlaps, rangeMinutes, shiftRange, validDate } from "./berlin";
 import { requireAdmin, type Access } from "./access";
 import { effectivePayType, holidaysForRecord, payForAbsence, payForRecord, sumLines, type PayTypeLite, type RecordPay, type SurchargeLite } from "./payroll";
-import { paidAbsenceShifts } from "./absence-effects";
+import { effectKey, paidAbsenceShifts } from "./absence-effects";
 
 /** Zeitraum aus ?from=&to= (YYYY-MM-DD), sonst ?month=&year=, sonst aktueller Monat. */
 export function payrollPeriod(request: Request, today: string) {
@@ -40,7 +40,7 @@ function byPersonKey<T extends { userId: string | null; formerEmployeeId: string
 }
 
 /** Hinweis an Zeilen geloeschter Personen: was mit dem Konto verloren ging. */
-const FORMER_WARNING = "Gelöschte Person: Personalnummer, Lohnart und personenbezogene Zuschläge sind nicht mehr hinterlegt.";
+const FORMER_WARNING = "Gelöschte Person: Personalnummer, Lohnart, personenbezogene Zuschläge und bezahlte Abwesenheiten sind nicht mehr hinterlegt.";
 
 /**
  * Arbeitsbereich je Buchung: ueber die gespeicherte Schicht (bzw. den
@@ -127,9 +127,9 @@ export async function payrollData(orgId: string, from: string, to: string, branc
   const recordDivision = await divisionsFor(a.orgId, records, from, to);
   const lite = surcharges as SurchargeLite[];
   const byPerson = byPersonKey(records);
-  // Bezahlte Abwesenheit nur fuer Schichten, fuer die keine Zeit erfasst wurde (sonst doppelt bezahlt).
-  const worked = new Set(records.flatMap((r) => [r.shiftId, r.checkin?.shiftId]).filter((id): id is string => !!id));
-  const absences = (await paidAbsenceShifts(a.orgId, members.map((m) => m.userId), from, to)).filter((x) => (!branchId || x.branchId === branchId) && !worked.has(x.shiftId));
+  // Bezahlte Abwesenheit (nur Personen mit Konto) nur fuer Schichten, fuer die die Person keine Zeit erfasst hat (sonst doppelt bezahlt).
+  const worked = new Set(records.flatMap((r) => (r.userId ? [r.shiftId, r.checkin?.shiftId].filter((id): id is string => !!id).map((id) => effectKey(r.userId!, id)) : [])));
+  const absences = (await paidAbsenceShifts(a.orgId, members.map((m) => m.userId), from, to)).filter((x) => (!branchId || x.branchId === branchId) && !worked.has(effectKey(x.userId, x.shiftId)));
 
   /** Lohn der Buchungen und bezahlten Abwesenheiten einer Person; memberPayTypeId: Standard-Lohnart (geloeschte Personen: keine). */
   const payroll = (own: RecordRow[], absent: typeof absences, memberPayTypeId: string | null, extraWarnings: string[]) => {

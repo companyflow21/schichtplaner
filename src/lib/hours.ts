@@ -50,6 +50,9 @@ function pauseMinutes(shift: PlanShift): number {
  *   erzeugen keine Zeile und kein "nicht erfasst".
  * - Plaene in Bearbeitung: wer den Plan nicht live sieht (lib/schedule-frozen.ts),
  *   bekommt die Planspalte aus der Momentaufnahme; Iststunden bleiben live.
+ * - Genehmigte Abwesenheit (lib/absence-effects.ts): Schicht ohne Buchung wird
+ *   "abwesend" mit Planstunden (bezahlt) oder 0 Stunden; ohne Entscheidung
+ *   (Altbestand) 0 Stunden. Geloeschte Personen haben keine Abwesenheiten mehr.
  */
 export async function hoursReport(a: Access, from: string, to: string, branchId: string | null, options: { userId?: string } = {}) {
   if (branchId && !can(a, "VIEW_TIME", branchId)) throw new ApiError("Nicht gefunden.", 404);
@@ -152,9 +155,10 @@ export async function hoursReport(a: Access, from: string, to: string, branchId:
         const list = (byShift.get(s.id) ?? []).map(recordView);
         const planned = plannedMinutes(s);
         // Genehmigte Abwesenheit ohne erfasste Zeit: bezahlt mit Planstunden, sonst 0 (auch Altbestand ohne Entscheidung).
-        const effect = effects.byShift.get(s.id), day = p.userId ? effects.onDay(p.userId, s.range.date) : null;
-        const absence = !list.length && (effect?.userId === p.userId || day)
-          ? { category: effect?.userId === p.userId ? effect.category : day!.category, handling: effect?.userId === p.userId ? effect.handling : null, pay: effect ? pay.get("a-" + effect.effectId) ?? null : null }
+        // Nur Personen mit Konto; die Art nennt die Antwort nur, wer die Abwesenheiten der Person sieht.
+        const effect = p.userId ? effects.forShift(p.userId, s) : null, period = p.userId ? effects.onShiftDays(p.userId, s) : null;
+        const absence = !list.length && p.userId && (effect || period)
+          ? { category: canStaff(a, "MANAGE_ABSENCES", p.userId) || p.userId === a.userId ? effect?.category ?? period!.category : null, handling: effect?.handling ?? null, pay: effect ? pay.get("a-" + effect.effectId) ?? null : null }
           : null;
         const ist = absence ? (absence.handling === "PAID" ? planned : 0) : list.reduce((sum, r) => sum + r.minutes, 0);
         // Zeit wie geplant nachtragen: nur Personen mit Konto - die Person selbst oder Pruefende fuer den Standort der Schicht.

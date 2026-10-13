@@ -51,7 +51,7 @@ export async function weekConflicts(tx: Tx, a: Access, week: { branchId: string;
   const monday = weekDate(week.year, week.weekNumber, 1), first = addDate(monday, -1), last = addDate(monday, 7);
   const [members, absences, windows, others] = await Promise.all([
     tx.organizationMember.findMany({ where: { organizationId: a.orgId, userId: { in: userIds } }, select: { userId: true, isActive: true, position: true, qualifications: true } }),
-    tx.absence.findMany({ where: { userId: { in: userIds }, status: "APPROVED", category: { organizationId: a.orgId }, dateFrom: { lte: new Date(last) }, dateTo: { gte: new Date(monday) } }, select: { userId: true, dateFrom: true, dateTo: true } }),
+    tx.absence.findMany({ where: { userId: { in: userIds }, status: "APPROVED", category: { organizationId: a.orgId }, dateFrom: { lte: new Date(last) }, dateTo: { gte: new Date(monday) } }, select: { userId: true, dateFrom: true, dateTo: true, shiftEffects: { select: { shiftId: true, handling: true } } } }),
     tx.availability.findMany({ where: { organizationId: a.orgId, userId: { in: userIds }, date: { gte: new Date(first), lte: new Date(last) } }, select: { userId: true, date: true, timeFrom: true, timeTo: true, available: true } }),
     tx.booking.findMany({
       where: {
@@ -87,8 +87,11 @@ export async function weekConflicts(tx: Tx, a: Access, week: { branchId: string;
         if (outsideDivision(shift.division, m.userId)) add("division", "Gehört nicht zum Arbeitsbereich.");
         const missing = missingQualifications(shift.requiredQualifications, m.qualifications);
         if (missing.length) add("qualification", "Erforderliche Qualifikation fehlt: " + missing.join(", ") + ".");
-        // Die Art der Abwesenheit bleibt Personaldaten; genannt wird nur, dass sie genehmigt ist.
-        if (absences.some(x => x.userId === m.userId && day(x.dateFrom) <= lastDate && day(x.dateTo) >= range.date)) add("absence", "Genehmigte Abwesenheit.");
+        // Die Art der Abwesenheit bleibt Personaldaten; genannt werden nur die Genehmigung und, falls beim Genehmigen
+        // gewaehlt, der Umgang mit dieser Schicht (lib/absence-effects.ts). Die Zuweisung bleibt ein Konflikt.
+        const away = absences.filter(x => x.userId === m.userId && day(x.dateFrom) <= lastDate && day(x.dateTo) >= range.date);
+        const handling = away.flatMap(x => x.shiftEffects).find(e => e.shiftId === shift.id)?.handling;
+        if (away.length) add("absence", "Genehmigte Abwesenheit" + (handling === "PAID" ? " (bezahlt)" : handling === "UNPAID" ? " (0 Stunden)" : "") + ".");
       }
       for (const o of others) {
         if (o.shift.id === shift.id || (b.userId ? o.userId !== b.userId : o.contractorWorkerId !== b.contractorWorkerId)) continue;

@@ -5,7 +5,7 @@ import { canStaff, type Access } from "./access";
 import { plannedMinutes } from "./planning";
 import { frozenPlans } from "./schedule-frozen";
 import { computeAccount, type AccountMethod, type AccountResult, type DayMinutes } from "./time-account";
-import { paidAbsenceShifts } from "./absence-effects";
+import { absenceEffects } from "./absence-effects";
 
 type Settings = { accountsEnabled: boolean; accountMethod: AccountMethod; accountVisible: boolean };
 
@@ -29,7 +29,8 @@ function mayView(a: Access, userId: string, visible: boolean): boolean {
  * Ist- und Planminuten je Kalendertag einer Person in [from, to]. Planminuten
  * wie die Monatsauswertung (planning.ts, echte Dauer in Europe/Berlin) aus
  * veroeffentlichten Plaenen; wer einen Plan in Bearbeitung nicht live sieht,
- * rechnet mit der Momentaufnahme (wie "Stunden und Lohn"). Ist bleibt live.
+ * rechnet mit der Momentaufnahme (wie "Stunden und Lohn"). Ist bleibt live;
+ * bezahlte Abwesenheit (lib/absence-effects.ts) zaehlt mit den Planstunden.
  */
 async function dayMinutes(a: Access, userId: string, from: string, to: string): Promise<Map<string, DayMinutes>> {
   const weeks = new Map<string, { year: number; weekNumber: number }>();
@@ -45,13 +46,18 @@ async function dayMinutes(a: Access, userId: string, from: string, to: string): 
     ...bookings.map((b) => b.shift).filter((s) => !frozen.scheduleIds.has(s.scheduleId) && !frozenIds.has(s.id)),
     ...frozen.shifts.filter((s) => s.bookings.some((b) => b.userId === userId)),
   ];
+  const effects = await absenceEffects(a.orgId, [userId], from, to);
   const days = new Map<string, DayMinutes>();
   const at = (d: string) => { if (!days.has(d)) days.set(d, { actual: 0, planned: 0 }); return days.get(d)!; };
   for (const r of records) at(r.date.toISOString().slice(0, 10)).actual += recordMinutes(r);
-  for (const s of shifts) { const d = shiftRange(s).date; if (d >= from && d <= to) at(d).planned += plannedMinutes(s); }
   // Bezahlte Abwesenheit zaehlt mit den Planstunden der Schicht als Ist - ausser es wurde fuer die Schicht doch Zeit erfasst.
   const worked = new Set(records.map((r) => r.shiftId).filter(Boolean));
-  for (const x of await paidAbsenceShifts(a.orgId, [userId], from, to)) if (!worked.has(x.shiftId)) at(x.date).actual += x.minutes;
+  for (const s of shifts) {
+    const d = shiftRange(s).date;
+    if (d < from || d > to) continue;
+    at(d).planned += plannedMinutes(s);
+    if (effects.forShift(userId, s)?.handling === "PAID" && !worked.has(s.id)) at(d).actual += plannedMinutes(s);
+  }
   return days;
 }
 

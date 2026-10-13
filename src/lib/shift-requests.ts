@@ -3,7 +3,9 @@ import { shiftRange } from "./berlin";
 import { wallToUtcMinutes } from "./checkin";
 import { branchHolders, can, type Access } from "./access";
 import { isAdminRole, normalizeBranchRights } from "./access-shared";
-import { checkAssignment, type ShiftWithRelations } from "./planning";
+import { ApiError } from "./errors";
+import { assertReleasable, checkAssignment, notify, shiftLabel, type ShiftWithRelations } from "./planning";
+import { notifiesEmployees } from "./schedule-status";
 
 type Tx = Prisma.TransactionClient;
 
@@ -93,4 +95,42 @@ export async function closeOpenRequests(tx: Tx, a: Pick<Access, "orgId" | "userI
 export function requestParties(requests: ClosedRequest[], except: (string | null)[] = []): string[] {
   const skip = new Set(except.filter((id): id is string => !!id));
   return [...new Set(requests.flatMap(r => [r.userId, ...(r.targetUserId ? [r.targetUserId] : [])]))].filter(id => !skip.has(id));
+}
+
+/**
+ * Offene Antraege der geloesten Person zu dieser Schicht sind hinfaellig:
+ * eigene Antraege auf diese Schicht und Tauschanfragen anderer, die genau
+ * diese Zuweisung betreffen.
+ */
+export function releasedRequests(shiftId: string, userId: string): Prisma.ModRequestWhereInput {
+  return { OR: [{ shiftId, userId }, { targetShiftId: shiftId, targetUserId: userId }] };
+}
+
+/** Kurze Information an weitere Beteiligte geschlossener Antraege. */
+export async function informParties(tx: Tx, a: Access, shift: ShiftWithRelations, parties: string[]) {
+  if (parties.length) await notify(tx, a.orgId, a.userId, parties, "Schichtantrag erledigt", shiftLabel(shift) + ": Die Planung hat die Zuweisung geändert. Ein offener Antrag dazu ist damit erledigt.", shift.id);
+}
+
+/**
+ * Zuweisung einer Person mit Konto aufheben - gemeinsamer Ablauf fuer
+ * "Zuweisung aufheben" (DELETE /api/bookings) und "Person austragen" beim
+ * Genehmigen einer Abwesenheit. Nicht nach Schichtende und nicht nach einem
+ * Check-in (assertReleasable). Offene Antraege der Person zu dieser Schicht
+ * werden abgelehnt; die Person erhaelt eine Nachricht nur bei
+ * veroeffentlichten Plaenen ausserhalb der Bearbeitung (notifiesEmployees,
+ * sonst Sammelmitteilung beim Veroeffentlichen), Beteiligte geschlossener
+ * Antraege bei veroeffentlichten Plaenen. Platzhalter und Zuweisungen
+ * geloeschter Personen in derselben Schicht bleiben unberuehrt. Echtzeit-
+ * Signale sendet der Aufrufer nach dem Commit; Rechte prueft der Aufrufer.
+ */
+export async function releaseAssignment(tx: Tx, a: Access, shift: ShiftWithRelations, userId: string, message = "Deine Zuweisung wurde aufgehoben."): Promise<{ parties: string[] }> {
+  const booking = shift.bookings.find(b => b.userId === userId);
+  if (!booking) throw new ApiError("Zuweisung nicht gefunden.", 404);
+  await assertReleasable(tx, shift, userId);
+  await tx.booking.delete({ where: { id: booking.id } });
+  const closed = await closeOpenRequests(tx, a, releasedRequests(shift.id, userId), "Zuweisung wurde von der Planung aufgehoben.");
+  const parties = requestParties(closed, [userId]);
+  if (notifiesEmployees(shift.schedule)) await notify(tx, a.orgId, a.userId, [userId], "Schichtzuweisung aufgehoben", shiftLabel(shift) + ": " + message, shift.id);
+  if (shift.schedule.isPublic) await informParties(tx, a, shift, parties);
+  return { parties };
 }

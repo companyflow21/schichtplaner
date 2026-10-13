@@ -15,7 +15,9 @@ export async function GET() {
     orderBy: { name: "asc" },
   });
 
-  return NextResponse.json({ categories });
+  // Der Lohnart-Code gehoert zum Lohn: nur fuer die Administration.
+  const admin = isAdminOrAbove(member.role);
+  return NextResponse.json({ categories: categories.map(({ payCode, ...category }) => (admin ? { ...category, payCode } : category)) });
 }
 
 // POST /api/absences/categories - Create category
