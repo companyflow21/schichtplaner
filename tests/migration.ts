@@ -286,7 +286,7 @@ async function main() {
   await edit.close();
 
   // Planungsregeln: additiv, ohne Eintrag alles aus; je Organisation eine Zeile, je Person eine Abweichung.
-  const RULES = "20261017090000_planning_rules";
+  const RULES = "20261013150000_planning_rules";
   const pr = await database(RULES);
   await pr.exec(`
     INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('p1','Org Regeln',${now});
