@@ -78,3 +78,27 @@ Arbeitsbereich/Verfügbarkeitsfenster = orange).
 
 Am Ende: ein Branch mit nachvollziehbaren Commits, `git format-patch` gegen die
 Basis, Prüfnachweise und ein Übergabetext in `docs/UEBERGABE-BAUSTEINE.md`.
+
+## Port des Cloud-Branches (ab 13.10.2026, Entscheidung AKRO vom 12.10. spät)
+
+Grundlage: `docs/BERICHT-CLOUD-BRANCH-2026-10-12.md`. Der Cloud-Branch `cloud/wizardly-cerf-cxbutc`
+(Basis `a9f5b9d`) wird nicht gemerged, sondern paketweise per Cherry-pick auf die Hauptlinie
+portiert; Cloud-P6 „Bearbeitungsmodus/Veröffentlichen“ wird verworfen (Doppelung von Baustein 1/2).
+Integration jetzt durch die Design-Sitzung (die integrierende Sitzung ist beendet).
+
+| Schritt | Cloud-Commits | Agent / Ports | Status |
+|---|---|---|---|
+| S1 Sicherheitsfix + P0 | 66b7f62, 9ee9618 | sonnet, 3415/55549 | läuft |
+| S2 P1 Lohn | 8e6e865, 4346c44, 6c75b86 | opus, 3416/55550 | läuft |
+| S5 Planungsregeln (P6 ohne Bearbeitungsmodus) | b8cca24, bc7dd6e, 119d35a | 3417/55551 | nach S1 |
+| S3 P2 Freigabe + P3 PDF | 0ff8e24, d35d168, 5f4e78d | opus, 3418/55552 | nach S2 |
+| S4 P4 Zeitkonten + P5 Abwesenheit/Urlaub | 0de1cc7, c21d5b3, ef304e8, 8b69405 | opus, 3419/55553 | nach S3 und S5 |
+| Abschluss | Gesamtprüfung, Browser-Tests, Übergabe, Bundle/Patches | Hauptagent | – |
+
+Feste Regeln für den Port: Migrationen umbenennen (`20261013100000_payroll`, `…110000_time_approval`,
+`…120000_time_accounts`, `…130000_absence_effects`, `…140000_vacation_account`,
+`…150000_planning_rules`); `userId` nullable (`FormerEmployee`, Platzhalter) berücksichtigen;
+Feiertage je Einsatzort (`branchHolidays`); Namen über `formatName`; Tests im Hauptlinien-Stil
+(`TEST_ONLY`, kebab-case). Vorläufige Fachannahmen bis AKRO entscheidet: Freigabe steuert den Lohn
+nicht; Zeitkonto-Saldo bis Ende des Zeitraums; „nicht erfasst“ mit Nachtragen statt „Ist = Plan“;
+Lohnsätze und Zuschläge trägt AKRO selbst ein.
