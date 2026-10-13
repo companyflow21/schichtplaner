@@ -117,3 +117,20 @@ Lohnsätze und Zuschläge trägt AKRO selbst ein.
 Befund 13.10.2026: Das Testmodul `messaging` besteht nur, wenn `permissions` vorher gelaufen ist
 (verdeckte Reihenfolge-Abhängigkeit, auch auf dem Stand vor dem Port); in der Gesamtsuite ist die
 Reihenfolge gegeben. Aufräumpunkt: Modul eigenständig machen.
+
+## Nachträge nach der Einspielung (13.10.2026 abends)
+
+Der Stand `47203de` ist am 13.10.2026 als `194c532` ins Original gemergt und auf Netcup
+eingespielt (`docs/FERTIGSTELLUNG.md` im Original). Weitere Wünsche von AKRO werden hier wieder
+extern vorbereitet und gesammelt; eingespielt wird erst, wenn AKROs Liste fertig ist und ein
+ausdrückliches Go vorliegt (Sicherung, Migrationsprobe auf Kopie, Rückfallversion wie beim
+ersten Rollout).
+
+| Wunsch | Agent / Ports | Status |
+|---|---|---|
+| Monatsansicht: Entwurfswochen direkt veröffentlichen | opus, 3405/55539 | gemergt `94ccf73` (Abschnitt in `docs/UEBERGABE-BAUSTEINE.md`) |
+| Kunden und Einsatzorte archivieren statt nur deaktivieren | opus, 3406/55540 | in Arbeit |
+
+Hinweis: Der Agent für die Monatsansicht hat seinen Worktree versehentlich unter
+`../schichtplaner/.claude/worktrees/` angelegt. Die Commits wurden per `git fetch` in den Klon
+geholt, Worktree und Branch im Original danach entfernt; Dateien des Originals blieben unberührt.

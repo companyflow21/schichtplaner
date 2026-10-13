@@ -178,6 +178,37 @@ Migrationen, Fachannahmen und Gesamtabnahme in `docs/UEBERGABE-SMARTPLAN-PORT.md
 Cloud-Branch `claude/wizardly-cerf-cxbutc` selbst darf nicht gemerged werden
 (`docs/BERICHT-CLOUD-BRANCH-2026-10-12.md`).
 
+## Nachtrag 13.10.2026 (nach der Einspielung): Veröffentlichen aus der Monatsansicht
+
+Anlass: AKRO konnte nach dem Rollout (`194c532`) in der Monatsansicht nur das Label „Entwurf“
+sehen, aber nicht veröffentlichen. Commits `26fbffa` und `94ccf73` (Basis `47203de`):
+
+- `GET /api/branches/[id]/month` liefert je Woche zusätzlich `status` (DRAFT/PUBLISHED/EDITING
+  über `scheduleStatus`), nur für die Planung; Mitarbeitende bekommen `null` und weiterhin nur
+  veröffentlichte Pläne (`src/lib/overview.ts`).
+- Monatsraster (`src/components/schedule/month-grid.tsx`): In der KW-Spalte steht bei einem
+  Entwurf mit Schichten unter „Entwurf“ der Knopf „Veröffentlichen“, der denselben
+  `PublishDialog` wie der Wochenplan öffnet (Änderungen, Benachrichtigung, Konflikte); nach dem
+  Veröffentlichen lädt der Monat neu. Woche „In Bearbeitung“ zeigt das Label und den Link
+  „Zur Woche“, weil Veröffentlichen und Verwerfen im Statusbalken der Woche zusammengehören.
+  Entwurf ohne Schichten: nur Label. Ohne Recht „Dienstplan veröffentlichen“: nur Labels.
+  Auf dem Handy steht eine kompakte Wochenliste mit derselben Aktion über der Tagesliste.
+  Die KW-Spalte wird nur dann breiter (9 rem statt 4 rem), wenn ein Knopf oder „In
+  Bearbeitung“ sichtbar ist.
+- Nachweise (Agent, Worktree auf `47203de`): `tsc` 0; `lint` 0/25; `tests/month-publish.tsx`
+  16/16 (zwei eingebaute Fehler wurden erkannt); `tests/plan-banner.tsx` 45/45;
+  `TEST_ONLY=plan-lifecycle,permissions` 733 Prüfungen, davon 5 neue zur Monats-API
+  (eigener Standort „Lebenszyklus West“, damit die bestehende Zählung der Mitteilungen
+  unverändert bleibt); Browser auf lokalem Dev-Server mit Testdaten (1280 px und Handy:
+  Veröffentlichen aus dem Monat mit Toast „KW 43/2026 veröffentlicht – 1 Person
+  benachrichtigt“, „Zur Woche“ öffnet den Statusbalken, Knopf mobil 44 px hoch).
+  Nach dem Merge im Klon erneut: `tsc` 0, `lint` 0/25, beide Rendertests grün.
+- Offen: Bei 768 px mit ausgeklappter Seitenleiste nimmt die breite KW-Spalte jeder
+  Tagesspalte rund 12 px; Abhilfe wäre, die Wochenliste bis `lg` zu zeigen. Liegen alle
+  Schichten einer Entwurfswoche im Nachbarmonat, erscheint der Knopf nur dort. Der Rendertest
+  setzt den Pfad für `usePathname` über das Next-interne `PathnameContext`.
+- Noch nicht im Original und nicht auf Netcup; Einspielen erst nach AKROs Sammelliste.
+
 ## Übernahme in das Original
 
 1. Im Original den Branch holen – entweder direkt aus dem Klon
