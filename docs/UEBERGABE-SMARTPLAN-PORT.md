@@ -139,7 +139,24 @@ Die Cloud-Migration `20261018090000_publishing` und das Cloud-Modell `ScheduleSn
    Urlaubstagen ohne Schicht mit dem Steuerbüro bzw. intern festlegen.
 
 ## Nachweise
-_(Gesamtabnahme nach S4, siehe unten; Zwischenstände:)_
+
+Gesamtabnahme auf dem Endstand `a756ec0` (13.10.2026, 18:14–18:34, Hauptarbeitsbaum, flüchtige
+PGlite auf 3420/55554, Browser-Tests auf frischem Produktions-Build mit `load-local --serve`
+auf 3337, Playwright 1.64 mit Chrome):
+
+| Prüfung | Ergebnis |
+|---|---|
+| `npx prisma generate`, `npx tsc --noEmit --incremental false` | 0 Fehler |
+| `npm run lint` | 0 Fehler, 25 bestehende Warnungen (Referenzwert) |
+| `test:migration` / `:history` / `:subcontractors` | 100 / 29 / 21 |
+| `test:payroll`, `test:pdf`, `test:accounts`, `test:vacation`, `test:rules` | 39 / 14 / 15 / 12 / 12 |
+| `test:checkin`, `test:push`, `tests/serial-retry.ts` | 44 / 9 / 15 |
+| statisch: `plan-banner`, `conflict-card`, `schedule-actions`, `info-hint`, `requests-paused`, `rule-violations` | 45 / 17 / 45 / 6 / 14 / 12 |
+| `npm run test:workflows` (vollständig, alle Module inkl. payroll, hours, timesheet, time-accounts, absence-effects, vacation, planning-rules, abgleich-fixes) | FINAL SUCCESS 4072/4072 |
+| `npm run build` | erfolgreich |
+| `tests/ui-design.mjs`, `tests/ui-quality.mjs`, `tests/ui-shift-location.mjs` | 71/71, 16/16, bestanden |
+
+Zwischenstände:
 - `1238bc3` (Regeln + Lohn + P0): vollständige Workflow-Suite **3490/3490**, Lint 0/25,
   Migration 75/75, Lohn-Unit 39/39, Regeln-Unit 12/12.
 - `8ae705b` (+ Freigabe/PDF): Lint 0/25, Migration 84/84, PDF-Unit 14/14, Module
