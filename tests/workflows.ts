@@ -32,6 +32,7 @@ import { planLifecycleTests } from "./plan-lifecycle";
 import { dashboardTaskTests } from "./dashboard-tasks";
 import { planFrozenTests } from "./plan-frozen";
 import { planningRuleTests } from "./planning-rules";
+import { payrollTests } from "./payroll";
 import webpush from "web-push";
 
 async function main() {
@@ -285,6 +286,7 @@ try {
   if (run("dashboard-tasks")) await dashboardTaskTests(context);
   if (run("plan-frozen")) await planFrozenTests(context);
   if (run("planning-rules")) await planningRuleTests(context);
+  if (run("payroll")) await payrollTests(context);
   console.log("FINAL SUCCESS: " + checks + " assertions / HTTP checks passed.");
   if (process.argv.includes("--serve")) {
     console.log("BROWSER_PREVIEW " + base + " — admin@akro-test.invalid / " + password);

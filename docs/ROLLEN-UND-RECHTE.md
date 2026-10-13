@@ -90,7 +90,8 @@ Grundregeln (`src/lib/access.ts`, Funktionen `can`, `canStaff`, `timeScope`):
 Einstellungen · Kunden und Einsatzorte samt GPS · Arbeitsbereiche · Qualifikationskatalog · Abwesenheits- und
 Zeitkategorien, Feiertagsregion · Rollen und Freigaben vergeben · Konten deaktivieren/reaktivieren · Einladungslinks für
 jedes Konto · Kontaktdaten anderer ändern · Zeitbuchungen einem Standort zuordnen · Altpläne ohne Standort · Dateiordner
-anlegen · Themen löschen · KI.
+anlegen · Themen löschen · KI · Lohn (Lohnseite, Lohnarten/Zuschläge, Personalnummern, Lohnexport; `/api/payroll/**`
+antwortet Disposition und Mitarbeitenden mit 403, auch für die eigene Personalnummer) [Port P1, nicht eingespielt].
 
 ### 3.2 Standortrechte (je Einsatzort)
 
@@ -396,6 +397,7 @@ Profilseite, kein Wechsel zwischen Organisationen** (bei mehreren Mitgliedschaft
 | Fremde Zeiten nachtragen, Korrekturen entscheiden | ✔ (auch eigene) | ✔ (auch eigene) | F: Zeit bearbeiten + Stunden | ✖ | D nicht eigene |
 | Check-in | Eigene | Eigene | Eigene; Team: F: Zeit einsehen + Stunden | Eigene | nur eigene Schicht |
 | Auswertung/CSV | alle mit Soll | alle mit Soll | Eigene + F: Zeit einsehen + Stunden | Eigene | D ohne Soll anderer |
+| Lohn, Lohnarten/Zuschläge, Lohnexport [Port P1] | ✔ | ✔ | ✖ | ✖ | keine Freigabe öffnet Lohndaten |
 | PDF-Export [Neu] | alle | alle | sichtbare Pläne | sichtbare Pläne | |
 | Nachrichten | alle | alle | sichtbare Personen | sichtbare Personen | keine E-Mails |
 | Standortmeldungen | ✔ | ✔ | F: Standortmeldungen | ✖ | |

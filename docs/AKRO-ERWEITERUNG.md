@@ -330,3 +330,43 @@ Reihenfolge; der Grund steht an der Person:
 - Lokale Prüfergebnisse stehen in `docs/FERTIGSTELLUNG.md`; Betriebsinstallation und Betriebsdaten
   wurden für diese Erweiterung nicht geändert.
 
+## 8. Lohn (Port P1 aus dem Cloud-Branch, 13.10.2026, nicht eingespielt)
+
+Herkunft: Cloud-Commits `8e6e865`, `4346c44`, `6c75b86` (Branch `claude/wizardly-cerf-cxbutc`), an die
+Hauptlinie angepasst. Sätze, Lohnarten und Zuschläge trägt AKRO selbst ein; der Code gibt keine vor.
+
+- **Grundlage:** abgeschlossene Zeitbuchungen (Ist) im Zeitraum, nach Buchungsdatum wie die Monatsauswertung;
+  laufende Stoppuhren zählen nicht. Ohne Buchung kein Lohn. Genehmigt/ungenehmigt unterscheidet P1 nicht.
+- **Lohnart:** die des Arbeitsbereichs der Schicht vor der Standard-Lohnart der Person; inaktive zählen nicht. Die
+  Schicht ergibt sich aus dem Check-in oder aus der einzigen veröffentlichten Schicht der Person, die sich mit der
+  Buchung überschneidet.
+- **Zeiten ohne Lohnart:** Stunden erscheinen in Lohnseite und Export als Zeile „Ohne Lohnart“ mit 0,00 € und dem
+  Hinweis „Keine Lohnart hinterlegt.“; Prozentzuschläge ergeben dann 0,00 € mit Hinweis, feste Beträge je Stunde
+  werden gezahlt.
+- **Zuschläge:** Minuten im Zeitblock an passenden Tagen (Wochentag, Feiertag, Sonderdatum je Jahr); ein Block gehört
+  zu dem Tag, an dem er beginnt; Pausen anteilig; mehrere Zuschläge addieren sich (keine Vorrangregel, keine
+  § 3b-EStG-Logik). Buchungen nur mit Dauer erhalten nur ganztägige Zuschläge.
+- **Feiertage je Einsatzort:** gesetzliche Feiertage im Bundesland des Einsatzorts der Zeitbuchung
+  (`branchHolidays`); Zeiten ohne Einsatzort nutzen die Feiertage der Organisation (Einstellungen › Abwesenheiten).
+  Hat ein Einsatzort kein Bundesland, gibt es dort keinen Feiertagszuschlag, auch nicht an bundesweiten Feiertagen;
+  die Lohnseite nennt den Einsatzort („Für Einsatzort X ist kein Bundesland festgelegt …“). Die Planansicht zeigt in
+  diesem Fall die bundesweiten Feiertage – bewusste Abweichung, damit kein Zuschlag auf einer Vermutung beruht.
+- **Gelöschte Personen:** ihre Zeiten bleiben im Lohn, als eigene Zeile mit dem Namen aus der Momentaufnahme
+  („gelöscht“); der Arbeitsbereich kommt über die behaltene Zuweisung. Personalnummer, Standard-Lohnart und
+  personenbezogene Zuschläge gehen mit dem Konto verloren (Hinweis in der Zeile). Lohn daher vor dem Löschen abrechnen.
+- **Sub-Platzhalter:** haben keine Zeitbuchungen und damit keinen Lohn; Platzhalter in derselben Schicht stören die
+  Zuordnung nicht.
+- **Neuberechnung:** Lohn wird bei jedem Aufruf aus den aktuellen Sätzen berechnet; geänderte Sätze oder gelöschte
+  Zuschläge ändern auch vergangene Zeiträume. Es gibt keinen Abschluss.
+- **Rundung:** Cent-Beträge je Buchung und Zeile; im Export kann „Stunden × Satz“ deshalb um Cent vom Betrag abweichen.
+- **Rechte:** Lohnseite, Einstellungen und alle `/api/payroll/**` nur Inhaber/Administration (`requireAdmin`); Disposition
+  und Mitarbeitende 403, fremde Organisation 404.
+- **Export:** CSV (Semikolon, UTF-8 mit BOM) je Person und Lohnart/Zuschlag mit Personalnummer, Nachname, Vorname,
+  Code, Stunden, optional Satz und Betrag; Personen abwählbar. Kein DATEV-Format.
+- **Bedienung:** Navigation „Lohn“ (Gruppe Organisation, mobil unter „Mehr“); Einstellungen › Lohnarten/Zuschläge
+  (`/settings?bereich=payroll`).
+- **Migration `20261013100000_payroll`:** rein additiv (Tabellen `pay_types`, `surcharges`; Spalten `personnelNumber`,
+  `payTypeId`); im Cloud-Branch hieß sie `20261012090000_payroll` (Zeitstempel-Dublette).
+- **Offen (AKRO/Steuerbüro):** Sätze und Lohnarten, Vorrangregeln der Zuschläge, steuerliche Behandlung; ob nur
+  freigegebene Stunden bezahlt werden (Stundenfreigabe, P2).
+

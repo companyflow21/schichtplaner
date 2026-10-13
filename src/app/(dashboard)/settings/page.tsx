@@ -17,6 +17,7 @@ import { AbsenceSettings } from "@/components/settings/absence-settings";
 import { AccountSettings } from "@/components/settings/account-settings";
 import { QualificationSettings } from "@/components/settings/qualification-settings";
 import { PlanningRulesSettings } from "@/components/settings/planning-rules-settings";
+import { PayrollSettings } from "@/components/settings/payroll-settings";
 
 // ---------- Types ----------
 
@@ -55,7 +56,7 @@ type SettingsResponse = {
 
 // ---------- Component ----------
 
-const SECTIONS: SettingsSection[] = ["schedule", "time", "wishplan", "employees", "qualifications", "absences", "account", "rules"];
+const SECTIONS: SettingsSection[] = ["schedule", "time", "payroll", "wishplan", "employees", "qualifications", "absences", "account", "rules"];
 
 export default function SettingsPage() {
   return (
@@ -206,6 +207,7 @@ function SettingsContent() {
           >
             <option value="schedule">Schichtplan</option>
             <option value="time">Zeiterfassung</option>
+            <option value="payroll">Lohnarten/Zuschläge</option>
             <option value="wishplan">Wunschpläne</option>
             <option value="employees">Mitarbeiter</option>
             <option value="qualifications">Qualifikationen</option>
@@ -232,6 +234,8 @@ function SettingsContent() {
               isSaving={updateMutation.isPending}
             />
           )}
+
+          {activeSection === "payroll" && <PayrollSettings />}
 
           {activeSection === "wishplan" && (
             <div className="space-y-6">
