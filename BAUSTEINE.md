@@ -88,10 +88,10 @@ Integration jetzt durch die Design-Sitzung (die integrierende Sitzung ist beende
 
 | Schritt | Cloud-Commits | Agent / Ports | Status |
 |---|---|---|---|
-| S1 Sicherheitsfix + P0 | 66b7f62, 9ee9618 | sonnet, 3415/55549 | läuft |
-| S2 P1 Lohn | 8e6e865, 4346c44, 6c75b86 | opus, 3416/55550 | läuft |
-| S5 Planungsregeln (P6 ohne Bearbeitungsmodus) | b8cca24, bc7dd6e, 119d35a | 3417/55551 | nach S1 |
-| S3 P2 Freigabe + P3 PDF | 0ff8e24, d35d168, 5f4e78d | opus, 3418/55552 | nach S2 |
+| S1 Sicherheitsfix + P0 | 66b7f62, 9ee9618 | sonnet, 3415/55549 | gemerged `08069d5` (4 von 5 Korrekturen; „Reaktivieren“ war in der Hauptlinie schon da) |
+| S2 P1 Lohn | 8e6e865, 4346c44, 6c75b86 | opus, 3416/55550 | gemerged `588dbb9` (Migration `20261013100000_payroll`, gelöschte Personen, Feiertage je Einsatzort) |
+| S5 Planungsregeln (P6 ohne Bearbeitungsmodus) | b8cca24, bc7dd6e, 119d35a | opus, 3417/55551 | gemerged `4e5e8c6` (Migration `20261013150000_planning_rules`) |
+| S3 P2 Freigabe + P3 PDF | 0ff8e24, d35d168, 5f4e78d | opus, 3418/55552 | läuft (Basis 588dbb9) |
 | S4 P4 Zeitkonten + P5 Abwesenheit/Urlaub | 0de1cc7, c21d5b3, ef304e8, 8b69405 | opus, 3419/55553 | nach S3 und S5 |
 | Abschluss | Gesamtprüfung, Browser-Tests, Übergabe, Bundle/Patches | Hauptagent | – |
 
