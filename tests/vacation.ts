@@ -7,6 +7,7 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { TestContext } from "./permissions";
+import { newPerson, planner } from "./people";
 
 export async function vacationTests(t: TestContext) {
   const { users, check, categoryId } = t;
@@ -22,6 +23,10 @@ export async function vacationTests(t: TestContext) {
   const sick = (await admin.request("/api/absences/categories", "POST", { name: "Krankheit Urlaubstest", color: "#aa3333", isPaid: true }, 201)).category;
   await admin.request("/api/vacation/settings", "PATCH", { yearStart: "13-01" }, 400);
   await foreign.request("/api/vacation/settings", "PATCH", { categoryId }, 404);
+
+  // --- Keine Vorgabe: ohne Urlaubstage je Jahr kein Konto ------------------------------------
+  const bare = (await admin.request("/api/vacation/settings", "PATCH", { enabled: true, categoryId })).settings;
+  check(bare.enabled && bare.daysPerYear === null && !(await account(admin, users.staffA.id)).active, "switched on without days per year: the app presets none, no account yet");
 
   // --- Einschalten: 28 Tage, Konto ab 2029, Uebertrag hoechstens 5 ----------------------------
   const settings = (await admin.request("/api/vacation/settings", "PATCH", { enabled: true, categoryId, daysPerYear: 28, carryOverMax: 5, startDate: "2029-01-01", excludedWeekdays: [7, 6, 6] })).settings;
@@ -48,6 +53,25 @@ export async function vacationTests(t: TestContext) {
   // --- Kosten fuer den Antrag: Mo-So, Wochenende frei -------------------------------------------
   const cost = await account(admin, users.staffA.id, "&from=2029-10-01&to=2029-10-07");
   check(cost.cost === 5, "a request from Monday to Sunday costs 5 days");
+
+  // --- Feiertage: Bundesland des Einsatzorts der Schicht, sonst Feiertage der Organisation ----------
+  // Fronleichnam 15.06.2028 ist Feiertag in NRW, nicht in Thueringen und Berlin; der 03.10.2028 ist bundesweit Feiertag.
+  await admin.request("/api/settings", "PATCH", { holidayCountry: "DE", holidayState: "BE" });
+  const customer = (await admin.request("/api/customers", "POST", { name: "Kunde Urlaub Feiertage" })).customer;
+  const site = async (name: string, holidayState?: string) => (await admin.request("/api/branches", "POST", { customerId: customer.id, name, ...(holidayState ? { holidayState } : {}) })).branch;
+  const cologne = await site("Objekt Urlaub Köln", "NW"), jena = await site("Objekt Urlaub Jena", "TH"), open = await site("Objekt Urlaub ohne Land");
+  const [vNw, vTh, vNone] = [await newPerson(t, admin, "urlaub.nw", "Nora", "Westen"), await newPerson(t, admin, "urlaub.th", "Theo", "Osten"), await newPerson(t, admin, "urlaub.none", "Nils", "Ohne")];
+  const onShift = async (branchId: string, day: string, userId: string) => { const P = planner(admin, branchId); const s = await P.shift(day, "08:00", "16:00", 1, { title: "Urlaubstest" }); await P.book(s.id, userId); await P.publish(day); };
+  await onShift(cologne.id, "2028-06-15", vNw.id);
+  await onShift(jena.id, "2028-06-15", vTh.id);
+  await onShift(open.id, "2028-10-03", vNw.id);
+  const dayCost = async (userId: string, day: string) => (await account(admin, userId, "&from=" + day + "&to=" + day)).cost;
+  check(await dayCost(vNw.id, "2028-06-15") === 0 && await dayCost(vTh.id, "2028-06-15") === 1, "Corpus Christi: no vacation day with a shift at a site in NRW, one with a shift in Thuringia");
+  check(await dayCost(vNone.id, "2028-06-15") === 1 && await dayCost(vNone.id, "2028-10-03") === 0, "without a shift the organisation's holidays decide (Berlin: Corpus Christi is a working day, 3 October a holiday)");
+  check(await dayCost(vNw.id, "2028-10-03") === 1, "a shift at a site without federal state: no holiday there (as in payroll), the day counts");
+  await admin.request("/api/vacation/settings", "PATCH", { countHolidays: true });
+  check(await dayCost(vNw.id, "2028-06-15") === 1 && await dayCost(vNone.id, "2028-10-03") === 1, "with 'Urlaub an Feiertagen zählt' every working day counts");
+  await admin.request("/api/vacation/settings", "PATCH", { countHolidays: false });
 
   // --- Sichtbarkeit ----------------------------------------------------------------------
   const own = await account(sA);

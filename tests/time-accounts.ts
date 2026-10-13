@@ -5,7 +5,9 @@
  * Teil von tests/workflows.ts.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { addDate, berlinDate, isoWeek, weekDate } from "../src/lib/berlin";
 import type { TestContext } from "./permissions";
+import { newPerson, planner } from "./people";
 
 export async function timeAccountTests(t: TestContext) {
   const { users, check } = t;
@@ -38,6 +40,13 @@ export async function timeAccountTests(t: TestContext) {
   const hours = await admin.request("/api/hours?from=2025-11-03&to=2025-11-16");
   check(hours.showBalance === true && hours.people.find((p: any) => p.userId === person.userId)?.balanceMinutes === 60, "\"Stunden und Lohn\" shows the balance on the last day of the query");
   await foreign.request("/api/time-accounts/compensations/" + comp.id, "DELETE", undefined, 404);
+  await mA.request("/api/time-accounts/compensations/" + comp.id, "DELETE", undefined, 403);
+  await sA.request("/api/time-accounts/compensations/" + comp.id, "DELETE", undefined, 403);
+  await mA.request("/api/time-accounts/members/" + person.id, "PUT", { included: false }, 403);
+  await foreign.request("/api/time-accounts/members/" + person.id, "PUT", { included: false }, 404);
+  await mA.request("/api/time-accounts/targets/" + target.id, "DELETE", undefined, 403);
+  await foreign.request("/api/time-accounts/targets/" + target.id, "DELETE", undefined, 404);
+  check(true, "changing accounts, targets and compensations: administration only (manager and employee 403, other organisation 404)");
 
   // --- Einbeziehen, Berechnungsart je Person -----------------------------------------
   await admin.request("/api/time-accounts/members/" + person.id, "PUT", { method: "ACTUAL_MINUS_PLAN" });
@@ -59,6 +68,26 @@ export async function timeAccountTests(t: TestContext) {
   check((await mA.request("/api/time-accounts?userId=" + users.staffA.id)).active === true, "manager with \"view hours\" for the person sees the balance");
   await mB.request("/api/time-accounts?userId=" + users.staffA.id, "GET", undefined, 404);
   await foreign.request("/api/time-accounts?userId=" + users.staffA.id, "GET", undefined, 404);
+
+  // --- Plan in Bearbeitung: Planstunden der Person aus der Momentaufnahme (wie "Stunden und Lohn") -------
+  const customer = (await admin.request("/api/customers", "POST", { name: "Kunde Zeitkonto" })).customer;
+  const branch = (await admin.request("/api/branches", "POST", { customerId: customer.id, name: "Objekt Zeitkonto" })).branch;
+  const kim = await newPerson(t, admin, "konto.kim", "Kim", "Konto", "EMPLOYEE", [branch.id]);
+  const w = isoWeek(addDate(berlinDate(), 230)), mon = weekDate(w.year, w.weekNumber), sun = addDate(mon, 6);
+  await admin.request("/api/time-accounts/members/" + kim.memberId + "/targets", "POST", { startDate: mon, hours: 10, period: "WEEK" }, 201);
+  await admin.request("/api/time-accounts/members/" + kim.memberId, "PUT", { visible: true });
+  const P = planner(admin, branch.id);
+  const wed = await P.shift(addDate(mon, 2), "08:00", "16:00", 1, { title: "Konto", pauseOption: "PER_SHIFT", pauseValue: 0 });
+  await P.book(wed.id, kim.id);
+  await P.publish(mon);
+  const periodOf = async (s: any, userId?: string) => (await s.request("/api/time-accounts?to=" + sun + (userId ? "&userId=" + userId : ""))).result.periods.find((x: any) => x.from === mon);
+  check((await periodOf(kim.session)).plannedMinutes === 480 && (await periodOf(kim.session)).actualMinutes === 480, "future days count with planned hours (8 h planned, 8 h as actual)");
+  const plan = (await admin.request("/api/schedules?kw=" + w.weekNumber + "&year=" + w.year + "&standort=" + branch.id)).schedule;
+  await admin.request("/api/schedules/" + plan.id + "/editing", "POST");
+  await admin.request("/api/shifts/" + wed.id, "PATCH", { shiftTo: "12:00" });
+  check((await periodOf(kim.session)).plannedMinutes === 480 && (await periodOf(admin, kim.id)).plannedMinutes === 240, "plan in editing: the person's account keeps the published planned hours, the administration sees the live plan");
+  await admin.request("/api/schedules/" + plan.id + "/editing", "DELETE");
+  check((await periodOf(kim.session)).plannedMinutes === 480 && (await periodOf(admin, kim.id)).plannedMinutes === 480, "after discarding the edits both see the published plan again");
 
   // --- Soll loeschen, Einstellungen zuruecksetzen -------------------------------------
   await admin.request("/api/time-accounts/targets/" + target.id, "DELETE");
