@@ -1,5 +1,29 @@
 # Fertigstellung – Arbeitsliste
 
+## Einspielen 13.10.2026: Smartplan-Paket 1, Design-Stufe 1 und Cloud-Port (ausgeführt, ausdrücklicher Auftrag)
+
+Merge des Übergabe-Branches `feat/plan-lifecycle-diff-conflicts` (Klon `schichtplaner-bausteine`,
+`47203de`) als `194c532` in `feat/plan-delete-assign-copy-pdf`; Konflikte in `tests/ui-design.mjs`
+(Namensformat, Branch-Fassung) und dieser Datei (beide Abschnitte behalten) gelöst. Übergabetexte:
+`docs/UEBERGABE-BAUSTEINE.md`, `docs/UEBERGABE-DESIGN-STUFE-1.md`, `docs/UEBERGABE-SMARTPLAN-PORT.md`.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P1 | Gesamtabnahme im Original auf `194c532` | Typprüfung, Lint, Migrationen, Unit-/Rendertests, Workflow-Suite, Build | bestanden (lokal) | `npm ci` 951 Pakete; tsc 0 Fehler; Lint 0 Fehler/25 Warnungen; Migration 100/29/21; Unit payroll 39, pdf 14, accounts 15, vacation 12, rules 12, checkin 44, push 9, serial 15; Rendertests 45/17/45/6/14/12; `npm run test:workflows` vollständig 4059/4059; Build erfolgreich |
+| P1 | Sicherung und Rückfall auf Netcup | Aktuelle Betriebssicherung, Code-Archiv, Rückfall-Images | bestanden | `pg_dump -Fc` 163.630 Bytes, 43 Tabellendaten (`db-5052c3d-20261013-193417.dump`, letzte Sicherung `db-5052c3d-20261013-203417-c.dump` unmittelbar vor dem Wechsel), Code ohne `.env` `code-5052c3d-20261013-193417.tar.gz`, alles unter `/root/schichtplaner-backups`; Images `schichtplaner-app:rollback-5052c3d`, `schichtplaner-migrate:rollback-5052c3d`; alter Live-Ordner unter `/root/deploy-194c532/alt` |
+| P1 | Migrationsprobe auf Wegwerf-Kopie (internes Docker-Netz) | Restore gleich, sieben Migrationen additiv, neue und alte App lauffähig | bestanden | Restore `--exit-on-error` ok, 42 Tabellen zeilengleich; `prisma migrate deploy` 11 → 18, 12 neue Tabellen, 42/42 Bestandstabellen unverändert; neue App (`schichtplaner-pruef-app:194c532`) und alte App (`rollback-5052c3d`) gegen die migrierte Kopie: Health/Login/CSRF/Echtzeit je 200; Kopie entfernt |
+| P1 | Umschalten | Code-Tausch ohne `.env`, Migrationen, Nachprüfung, Bestand unverändert | bestanden | 20:34:18–20:34:30 (rund 12 s): 501/501 Dateien `194c532`, `compose up -d --build`, Migrationen 18/18, Bestands-Hash (Konten, Mitgliedschaften, Schichten, Einteilungen, Pläne) vorher = nachher, 42/42 Tabellen unverändert, HTTPS Health/Login/CSRF/`/api/ws` 200, App healthy, keine App-Fehler im Log. Ein erster Umschaltversuch 20:31 scheiterte am fehlenden `rsync` und startete nur den alten Stand neu (ohne Migration, ohne Folgen) |
+
+**Seit 13.10.2026, 20:34 läuft `194c532` auf Netcup.** Rückweg: Images `:rollback-5052c3d` zusammen mit
+`db-5052c3d-20261013-203417-c.dump` in eine neue Datenbank (Schema der Sicherung ist 11 Migrationen; die
+sieben neuen sind additiv, die alte App lief auf der migrierten Kopie). Einträge nach 20:34 wären beim Rückweg
+nachzutragen.
+
+**Noch offen (AKRO):** vorläufige Fachannahmen des Ports bestätigen (`docs/UEBERGABE-SMARTPLAN-PORT.md`:
+Freigabe steuert Lohn nicht, Saldo-Stichtag, Lohnsätze/Zuschläge/Urlaubstage eintragen); Wochen je Standort
+veröffentlichen; Anmeldung mit echten Konten; GPS/Push auf echten Geräten; Testmodul `messaging`
+eigenständig machen.
+
 ## Port Zeitkonten (P4), Abwesenheit wirkt und Urlaubskonto (P5) aus dem Cloud-Branch (13.10.2026, externer Ordner, nicht eingespielt)
 
 Basis `8ae705b` (mit Lohn P1, Freigabe/PDF P2/P3, Sicherheitsfix/P0, Planungsregeln). Übernommen per
