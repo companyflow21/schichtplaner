@@ -1,8 +1,9 @@
 import { db } from "./db";
 import { ApiError } from "./errors";
 import type { Access } from "./access";
-import { hoursReport, type HoursStatus } from "./hours";
+import { hoursReport, type ApprovalKind, type HoursStatus } from "./hours";
 import { payrollData } from "./payroll-service";
+import { formatName } from "./names";
 
 export type TimesheetRow = {
   date: string; site: string | null; planFrom: string | null; planTo: string | null; timeFrom: string | null; timeTo: string | null;
@@ -22,20 +23,25 @@ export type SiteReport = {
 const STATUS_TEXT: Record<HoursStatus, string> = { APPROVED: "genehmigt", OPEN: "offen", MISSING: "nicht erfasst", PLANNED: "geplant", RUNNING: "läuft" };
 const proofText = (r: { type: string; checkin: { method: string } | null }) =>
   r.checkin ? (r.checkin.method === "GPS" ? "GPS-Check-in" : "Check-in freigegeben") : r.type === "WATCH" ? "Stoppuhr" : r.type === "MANUAL_DURATION" ? "Dauer" : "manuell";
-const recordStatus = (r: { running: boolean; approved: boolean }) => (r.running ? "läuft" : r.approved ? "genehmigt" : "offen");
+/** Ohne Pruefer genehmigt (Altbestand bei Einfuehrung, automatische Genehmigung): "autom. übernommen". */
+const recordStatus = (r: { running: boolean; approval: ApprovalKind }) => (r.running ? "läuft" : r.approval === "REVIEWED" ? "genehmigt" : r.approval === "AUTO" ? "autom. übernommen" : "offen");
 const wholeMonth = (from: string, to: string) => from.endsWith("-01") && to === new Date(Date.UTC(Number(from.slice(0, 4)), Number(from.slice(5, 7)), 0)).toISOString().slice(0, 10);
+/** Unterschriftsdokumente nennen immer Vor- und Nachname - in der Reihenfolge der Organisation, sofern sie beide zeigt. */
+const documentName = (a: Access, p: { firstName: string; lastName: string }) => formatName(p, a.member.organization.nameFormat === "LASTNAME_FIRSTNAME" ? "LASTNAME_FIRSTNAME" : null);
 
 /**
- * Stundenzettel einer Person: dieselben Zeilen und Rechte wie "Stunden und
- * Lohn" (eigene immer, fremde mit Freigaben), dazu Stunden je Zuschlag ohne
- * Betraege. Personalnummer und Soll nur fuer die Person selbst und die Administration.
+ * Stundenzettel einer Person mit Konto: dieselben Zeilen und Rechte wie
+ * "Stunden und Lohn" (eigene immer, fremde mit Freigaben; Planspalte bei
+ * Plaenen in Bearbeitung fuer Mitarbeitende aus der Momentaufnahme), dazu
+ * Stunden je Zuschlag ohne Betraege (Feiertage nach Bundesland des
+ * Einsatzorts wie im Lohn). Personalnummer und Soll nur fuer die Person
+ * selbst und die Administration.
  */
 export async function timesheet(a: Access, userId: string, from: string, to: string): Promise<Timesheet> {
   const report = await hoursReport(a, from, to, null, { userId });
   const person = report.people.find((p) => p.userId === userId);
   if (!person) throw new ApiError("Nicht gefunden.", 404);
-  const [org, member, pay] = await Promise.all([
-    db.organization.findUnique({ where: { id: a.orgId }, select: { name: true } }),
+  const [member, pay] = await Promise.all([
     db.organizationMember.findFirst({ where: { organizationId: a.orgId, userId }, select: { position: true, personnelNumber: true, targetHoursPerMonth: true } }),
     payrollData(a.orgId, from, to, null),
   ]);
@@ -54,8 +60,8 @@ export async function timesheet(a: Access, userId: string, from: string, to: str
   const surchargeSums = new Map<string, number>();
   for (const r of rows) for (const s of r.surcharges) surchargeSums.set(s.name, (surchargeSums.get(s.name) ?? 0) + s.minutes);
   return {
-    organization: org?.name ?? "", from, to, rows, openCount: person.openCount, generatedAt: new Date().toISOString(),
-    person: { name: person.firstName + " " + person.lastName, personnelNumber: privileged ? member?.personnelNumber ?? null : null, position: member?.position ?? null },
+    organization: a.member.organization.name, from, to, rows, openCount: person.openCount, generatedAt: new Date().toISOString(),
+    person: { name: documentName(a, person), personnelNumber: privileged ? member?.personnelNumber ?? null : null, position: member?.position ?? null },
     sums: {
       plannedMinutes: person.plannedMinutes, istMinutes: person.istMinutes,
       targetMinutes: privileged && wholeMonth(from, to) && member?.targetHoursPerMonth != null ? Math.round(member.targetHoursPerMonth * 60) : null,
@@ -64,24 +70,26 @@ export async function timesheet(a: Access, userId: string, from: string, to: str
   };
 }
 
-/** Leistungsnachweis je Einsatzort: alle sichtbaren Buchungen am Standort mit Summe je Person. */
+/**
+ * Leistungsnachweis je Einsatzort: alle sichtbaren Buchungen am Standort mit
+ * Summe je Person (fuer die Administration auch Zeiten geloeschter Personen,
+ * mit dem Namen der Momentaufnahme).
+ */
 export async function siteReport(a: Access, branchId: string, from: string, to: string): Promise<SiteReport> {
   const report = await hoursReport(a, from, to, branchId);
-  const [org, branch] = await Promise.all([
-    db.organization.findUnique({ where: { id: a.orgId }, select: { name: true } }),
-    db.branch.findFirst({ where: { id: branchId, organizationId: a.orgId }, select: { name: true, customer: { select: { name: true } } } }),
-  ]);
+  const branch = await db.branch.findFirst({ where: { id: branchId, organizationId: a.orgId }, select: { name: true, customer: { select: { name: true } } } });
   if (!branch) throw new ApiError("Nicht gefunden.", 404);
   const records = report.people.flatMap((p) => p.rows.flatMap((row) => row.records.filter((r) => !r.running).map((r) => ({ p, row, r }))));
   const rows = records.map(({ p, row, r }) => ({
-    date: r.date, person: p.firstName + " " + p.lastName, activity: row.shift?.title ?? row.shift?.division?.title ?? null,
+    date: r.date, person: documentName(a, p), activity: row.shift?.title ?? row.shift?.division?.title ?? null,
     timeFrom: r.timeFrom, timeTo: r.timeTo, breakMinutes: Math.round(r.breakSeconds / 60), minutes: r.minutes, status: recordStatus(r),
   })).sort((x, y) => x.date.localeCompare(y.date) || (x.timeFrom ?? "").localeCompare(y.timeFrom ?? "") || x.person.localeCompare(y.person, "de"));
-  const perPerson = new Map<string, number>();
-  for (const r of rows) perPerson.set(r.person, (perPerson.get(r.person) ?? 0) + r.minutes);
+  // Summe je Person nach Schluessel (gleiche Namen bleiben getrennt).
+  const perPerson = new Map<string, { name: string; minutes: number }>();
+  for (const { p, r } of records) perPerson.set(p.key, { name: documentName(a, p), minutes: (perPerson.get(p.key)?.minutes ?? 0) + r.minutes });
   return {
-    organization: org?.name ?? "", customer: branch.customer?.name ?? null, site: branch.name, from, to, generatedAt: new Date().toISOString(),
-    rows, perPerson: [...perPerson].map(([name, minutes]) => ({ name, minutes })),
+    organization: a.member.organization.name, customer: branch.customer?.name ?? null, site: branch.name, from, to, generatedAt: new Date().toISOString(),
+    rows, perPerson: [...perPerson.values()],
     totalMinutes: rows.reduce((s, r) => s + r.minutes, 0), openCount: records.filter(({ r }) => !r.approved).length,
   };
 }
