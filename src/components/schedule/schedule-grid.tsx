@@ -17,7 +17,7 @@ import { EmployeeNav } from "./employee-nav";
 import { LiveBorder } from "./live-mode";
 import { ConflictPanel, useWeekConflicts } from "./conflict-panel";
 import { PlanStatusBanner } from "./plan-status-banner";
-import { RuleViolations } from "./rule-violations";
+import { RuleViolationPanel, useViolations } from "./rule-violations";
 import type { WishRequest } from "./wish-plan";
 import type { ScheduleResponse, ShiftData } from "@/types/schedule";
 import type { ConflictItem } from "@/types/conflicts";
@@ -65,6 +65,8 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
     for (const c of conflicts.data?.items ?? []) map.set(c.shiftId, [...(map.get(c.shiftId) ?? []), c]);
     return map;
   }, [conflicts.data]);
+  // Regelverstoesse der Woche (Planungsregeln, nur Planung) - Hinweise, keine Sperre.
+  const violations = useViolations(scheduleId, planner);
 
   // Sprung aus dem Konfliktpanel: Filter loesen, zur sichtbaren Karte (Raster oder Handy-Liste) scrollen, kurz hervorheben.
   // Je Klick ein neues Objekt: auch ein zweiter Klick auf dieselbe Schicht springt erneut.
@@ -220,7 +222,8 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
 
       {planner && conflicts.data && <ConflictPanel data={conflicts.data} shifts={shifts} standort={standort} onSprung={springeZuSchicht} />}
       {planner && conflicts.isError && <p className="mb-4 text-[13px] text-muted-foreground">Konfliktprüfung konnte nicht geladen werden.</p>}
-      {planner && scheduleId && <RuleViolations scheduleId={scheduleId} isAdmin={!!member?.access?.isAdmin} />}
+      {planner && violations.data && <RuleViolationPanel data={violations.data} shifts={shifts} isAdmin={!!member?.access?.isAdmin} onSprung={springeZuSchicht} />}
+      {planner && violations.isError && <p className="mb-4 text-[13px] text-muted-foreground">Regelprüfung konnte nicht geladen werden.</p>}
 
       {/* Employee filter bar */}
       {shifts.some((s) => s.bookings.length) && (
