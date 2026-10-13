@@ -8,7 +8,9 @@ import { payrollPeriod, payrollReport } from "@/lib/payroll-service";
 /**
  * Lohnexport als CSV fuer die Lohnsoftware: eine Zeile je Person und Lohnart
  * bzw. Zuschlag. ?saetze=0 laesst Saetze und Betraege weg (nur Stunden).
- * ?ohne=userId,userId nimmt Personen aus. Nur Admins.
+ * ?ohne=key,key nimmt Personen aus (key der Lohnseite: userId bzw. "former:" + Id
+ * fuer geloeschte Personen, die ohne Personalnummer mit ihrem Namen erscheinen).
+ * Nachname und Vorname bleiben getrennte Spalten fuer die Lohnsoftware. Nur Admins.
  */
 export async function GET(request: Request) {
   return api(async () => {
@@ -21,7 +23,7 @@ export async function GET(request: Request) {
     const euros = (cents: number | null) => (cents === null ? "" : (cents / 100).toFixed(2).replace(".", ","));
     const header = ["Personalnummer", "Nachname", "Vorname", "Art", "Bezeichnung", "Lohnart-Code", "Stunden", ...(withRates ? ["Satz", "Satz je Stunde (EUR)", "Betrag (EUR)"] : [])];
     const rows = report.people
-      .filter((p) => !skip.has(p.userId) && p.minutes > 0)
+      .filter((p) => !skip.has(p.key) && p.minutes > 0)
       .flatMap((p) => p.lines.filter((l) => l.minutes > 0).map((l) => [
         p.personnelNumber ?? "", p.lastName, p.firstName, l.kind === "BASE" ? "Lohnart" : "Zuschlag", l.title, l.code ?? "", hours(l.minutes),
         ...(withRates ? [l.percent !== null ? formatNumber(l.percent / 100) + " %" : "", euros(l.rateCents === null ? null : Math.round(l.rateCents)), euros(l.amountCents)] : []),

@@ -5,7 +5,7 @@
  * Aufruf: npx tsx tests/payroll-unit.ts
  */
 import assert from "node:assert/strict";
-import { effectivePayType, isoWeekday, payForRecord, sumLines, type PayRecord, type PayTypeLite, type SurchargeLite } from "../src/lib/payroll";
+import { effectivePayType, holidaysForRecord, isoWeekday, payForRecord, sumLines, type PayRecord, type PayTypeLite, type SurchargeLite } from "../src/lib/payroll";
 import { csvCell } from "../src/lib/csv";
 
 let checks = 0;
@@ -81,6 +81,25 @@ check(line(fixed, "night")?.amountCents === 2000, "fixed amount surcharges work 
 const duration: PayRecord = { id: "dur", userId: "u1", date: "2026-10-11", type: "MANUAL_DURATION", timeFrom: null, timeTo: null, durationHours: 6, durationMinutes: 0, breakSeconds: 0 };
 const durPay = pay(duration, [sunday, night]);
 check(line(durPay, "sun")?.minutes === 360 && !line(durPay, "night") && durPay.warnings.some((w) => w.includes("ohne Uhrzeit")), "duration-only record: whole-day surcharge applies, time block is skipped with a warning");
+
+// --- Feiertag nach Bundesland des Einsatzorts (branchHolidays) ----------------------------
+// Fronleichnam 04.06.2026 (Donnerstag) gilt in NRW, nicht in Thueringen; der 25.12. gilt bundesweit.
+const corpus = manual("2026-06-04", "08:00", "12:00");
+const siteHolidays = (branch: { holidayState: string | null } | null, org = none) => holidaysForRecord(branch, org, "2026-06-03", "2026-12-26");
+check(line(pay(corpus, [holiday], { holidays: siteHolidays({ holidayState: "NW" }) }), "hol")?.minutes === 240, "holiday by the site's federal state: Corpus Christi at a site in NRW gets the holiday surcharge");
+check(!line(pay(corpus, [holiday], { holidays: siteHolidays({ holidayState: "TH" }) }), "hol"), "the same day at a site in Thuringia is no holiday");
+check(siteHolidays({ holidayState: "TH" }).has("2026-12-25") && siteHolidays({ holidayState: "NW" }).has("2026-12-25"), "nationwide holidays count in every federal state");
+check(siteHolidays({ holidayState: null }).size === 0 && !line(pay(manual("2026-12-25", "08:00", "12:00"), [holiday], { holidays: siteHolidays({ holidayState: null }) }), "hol"), "site without federal state: no holidays at all (the payroll page names the site)");
+const orgDays = new Set(["2026-06-04"]);
+check(siteHolidays(null, orgDays) === orgDays && line(pay(corpus, [holiday], { holidays: siteHolidays(null, orgDays) }), "hol")?.minutes === 240, "record without a site uses the organisation's holidays");
+check(!siteHolidays({ holidayState: "NW" }, new Set(["2026-06-05"])).has("2026-06-05") && siteHolidays({ holidayState: null }, orgDays).size === 0, "organisation holidays do not apply to records at a site");
+
+// --- Zeitbuchung einer geloeschten Person (userId null) ------------------------------------
+const formerRecord = manual("2026-10-12", "22:00", "06:00", 0, "former");
+formerRecord.userId = null;
+const formerPay = pay(formerRecord, [night, { ...night, id: "only-u1", allPeople: false, userIds: ["u1"] }], { payType: { ...base, id: "area", hourlyRateCents: 1800 }, divisionId: "d1" });
+check(formerPay.minutes === 480 && formerPay.lines[0].amountCents === 14400 && line(formerPay, "night")?.amountCents === 3600, "record of a deleted person: hours, work-area pay type and surcharges for everyone are paid");
+check(!line(formerPay, "only-u1") && formerPay.totalCents === 18000, "record of a deleted person: surcharges for selected people no longer apply (the account is gone)");
 
 // --- Lohnart-Auswahl und Summen -----------------------------------------------------
 const types = new Map<string, PayTypeLite>([["a", { ...base, id: "a" }], ["b", { ...base, id: "b", hourlyRateCents: 1800 }], ["off", { ...base, id: "off", isActive: false }]]);

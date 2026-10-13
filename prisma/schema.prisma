@@ -996,7 +996,8 @@ model Surcharge {
   isActive       Boolean  @default(true)
   /// ISO-Wochentage 1 (Montag) bis 7 (Sonntag)
   weekdays       Int[]    @default([])
-  /// Feiertage der Organisation (Einstellungen > Abwesenheiten)
+  /// Feiertage im Bundesland des Einsatzorts der Zeitbuchung; ohne Einsatzort
+  /// die der Organisation (Einstellungen > Abwesenheiten)
   holidays       Boolean  @default(false)
   /// Sonderdaten jedes Jahres als MM-TT, z. B. 12-24
   dates          String[] @default([])

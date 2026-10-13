@@ -16,9 +16,15 @@
  * Zeitpunkten (Zeitumstellung zaehlt die echte Dauer), manuelle Von/Bis-Zeiten
  * mit der Wanduhr. Buchungen nur mit Dauer haben keine Uhrzeit; fuer sie gelten
  * nur Zuschlaege fuer den ganzen Tag (00:00 bis 00:00).
+ *
+ * Feiertage (holidaysForRecord): Bundesland des Einsatzorts der Buchung, ohne
+ * Einsatzort die Feiertage der Organisation. Zeiten geloeschter Personen
+ * (userId null) zaehlen mit; Zuschlaege nur fuer ausgewaehlte Personen
+ * erreichen sie nicht mehr, weil ihr Konto nicht mehr bekannt ist.
  */
 import { addDate, berlinDate, minuteOfDay, rangeMinutes, recordMinutes } from "./berlin";
 import { wallToUtcMinutes } from "./checkin";
+import { branchHolidays } from "./holidays";
 
 export type PayTypeLite = { id: string; title: string; hourlyRateCents: number; code: string | null; isActive: boolean };
 export type SurchargeLite = {
@@ -28,7 +34,8 @@ export type SurchargeLite = {
   rateKind: "PERCENT" | "AMOUNT"; rate: number;
 };
 export type PayRecord = {
-  id: string; userId: string; date: Date | string; type: string;
+  /** userId null: Buchung einer geloeschten Person (Momentaufnahme FormerEmployee). */
+  id: string; userId: string | null; date: Date | string; type: string;
   timeFrom: string | null; timeTo: string | null; startedAt?: Date | string | null; endedAt?: Date | string | null;
   durationHours: number | null; durationMinutes: number | null; breakSeconds?: number;
 };
@@ -61,6 +68,18 @@ export function surchargeMatchesDay(s: Pick<SurchargeLite, "weekdays" | "holiday
 }
 export function blockMinutes(s: Pick<SurchargeLite, "timeFrom" | "timeTo">): number {
   return rangeMinutes(s.timeFrom, s.timeTo) || WHOLE_DAY;
+}
+
+/**
+ * Feiertage fuer die Zuschlaege einer Buchung zwischen from und to (inklusive):
+ * die gesetzlichen Feiertage im Bundesland ihres Einsatzorts (branchHolidays),
+ * ohne Einsatzort die Feiertage der Organisation (Einstellungen > Abwesenheiten).
+ * Einsatzort ohne Bundesland: keine Feiertage - die Lohnseite weist darauf hin.
+ */
+export function holidaysForRecord(branch: { holidayState: string | null } | null, orgHolidays: Set<string>, from: string, to: string): Set<string> {
+  if (!branch) return orgHolidays;
+  if (!branch.holidayState) return new Set();
+  return new Set(branchHolidays(branch.holidayState, from, to).map((h) => h.date));
 }
 
 /** Arbeitszeitraum einer Buchung auf ihrer Zeitachse; null ohne Uhrzeiten. */
@@ -113,7 +132,7 @@ export function payForRecord(r: PayRecord, ctx: { payType: PayTypeLite | null; d
   let partialSkipped = false;
   for (const s of ctx.surcharges) {
     if (!s.isActive) continue;
-    if (!s.allPeople && !s.userIds.includes(r.userId)) continue;
+    if (!s.allPeople && !(r.userId && s.userIds.includes(r.userId))) continue;
     if (!s.allDivisions && !(ctx.divisionId && s.divisionIds.includes(ctx.divisionId))) continue;
     if (!span && blockMinutes(s) !== WHOLE_DAY && surchargeMatchesDay(s, day(r.date), ctx.holidays)) partialSkipped = true;
     const inBlock = Math.min(minutes, round(surchargeGrossMinutes(r, s, ctx.holidays) * factor));
