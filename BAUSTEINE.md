@@ -91,8 +91,8 @@ Integration jetzt durch die Design-Sitzung (die integrierende Sitzung ist beende
 | S1 Sicherheitsfix + P0 | 66b7f62, 9ee9618 | sonnet, 3415/55549 | gemerged `08069d5` (4 von 5 Korrekturen; „Reaktivieren“ war in der Hauptlinie schon da) |
 | S2 P1 Lohn | 8e6e865, 4346c44, 6c75b86 | opus, 3416/55550 | gemerged `588dbb9` (Migration `20261013100000_payroll`, gelöschte Personen, Feiertage je Einsatzort) |
 | S5 Planungsregeln (P6 ohne Bearbeitungsmodus) | b8cca24, bc7dd6e, 119d35a | opus, 3417/55551 | gemerged `4e5e8c6` (Migration `20261013150000_planning_rules`) |
-| S3 P2 Freigabe + P3 PDF | 0ff8e24, d35d168, 5f4e78d | opus, 3418/55552 | läuft (Basis 588dbb9) |
-| S4 P4 Zeitkonten + P5 Abwesenheit/Urlaub | 0de1cc7, c21d5b3, ef304e8, 8b69405 | opus, 3419/55553 | nach S3 und S5 |
+| S3 P2 Freigabe + P3 PDF | 0ff8e24, d35d168, 5f4e78d | opus, 3418/55552 | gemerged `8ae705b` (Migration `20261013110000_time_approval`; eine Seite „Stunden und Lohn“, `/payroll` leitet um) |
+| S4 P4 Zeitkonten + P5 Abwesenheit/Urlaub | 0de1cc7, c21d5b3, ef304e8, 8b69405 | opus, 3419/55553 | läuft (Basis 8ae705b) |
 | Abschluss | Gesamtprüfung, Browser-Tests, Übergabe, Bundle/Patches | Hauptagent | – |
 
 Feste Regeln für den Port: Migrationen umbenennen (`20261013100000_payroll`, `…110000_time_approval`,
@@ -102,3 +102,7 @@ Feiertage je Einsatzort (`branchHolidays`); Namen über `formatName`; Tests im H
 (`TEST_ONLY`, kebab-case). Vorläufige Fachannahmen bis AKRO entscheidet: Freigabe steuert den Lohn
 nicht; Zeitkonto-Saldo bis Ende des Zeitraums; „nicht erfasst“ mit Nachtragen statt „Ist = Plan“;
 Lohnsätze und Zuschläge trägt AKRO selbst ein.
+
+Befund 13.10.2026: Das Testmodul `messaging` besteht nur, wenn `permissions` vorher gelaufen ist
+(verdeckte Reihenfolge-Abhängigkeit, auch auf dem Stand vor dem Port); in der Gesamtsuite ist die
+Reihenfolge gegeben. Aufräumpunkt: Modul eigenständig machen.
