@@ -79,6 +79,17 @@ Arbeitsbereich/Verfügbarkeitsfenster = orange).
 Am Ende: ein Branch mit nachvollziehbaren Commits, `git format-patch` gegen die
 Basis, Prüfnachweise und ein Übergabetext in `docs/UEBERGABE-BAUSTEINE.md`.
 
+## Abschluss (13.10.2026)
+
+Beide Sitzungen sind fertig. Der Branch `feat/plan-lifecycle-diff-conflicts` ist übergabefertig:
+Smartplan-Paket 1 (`docs/UEBERGABE-BAUSTEINE.md`), Design-Stufe 1
+(`docs/UEBERGABE-DESIGN-STUFE-1.md`) und der Port des Cloud-Branches
+(`docs/UEBERGABE-SMARTPLAN-PORT.md`) mit jeweils dokumentierter Abnahme. Bundle und Patches
+unter `uebergabe/` entsprechen dem letzten Commit. Die Agenten-Worktrees unter
+`.claude/worktrees/` wurden entfernt (rund 22 GB); die Branches `worktree-agent-*`,
+`feat/design-stufe-1`, `fix/ui-design-name-format` und `docs/*` bleiben als Historie erhalten.
+Nichts wurde ins Original oder nach Netcup eingespielt; Freigabe durch AKRO steht aus.
+
 ## Port des Cloud-Branches (ab 13.10.2026, Entscheidung AKRO vom 12.10. spät)
 
 Grundlage: `docs/BERICHT-CLOUD-BRANCH-2026-10-12.md`. Der Cloud-Branch `cloud/wizardly-cerf-cxbutc`
