@@ -2,8 +2,8 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { api, body, requireMember, serial, ApiError } from "@/lib/api";
 import { assertCan, requireAccess, type Access } from "@/lib/access";
-import { assertReleasable, assign, findShift, notify, placeBooking, planningPool, shiftLabel, type ShiftWithRelations } from "@/lib/planning";
-import { closeOpenRequests, requestParties } from "@/lib/shift-requests";
+import { assertReleasable, assign, findShift, notify, placeBooking, planningPool, shiftLabel } from "@/lib/planning";
+import { closeOpenRequests, informParties, releaseAssignment, releasedRequests, requestParties } from "@/lib/shift-requests";
 import { emitToBranch } from "@/lib/emit";
 import { shiftDays, signalBookedSites } from "@/lib/conflicts";
 import { EDITING_REQUESTS, notifiesEmployees } from "@/lib/schedule-status";
@@ -51,20 +51,6 @@ async function editableBooking(tx: Tx, a: Access, shiftId: string, userId: strin
   if (!shift) throw new ApiError("Schicht nicht gefunden.", 404);
   assertCan(a, "EDIT_SHIFTS", shift.schedule.branchId);
   return { shift, booking: shift.bookings.find(b => b.userId === userId) };
-}
-
-/**
- * Offene Antraege der geloesten Person zu dieser Schicht sind hinfaellig:
- * eigene Antraege auf diese Schicht und Tauschanfragen anderer, die genau
- * diese Zuweisung betreffen.
- */
-function releasedRequests(shiftId: string, userId: string): Prisma.ModRequestWhereInput {
-  return { OR: [{ shiftId, userId }, { targetShiftId: shiftId, targetUserId: userId }] };
-}
-
-/** Kurze Information an weitere Beteiligte geschlossener Antraege. */
-async function informParties(tx: Tx, a: Access, shift: ShiftWithRelations, parties: string[]) {
-  if (parties.length) await notify(tx, a.orgId, a.userId, parties, "Schichtantrag erledigt", shiftLabel(shift) + ": Die Planung hat die Zuweisung geändert. Ein offener Antrag dazu ist damit erledigt.", shift.id);
 }
 
 /**
@@ -118,14 +104,8 @@ export async function DELETE(request: Request) {
     const a = await requireAccess();
     const data = await body(request, input);
     const result = await serial(async tx => {
-      const { shift, booking } = await editableBooking(tx, a, data.shiftId, data.userId);
-      if (!booking) throw new ApiError("Zuweisung nicht gefunden.", 404);
-      await assertReleasable(tx, shift, data.userId);
-      await tx.booking.delete({ where: { id: booking.id } });
-      const closed = await closeOpenRequests(tx, a, releasedRequests(shift.id, data.userId), "Zuweisung wurde von der Planung aufgehoben.");
-      const parties = requestParties(closed, [data.userId]);
-      if (notifiesEmployees(shift.schedule)) await notify(tx, a.orgId, a.userId, [data.userId], "Schichtzuweisung aufgehoben", shiftLabel(shift) + ": Deine Zuweisung wurde aufgehoben.", shift.id);
-      if (shift.schedule.isPublic) await informParties(tx, a, shift, parties);
+      const { shift } = await editableBooking(tx, a, data.shiftId, data.userId);
+      const { parties } = await releaseAssignment(tx, a, shift, data.userId);
       return { branchId: shift.schedule.branchId, days: shiftDays(shift), parties };
     }, { retry: true });
     emitToBranch(a.orgId, result.branchId, "booking:changed", [data.userId, ...result.parties]);

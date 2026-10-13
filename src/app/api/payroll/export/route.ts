@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     const rows = report.people
       .filter((p) => !skip.has(p.key) && p.minutes > 0)
       .flatMap((p) => p.lines.filter((l) => l.minutes > 0).map((l) => [
-        p.personnelNumber ?? "", p.lastName, p.firstName, l.kind === "BASE" ? "Lohnart" : "Zuschlag", l.title, l.code ?? "", hours(l.minutes),
+        p.personnelNumber ?? "", p.lastName, p.firstName, l.kind === "BASE" ? "Lohnart" : l.kind === "ABSENCE" ? "Abwesenheit" : "Zuschlag", l.title, l.code ?? "", hours(l.minutes),
         ...(withRates ? [l.percent !== null ? formatNumber(l.percent / 100) + " %" : "", euros(l.rateCents === null ? null : Math.round(l.rateCents)), euros(l.amountCents)] : []),
       ]));
     return csvFile([header, ...rows], "Lohn_" + from + "_" + to + ".csv");

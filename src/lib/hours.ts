@@ -8,9 +8,11 @@ import { payrollReport } from "./payroll-service";
 import { plannedMinutes } from "./planning";
 import { wallToUtcMinutes } from "./checkin";
 import { frozenPlans } from "./schedule-frozen";
+import { balancesFor } from "./time-account-service";
+import { absenceEffects } from "./absence-effects";
 import type { PayLine } from "./payroll";
 
-export type HoursStatus = "APPROVED" | "OPEN" | "MISSING" | "PLANNED" | "RUNNING";
+export type HoursStatus = "APPROVED" | "OPEN" | "MISSING" | "PLANNED" | "RUNNING" | "ABSENT";
 /**
  * Genehmigung einer Buchung: OPEN (offen), REVIEWED (von einer pruefenden
  * Person) oder AUTO (ohne Pruefer: Altbestand, bei Einfuehrung der Pruefung
@@ -48,6 +50,9 @@ function pauseMinutes(shift: PlanShift): number {
  *   erzeugen keine Zeile und kein "nicht erfasst".
  * - Plaene in Bearbeitung: wer den Plan nicht live sieht (lib/schedule-frozen.ts),
  *   bekommt die Planspalte aus der Momentaufnahme; Iststunden bleiben live.
+ * - Genehmigte Abwesenheit (lib/absence-effects.ts): Schicht ohne Buchung wird
+ *   "abwesend" mit Planstunden (bezahlt) oder 0 Stunden; ohne Entscheidung
+ *   (Altbestand) 0 Stunden. Geloeschte Personen haben keine Abwesenheiten mehr.
  */
 export async function hoursReport(a: Access, from: string, to: string, branchId: string | null, options: { userId?: string } = {}) {
   if (branchId && !can(a, "VIEW_TIME", branchId)) throw new ApiError("Nicht gefunden.", 404);
@@ -107,6 +112,7 @@ export async function hoursReport(a: Access, from: string, to: string, branchId:
     }
   }
   const today = berlinDate();
+  const effects = await absenceEffects(a.orgId, userIds, from, to);
 
   // Personen mit Konto, dazu geloeschte Personen mit Zeiten oder Zuweisungen (Name aus der Momentaufnahme).
   const formerPeople = new Map<string, { firstName: string; lastName: string }>();
@@ -147,18 +153,25 @@ export async function hoursReport(a: Access, from: string, to: string, branchId:
     const rows = [
       ...shifts.map((s) => {
         const list = (byShift.get(s.id) ?? []).map(recordView);
-        const planned = plannedMinutes(s), ist = list.reduce((sum, r) => sum + r.minutes, 0);
+        const planned = plannedMinutes(s);
+        // Genehmigte Abwesenheit ohne erfasste Zeit: bezahlt mit Planstunden, sonst 0 (auch Altbestand ohne Entscheidung).
+        // Nur Personen mit Konto; die Art nennt die Antwort nur, wer die Abwesenheiten der Person sieht.
+        const effect = p.userId ? effects.forShift(p.userId, s) : null, period = p.userId ? effects.onShiftDays(p.userId, s) : null;
+        const absence = !list.length && p.userId && (effect || period)
+          ? { category: canStaff(a, "MANAGE_ABSENCES", p.userId) || p.userId === a.userId ? effect?.category ?? period!.category : null, handling: effect?.handling ?? null, pay: effect ? pay.get("a-" + effect.effectId) ?? null : null }
+          : null;
+        const ist = absence ? (absence.handling === "PAID" ? planned : 0) : list.reduce((sum, r) => sum + r.minutes, 0);
         // Zeit wie geplant nachtragen: nur Personen mit Konto - die Person selbst oder Pruefende fuer den Standort der Schicht.
         const canEnter = !!p.userId && p.isActive && (a.isAdmin || p.userId === a.userId || (!!s.schedule.branchId && can(a, "EDIT_TIME", s.schedule.branchId) && canStaff(a, "VIEW_HOURS", p.userId)));
         return {
-          key: "s-" + s.id, date: s.range.date, status: status(list, s.range.date), canEnter, plannedMinutes: planned, istMinutes: ist, deviationMinutes: list.length ? ist - planned : null,
+          key: "s-" + s.id, date: s.range.date, status: absence ? "ABSENT" as const : status(list, s.range.date), canEnter: canEnter && !absence, absence, plannedMinutes: planned, istMinutes: ist, deviationMinutes: list.length ? ist - planned : null,
           shift: { id: s.id, from: s.shiftFrom, to: s.shiftTo, title: s.title, branchName: s.schedule.branch?.name ?? null, customerName: s.schedule.branch?.customer?.name ?? null, division: s.division ? { title: s.division.title, color: s.division.color } : null, pauseMinutes: pauseMinutes(s) },
           records: list,
         };
       }),
       ...loose.map((r) => {
         const view = recordView(r);
-        return { key: "r-" + r.id, date: view.date, status: status([view], null), canEnter: false, plannedMinutes: 0, istMinutes: view.minutes, deviationMinutes: null, shift: null, records: [view] };
+        return { key: "r-" + r.id, date: view.date, status: status([view], null), canEnter: false, absence: null, plannedMinutes: 0, istMinutes: view.minutes, deviationMinutes: null, shift: null, records: [view] };
       }),
     ].sort((x, y) => x.date.localeCompare(y.date) || (x.shift?.from ?? x.records[0]?.timeFrom ?? "").localeCompare(y.shift?.from ?? y.records[0]?.timeFrom ?? ""));
     const all = rows.flatMap((r) => r.records);
@@ -168,15 +181,18 @@ export async function hoursReport(a: Access, from: string, to: string, branchId:
       plannedMinutes: rows.reduce((s, r) => s + r.plannedMinutes, 0), istMinutes: rows.reduce((s, r) => s + r.istMinutes, 0),
       openCount: all.filter((r) => !r.approved && !r.running).length, missingCount: rows.filter((r) => r.status === "MISSING").length,
       approvable: all.filter((r) => !r.approved && r.canApprove).map((r) => r.id),
-      totalCents: a.isAdmin ? all.reduce((s, r) => s + (r.pay?.totalCents ?? 0), 0) : null,
+      totalCents: a.isAdmin ? all.reduce((s, r) => s + (r.pay?.totalCents ?? 0), 0) + rows.reduce((s, r) => s + (r.absence?.pay?.totalCents ?? 0), 0) : null,
       /** Lohnart, Summen je Lohnart/Zuschlag und Hinweise - nur Administration. */
       pay: a.isAdmin ? payPeople.get(p.key) ?? { payType: null, lines: [], warnings: [] } : null,
       rows,
     };
   }).filter((p) => p.isActive || p.rows.length)
     .sort((x, y) => x.lastName.localeCompare(y.lastName, "de") || x.firstName.localeCompare(y.firstName, "de"));
+  // Zeitkonto: Saldo zum letzten Tag der Abfrage, nur fuer sichtbare, aktive Konten.
+  const balances = await balancesFor(a, result.flatMap((p) => (p.userId ? [p.userId] : [])), to);
   return {
-    from, to, branchId, showPay: a.isAdmin, people: result,
+    from, to, branchId, showPay: a.isAdmin, showBalance: balances.size > 0,
+    people: result.map((p) => ({ ...p, balanceMinutes: p.userId && balances.has(p.userId) ? balances.get(p.userId)! : null })),
     /** Nur Administration: Hinweise zu Feiertagszuschlaegen und Einrichtung des Lohns (wie bisher die Lohnseite). */
     notices: payroll?.notices ?? [], setup: payroll?.setup ?? null,
     totals: { plannedMinutes: result.reduce((s, p) => s + p.plannedMinutes, 0), istMinutes: result.reduce((s, p) => s + p.istMinutes, 0), openCount: result.reduce((s, p) => s + p.openCount, 0), totalCents: a.isAdmin ? result.reduce((s, p) => s + (p.totalCents ?? 0), 0) : null },

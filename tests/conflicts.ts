@@ -88,8 +88,9 @@ export async function conflictTests(t: TestContext) {
     let r = await conflicts();
     const away = of(r, A.id, "absence");
     const bookingA = (await N.view(A.id, di)).bookings[0];
-    check(away.length === 1 && away[0].severity === "fehler" && away[0].text === "Genehmigte Abwesenheit." && away[0].userId === kai.id && away[0].bookingId === bookingA.id && away[0].personKey === kai.id && away[0].name === "Kai Konflikt" && away[0].date === di,
-      "conflicts: approved absence afterwards marks the assignment as error (person, booking, day; no absence type)");
+    // Ohne Auswahl gilt beim Genehmigen die Vorgabe der Art (bezahlt); der Konflikt nennt den Umgang, nicht die Art.
+    check(away.length === 1 && away[0].severity === "fehler" && away[0].text === "Genehmigte Abwesenheit (bezahlt)." && away[0].userId === kai.id && away[0].bookingId === bookingA.id && away[0].personKey === kai.id && away[0].name === "Kai Konflikt" && away[0].date === di,
+      "conflicts: approved absence afterwards marks the assignment as error (person, booking, day, chosen handling; no absence type)");
 
     // --- (b) Verfuegbarkeit: "nicht verfuegbar" ist ein Konflikt, ausserhalb eines Fensters ein Hinweis
     await signalled(() => kai.session.request("/api/availability", "POST", { date: mi, timeFrom: "07:00", timeTo: "12:00", available: false }), "schedule:updated", "conflicts: an availability entry signals the plans of the person's sites");

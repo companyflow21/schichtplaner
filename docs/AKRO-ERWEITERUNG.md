@@ -353,7 +353,8 @@ Hauptlinie angepasst. Sätze, Lohnarten und Zuschläge trägt AKRO selbst ein; d
   diesem Fall die bundesweiten Feiertage – bewusste Abweichung, damit kein Zuschlag auf einer Vermutung beruht.
 - **Gelöschte Personen:** ihre Zeiten bleiben im Lohn, als eigene Zeile mit dem Namen aus der Momentaufnahme
   („gelöscht“); der Arbeitsbereich kommt über die behaltene Zuweisung. Personalnummer, Standard-Lohnart und
-  personenbezogene Zuschläge gehen mit dem Konto verloren (Hinweis in der Zeile). Lohn daher vor dem Löschen abrechnen.
+  personenbezogene Zuschläge gehen mit dem Konto verloren (Hinweis in der Zeile; seit Port P5 auch bezahlte
+  Abwesenheiten, Abschnitt 10). Lohn daher vor dem Löschen abrechnen.
 - **Sub-Platzhalter:** haben keine Zeitbuchungen und damit keinen Lohn; Platzhalter in derselben Schicht stören die
   Zuordnung nicht.
 - **Neuberechnung:** Lohn wird bei jedem Aufruf aus den aktuellen Sätzen berechnet; geänderte Sätze oder gelöschte
@@ -413,3 +414,123 @@ Hauptlinie angepasst. Seite „Stunden und Lohn“ (`/hours`) ersetzt die Lohnse
   einer Stelle an: in `payrollData()` (`lib/payroll-service.ts`) in der Abfrage `db.timeRecord.findMany` zusätzlich
   `approvedAt: { not: null }` – das wirkt dann auf Lohnseite, Lohnexport und Stundenzettel-Zuschläge gemeinsam.
 
+## 10. Zeitkonten, Abwesenheit, Urlaubskonto – so rechnet der Schichtplaner (Port P4/P5, 13.10.2026, nicht eingespielt)
+
+Herkunft: Cloud-Commits `0de1cc7` (Zeitkonten), `c21d5b3` (Abwesenheit wirkt, Urlaubskonto), `ef304e8` und `8b69405`
+(Branch `claude/wizardly-cerf-cxbutc`), an die Hauptlinie angepasst. Sollstunden, Urlaubstage und Lohnart-Codes trägt
+AKRO selbst ein; der Code gibt keine vor.
+
+### Zeitkonten (P4)
+
+- **Einstellungen › Zeitkonten** (`/settings?bereich=accounts`, nur Administration): einschalten (Vorgabe aus),
+  Berechnungsart **Ist − Soll** (Vorgabe), **Plan − Soll** oder **Ist − Plan**, Sichtbarkeit für Mitarbeitende (Vorgabe
+  aus); je Person einbeziehen/ausnehmen, eigene Berechnungsart und Sichtbarkeit.
+- **Soll** je Person ab einem Startdatum, je Woche (Mo–So) oder je Kalendermonat; jeder Eintrag gilt bis zum nächsten,
+  gerechnet wird ab dem ersten Eintrag, auch rückwirkend. Beginnt oder endet ein Soll mitten in einer Woche bzw. einem
+  Monat, zählt es anteilig nach Werktagen Mo–Fr. Aus „Sollstunden/Monat“ der Person wird nichts abgeleitet (der Wert
+  dient nur als Vorschlag im Eingabefeld).
+- **Ist** = abgeschlossene Zeitbuchungen der Person nach Buchungsdatum (genehmigt und offen; laufende Stoppuhr nicht)
+  plus bezahlte Abwesenheit mit den Planstunden der Schicht, wenn für die Schicht keine Zeit erfasst ist. **Plan** =
+  Planminuten veröffentlichter Schichten aus `planning.ts` (echte Dauer in Europe/Berlin, also 7 bzw. 9 Stunden in den
+  Nächten der Zeitumstellung; die Cloud rechnete mit der Wanduhr). Tage nach heute zählen bei „Ist − Soll“ mit ihren
+  Planstunden.
+- **Ausgleich** ± Stunden mit Datum und Text (z. B. ausbezahlte Überstunden, Anfangssaldo), zählt in der Periode seines
+  Datums, vor dem ersten Soll in der ersten. Auch beim Genehmigen einer Abwesenheit buchbar.
+- **Anzeige:** Spalte „Saldo“ in „Stunden und Lohn“ und Knopf „Zeitkonto“ im aufgeklappten Personeneintrag (Perioden
+  mit Soll, Plan, Ist, Ausgleich, laufendem Saldo; bei 375 px ohne Plan- und Ausgleichsspalte); eigener Stand unter
+  Zeiterfassung, nur wenn sichtbar.
+- **Pläne in Bearbeitung:** Wer den Plan nicht live sieht (Mitarbeitende, Disposition ohne „Dienstplan ansehen“), bekommt
+  die Planstunden der Momentaufnahme – wie „Stunden und Lohn“; Ist bleibt live.
+- **Gelöschte Personen und Platzhalter:** Konto, Soll und Ausgleich hängen an der Mitgliedschaft und werden mit der
+  Person gelöscht. Zeilen gelöschter Personen in „Stunden und Lohn“ haben keinen Saldo, ihr Konto antwortet 404 – den
+  Saldo daher vor dem Löschen festhalten (z. B. als Lohnabrechnung). Platzhalter von Subunternehmern haben kein Zeitkonto.
+- **Vorläufige Fachannahmen (AKRO entscheidet):** Saldo = Stand am Ende des gewählten Zeitraums, Tage nach heute mit
+  Planstunden (wie Smartplan); die Stundenfreigabe steuert den Saldo nicht (offene Buchungen zählen).
+- **Migration `20261013120000_time_accounts`** (Cloud: `20261014090000_time_accounts`): rein additiv, Konten zunächst
+  aus, kein Konto und kein Soll für den Bestand.
+
+### Abwesenheit wirkt (P5)
+
+- **Genehmigen mit Folgen:** Beim Genehmigen (Liste, Formular, „Direkt genehmigen“) zeigt „Folgen der Abwesenheit“ die
+  Schichten der Person, die den Zeitraum berühren (Nachtschichten auch an ihrem Folgetag, wie Konfliktprüfung und
+  Einteilen; veröffentlicht, in Bearbeitung oder Entwurf). Je Schicht: **zählt Stunden (bezahlt)**, **zählt 0 Stunden**
+  oder **Person austragen**. Vorgabe aus der Abwesenheitsart (bezahlt → Stunden, unbezahlt → 0); ausgetragen wird nie
+  als Vorgabe. Optional ein Ausgleich auf das Zeitkonto.
+- **Person austragen ist eine Planänderung** wie „Zuweisung aufheben“ (gemeinsamer Ablauf `releaseAssignment` in
+  `lib/shift-requests.ts`, auch von `DELETE /api/bookings` genutzt): nur Administration oder „Schichten bearbeiten“ am
+  Standort (sonst 403), nicht nach Schichtende oder Check-in (409 – dann wird die ganze Genehmigung nicht gespeichert),
+  offene Anträge der Person zu dieser Schicht werden abgelehnt (Beteiligte werden wie beim Aufheben informiert). Die
+  Person erhält „Schichtzuweisung aufgehoben“ nur bei veröffentlichten Plänen außerhalb der Bearbeitung
+  (`notifiesEmployees`); bei Plänen in Bearbeitung kommt die Änderung mit der Sammelmitteilung beim Veröffentlichen, bei
+  Entwürfen gar nicht. Nach dem Speichern gehen `booking:changed` (Standort, Person, Beteiligte) und `schedule:updated`
+  hinaus. Andere Personen und Platzhalter in derselben Schicht bleiben.
+- **Konfliktprüfung:** Bleibt die Person eingeteilt, meldet das Konfliktpanel die Zuweisung weiter rot als „Genehmigte
+  Abwesenheit (bezahlt).“ bzw. „(0 Stunden).“ – mit dem Umgang, ohne die Art.
+- **Wirkung:** „Stunden und Lohn“ Status **abwesend** (Ist = Planstunden bzw. 0, kein Nachtragen); Altbestand ohne
+  Entscheidung: abwesend mit 0 Stunden („ohne Festlegung“). Lohn: eigene Zeile „Abwesenheit: Art“ mit Planminuten ×
+  Stundenlohn der geltenden Lohnart (Arbeitsbereich vor Person), ohne Zuschläge, mit dem Lohnart-Code der
+  Abwesenheitsart (Einstellungen › Abwesenheiten, sonst Code der Lohnart); Lohnexport Art „Abwesenheit“; Stundenzettel
+  „abwesend: Art (bezahlt)“; Zeitkonto (Ist). Der Leistungsnachweis für den Kunden enthält keine Abwesenheiten.
+- **Gezählt** wird bezahlte Abwesenheit nur bei veröffentlichten Plänen, solange die Zuweisung besteht und die Schicht
+  den Zeitraum der Abwesenheit berührt, je Person und Schicht (mehrere Abwesende einer Schicht stören sich nicht); hat
+  die Person für die Schicht doch Zeit erfasst, gilt die Zeit (keine Doppelzahlung).
+- **Datenschutz:** Die Art der Abwesenheit nennen „Stunden und Lohn“ und Stundenzettel nur der Person selbst, der
+  Administration und der Disposition mit „Abwesenheiten entscheiden“ für die Person; sonst „Genehmigte Abwesenheit“ mit
+  dem Umgang. Die Vorschau nennt Standort, Kunde, Titel und Arbeitsbereich nur mit „Dienstplan ansehen“ am Standort.
+  Den Lohnart-Code einer Abwesenheitsart liefert die Schnittstelle nur der Administration.
+- **Rücknahme:** Zurück auf „offen“ oder Löschen hebt Stunden und Lohn auf; ausgetragene Schichten bleiben offen. Ändert
+  die Entscheidung eine genehmigte Abwesenheit (Zeitraum, Art), gilt für neu betroffene Schichten die Vorgabe,
+  bestehende Entscheidungen bleiben. Genehmigt wird mit Person und Zeitpunkt gespeichert.
+- **Gelöschte Personen:** Ihre Abwesenheiten und Entscheidungen werden mit der Person gelöscht (wie bisher). Behaltene
+  Zuweisungen erscheinen danach als „nicht erfasst“; bezahlte Abwesenheit fehlt im Lohn – der Hinweis an Lohnzeilen
+  gelöschter Personen nennt das. Lohn daher vor dem Löschen abrechnen.
+- **Vorläufig (AKRO entscheidet):** Die Genehmigung der Stunden steuert den Lohn nicht. Lohnfortzahlung
+  (Lohnausfallprinzip, Zuschläge bei Abwesenheit) mit dem Steuerbüro klären.
+- **Migration `20261013130000_absence_effects`** (Cloud: `20261015090000_absence_effects`): rein additiv; genehmigte
+  Altabwesenheiten behalten ihren Status, ohne „genehmigt von“ und ohne Entscheidung (erscheinen als abwesend mit 0
+  Stunden, bis sie erneut entschieden werden).
+
+### Urlaubskonto (P5)
+
+- **Einstellungen › Urlaubskonto** (`/settings?bereich=vacation`, nur Administration): einschalten (Vorgabe aus),
+  abgezogene Abwesenheitsart, **Urlaubstage je Jahr (keine Vorgabe – ohne Eintrag kein Konto; die Cloud gab 30 vor)**,
+  Beginn des Urlaubsjahres (Vorgabe 01.01.), Beginn des Kontos (beim ersten Einschalten das aktuelle Urlaubsjahr),
+  Zuteilung ganz zu Jahresbeginn (bei späterem Beginn anteilig nach vollen Monaten) oder monatlich ein Zwölftel, Übertrag
+  ins nächste Jahr (Vorgabe ja, optional Höchstgrenze), Wochentage ohne Abzug (Vorgabe Sa, So), „Urlaub an Feiertagen
+  zählt“ (Vorgabe nein), Sichtbarkeit für Mitarbeitende (Vorgabe ja). Je Person abweichend: Tage, Beginn (z. B.
+  Eintritt), Übertrag, ohne Konto.
+- **Feiertage (Hauptlinie):** An einem Urlaubstag mit eingeplanter Schicht (veröffentlichter Plan) gelten die gesetzlichen
+  Feiertage im Bundesland ihres Einsatzorts (`holidaysForRecord`/`branchHolidays`, wie im Lohn; Einsatzort ohne
+  Bundesland: kein Feiertag); mehrere Schichten: Feiertag, wenn er es an einem ihrer Einsatzorte ist. Nur wo kein
+  Einsatzort beteiligt ist (keine Schicht an dem Tag, Plan ohne Standort), gelten die Feiertage der Organisation
+  (Einstellungen › Abwesenheiten). Die Cloud nahm immer die Organisationsfeiertage.
+- **Abzug:** genehmigter Urlaub (genommen bis heute, geplant danach); beantragter wird angezeigt („beantragt“), aber
+  nicht abgezogen. Korrekturen ± ganze oder halbe Tage mit Kommentar, nur durch die Administration (Kontoauszug ›
+  „Saldo anpassen“).
+- **Anzeige:** im Antrag „Urlaubskonto: verfügbar … · dieser Zeitraum … · danach …“; unter „Abwesenheiten“ das eigene
+  Konto (wenn sichtbar) und die Ansicht „Urlaubskonten“ (Administration; Disposition für Personen mit „Abwesenheiten
+  entscheiden“) mit Kontoauszug je Urlaubsjahr.
+- **Gelöschte Personen:** Regeln, Korrekturen und Abwesenheiten gehen mit der Person; kein Konto (404), keine Zeile in der
+  Übersicht. Deaktivierte Personen stehen nicht in der Übersicht, ihr Konto bleibt für die Administration abrufbar.
+- **Migration `20261013140000_vacation_account`** (Cloud: `20261016090000_vacation_account`): rein additiv, zunächst aus;
+  `daysPerYear` ohne Vorgabe (Cloud: `DEFAULT 30`).
+
+### Rechte (serverseitig, Tests in `tests/time-accounts.ts`, `tests/absence-effects.ts`, `tests/vacation.ts`)
+
+| Was | Wer | Sonst |
+|---|---|---|
+| Zeitkonten einrichten, Soll, Ausgleich buchen/löschen, Person ein-/ausnehmen | Administration | Disposition und Mitarbeitende 403, fremde Organisation 404 |
+| Zeitkonto/Saldo einer Person sehen | Administration; Disposition mit „Stunden einsehen“ für die Person; die Person selbst, wenn sichtbar | 404 |
+| Folgen einer Abwesenheit sehen und festlegen | Administration; Disposition mit „Abwesenheiten entscheiden“ (nicht für sich) | 404; Folgen ohne Genehmigung 400 |
+| Person austragen | Administration; „Schichten bearbeiten“ am Standort der Schicht | 403; nach Schichtende/Check-in 409 |
+| Urlaubskonto einrichten, Regeln je Person, Korrekturen | Administration | Disposition und Mitarbeitende 403, fremde Organisation 404 |
+| Urlaubskonto einer Person sehen, Übersicht | Administration; Disposition mit „Abwesenheiten entscheiden“; die Person selbst, wenn sichtbar (Übersicht nicht) | 404 |
+| Lohnart-Code einer Abwesenheitsart | Administration | wird anderen nicht geliefert |
+
+### Offen (fachlich, AKRO)
+
+- Saldo-Stichtag (Ende des Zeitraums oder heute); Lohn und Saldo nur aus genehmigten Stunden.
+- Lohnfortzahlung bei Abwesenheit (Lohnausfallprinzip, Zuschläge, Code je Art) mit dem Steuerbüro.
+- Urlaubsregeln: Übertrag und Verfall (z. B. bis 31.03.), Teilurlaub, Urlaubstage je Person – trägt AKRO ein.
+- Feiertage für Urlaubstage ohne Schicht: Organisationsfeiertage oder Bundesland des Stamm-Einsatzorts?
+- Soll die Konfliktprüfung den Umgang „bezahlt/0 Stunden“ der Disposition ohne „Abwesenheiten entscheiden“ zeigen?

@@ -3,7 +3,8 @@ import { db } from "./db";
 import { ApiError } from "./errors";
 import { addDate, isoWeek, minuteOfDay, overlaps, rangeMinutes, shiftRange, validDate } from "./berlin";
 import { requireAdmin, type Access } from "./access";
-import { effectivePayType, holidaysForRecord, payForRecord, sumLines, type PayTypeLite, type RecordPay, type SurchargeLite } from "./payroll";
+import { effectivePayType, holidaysForRecord, payForAbsence, payForRecord, sumLines, type PayTypeLite, type RecordPay, type SurchargeLite } from "./payroll";
+import { effectKey, paidAbsenceShifts } from "./absence-effects";
 
 /** Zeitraum aus ?from=&to= (YYYY-MM-DD), sonst ?month=&year=, sonst aktueller Monat. */
 export function payrollPeriod(request: Request, today: string) {
@@ -39,7 +40,7 @@ function byPersonKey<T extends { userId: string | null; formerEmployeeId: string
 }
 
 /** Hinweis an Zeilen geloeschter Personen: was mit dem Konto verloren ging. */
-const FORMER_WARNING = "Gelöschte Person: Personalnummer, Lohnart und personenbezogene Zuschläge sind nicht mehr hinterlegt.";
+const FORMER_WARNING = "Gelöschte Person: Personalnummer, Lohnart, personenbezogene Zuschläge und bezahlte Abwesenheiten sind nicht mehr hinterlegt.";
 
 /**
  * Arbeitsbereich je Buchung: ueber die gespeicherte Schicht (bzw. den
@@ -126,33 +127,47 @@ export async function payrollData(orgId: string, from: string, to: string, branc
   const recordDivision = await divisionsFor(a.orgId, records, from, to);
   const lite = surcharges as SurchargeLite[];
   const byPerson = byPersonKey(records);
+  // Bezahlte Abwesenheit (nur Personen mit Konto) nur fuer Schichten, fuer die die Person keine Zeit erfasst hat (sonst doppelt bezahlt).
+  const worked = new Set(records.flatMap((r) => (r.userId ? [r.shiftId, r.checkin?.shiftId].filter((id): id is string => !!id).map((id) => effectKey(r.userId!, id)) : [])));
+  const absences = (await paidAbsenceShifts(a.orgId, members.map((m) => m.userId), from, to)).filter((x) => (!branchId || x.branchId === branchId) && !worked.has(effectKey(x.userId, x.shiftId)));
 
-  /** Lohn der Buchungen einer Person; memberPayTypeId: Standard-Lohnart (geloeschte Personen: keine). */
-  const payroll = (own: RecordRow[], memberPayTypeId: string | null, extraWarnings: string[]) => {
+  /** Lohn der Buchungen und bezahlten Abwesenheiten einer Person; memberPayTypeId: Standard-Lohnart (geloeschte Personen: keine). */
+  const payroll = (own: RecordRow[], absent: typeof absences, memberPayTypeId: string | null, extraWarnings: string[]) => {
     const pays: (RecordPay & { record: RecordRow; divisionTitle: string | null })[] = own.map((r) => {
       const divisionId = recordDivision.get(r.id) ?? null, division = divisionId ? divisionById.get(divisionId) : undefined;
       const pay = payForRecord(r, { payType: effectivePayType(typeById, division?.payTypeId, memberPayTypeId), divisionId, surcharges: lite, holidays: holidaysForRecord(r.branch, orgHolidays, around.from, around.to) });
       return { ...pay, record: r, divisionTitle: division?.title ?? null };
     });
+    const absencePays = absent.map((x) => {
+      const division = x.divisionId ? divisionById.get(x.divisionId) : undefined;
+      return { ...payForAbsence(x, effectivePayType(typeById, division?.payTypeId, memberPayTypeId)), absence: x, divisionTitle: division?.title ?? null };
+    });
+    const all: RecordPay[] = [...pays, ...absencePays];
     return {
-      minutes: pays.reduce((s, p) => s + p.minutes, 0), totalCents: pays.reduce((s, p) => s + p.totalCents, 0),
-      lines: sumLines(pays), warnings: [...new Set([...pays.flatMap((p) => p.warnings), ...extraWarnings])],
-      records: pays.map((p) => ({
-        id: p.recordId, date: p.record.date.toISOString().slice(0, 10), type: p.record.type, timeFrom: p.record.timeFrom, timeTo: p.record.timeTo,
-        breakMinutes: Math.round(p.record.breakSeconds / 60), branchName: p.record.branch?.name ?? null, divisionTitle: p.divisionTitle,
-        minutes: p.minutes, totalCents: p.totalCents, lines: p.lines, warnings: p.warnings,
-      })),
+      minutes: all.reduce((s, p) => s + p.minutes, 0), totalCents: all.reduce((s, p) => s + p.totalCents, 0),
+      lines: sumLines(all), warnings: [...new Set([...all.flatMap((p) => p.warnings), ...extraWarnings])],
+      records: [
+        ...pays.map((p) => ({
+          id: p.recordId, date: p.record.date.toISOString().slice(0, 10), type: p.record.type as string, timeFrom: p.record.timeFrom, timeTo: p.record.timeTo,
+          breakMinutes: Math.round(p.record.breakSeconds / 60), branchName: p.record.branch?.name ?? null, divisionTitle: p.divisionTitle,
+          minutes: p.minutes, totalCents: p.totalCents, lines: p.lines, warnings: p.warnings,
+        })),
+        ...absencePays.map((p) => ({
+          id: p.recordId, date: p.absence.date, type: "ABSENCE", timeFrom: p.absence.from, timeTo: p.absence.to, breakMinutes: 0, branchName: null, divisionTitle: p.divisionTitle,
+          minutes: p.minutes, totalCents: p.totalCents, lines: p.lines, warnings: p.warnings,
+        })),
+      ].sort((x, y) => x.date.localeCompare(y.date) || (x.timeFrom ?? "").localeCompare(y.timeFrom ?? "")),
     };
   };
 
   const current = members.map((m) => {
-    const own = byPerson.get(m.userId) ?? [];
+    const own = byPerson.get(m.userId) ?? [], absent = absences.filter((x) => x.userId === m.userId);
     return {
       /** Stabiler Schluessel je Zeile (Personen mit Konto: userId; geloeschte: "former:" + Id). */
       key: m.userId, userId: m.userId as string | null, memberId: m.id as string | null, former: false,
       firstName: m.user.firstName, lastName: m.user.lastName, isActive: m.isActive,
       personnelNumber: m.personnelNumber, payType: m.payTypeId ? typeById.get(m.payTypeId) ?? null : null,
-      ...payroll(own, m.payTypeId, own.length && !m.personnelNumber ? ["Keine Personalnummer."] : []),
+      ...payroll(own, absent, m.payTypeId, (own.length || absent.length) && !m.personnelNumber ? ["Keine Personalnummer."] : []),
     };
   }).filter((p) => p.isActive || p.records.length);
   // Geloeschte Personen: Zeiten bleiben im Lohn, nur der Name ist noch bekannt.
@@ -160,7 +175,7 @@ export async function payrollData(orgId: string, from: string, to: string, branc
     key, userId: null, memberId: null, former: true,
     firstName: own[0].formerEmployee?.firstName ?? "Gelöschte", lastName: own[0].formerEmployee?.lastName ?? "Person", isActive: false,
     personnelNumber: null, payType: null,
-    ...payroll(own, null, [FORMER_WARNING]),
+    ...payroll(own, [], null, [FORMER_WARNING]),
   }));
   const people = [...current, ...former].sort((x, y) => x.lastName.localeCompare(y.lastName, "de") || x.firstName.localeCompare(y.firstName, "de"));
 

@@ -18,6 +18,8 @@ import { AccountSettings } from "@/components/settings/account-settings";
 import { QualificationSettings } from "@/components/settings/qualification-settings";
 import { PlanningRulesSettings } from "@/components/settings/planning-rules-settings";
 import { PayrollSettings } from "@/components/settings/payroll-settings";
+import { TimeAccountSettings } from "@/components/settings/time-account-settings";
+import { VacationSettings } from "@/components/settings/vacation-settings";
 
 // ---------- Types ----------
 
@@ -57,7 +59,7 @@ type SettingsResponse = {
 
 // ---------- Component ----------
 
-const SECTIONS: SettingsSection[] = ["schedule", "time", "payroll", "wishplan", "employees", "qualifications", "absences", "account", "rules"];
+const SECTIONS: SettingsSection[] = ["schedule", "time", "payroll", "wishplan", "employees", "qualifications", "absences", "account", "rules", "accounts", "vacation"];
 
 export default function SettingsPage() {
   return (
@@ -215,6 +217,8 @@ function SettingsContent() {
             <option value="absences">Abwesenheiten</option>
             <option value="account">Account</option>
             <option value="rules">Planungsregeln</option>
+            <option value="accounts">Zeitkonten</option>
+            <option value="vacation">Urlaubskonto</option>
           </select>
         </div>
 
@@ -237,6 +241,10 @@ function SettingsContent() {
           )}
 
           {activeSection === "payroll" && <PayrollSettings />}
+
+          {activeSection === "accounts" && <TimeAccountSettings />}
+
+          {activeSection === "vacation" && <VacationSettings />}
 
           {activeSection === "wishplan" && (
             <div className="space-y-6">

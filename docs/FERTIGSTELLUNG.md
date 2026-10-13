@@ -1,5 +1,33 @@
 # Fertigstellung – Arbeitsliste
 
+## Port Zeitkonten (P4), Abwesenheit wirkt und Urlaubskonto (P5) aus dem Cloud-Branch (13.10.2026, externer Ordner, nicht eingespielt)
+
+Basis `8ae705b` (mit Lohn P1, Freigabe/PDF P2/P3, Sicherheitsfix/P0, Planungsregeln). Übernommen per
+`git cherry-pick -x`: `0de1cc7`, `c21d5b3`, `ef304e8`, `8b69405` aus `claude/wizardly-cerf-cxbutc`; danach
+Anpassungscommits. Nichts aus Cloud-P6 (Veröffentlichen/Bearbeitungsmodus), keine Cloud-Doku. Regeln:
+`docs/AKRO-ERWEITERUNG.md` Abschnitt 10, Rechte: `docs/ROLLEN-UND-RECHTE.md`.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P0 | Rechte – `api/time-accounts/**`, `api/vacation/**`, `api/absences/effects`, `lib/absence-effects.ts` | Zeitkonto/Urlaubskonto ändern nur Admin (403/404); sehen: Admin, Disposition mit „Stunden einsehen“ bzw. „Abwesenheiten entscheiden“, Person selbst nur wenn freigegeben (sonst 404); Person austragen nur Admin oder „Schichten bearbeiten“ am Standort (403); Vorschau 404 für Person selbst, fremde Disposition, fremde Organisation; Lohnart-Code der Art nur Admin | bestanden (lokal) | `tests/time-accounts.ts`, `tests/absence-effects.ts`, `tests/vacation.ts` |
+| P1 | Migrationen `20261013120000_time_accounts`, `…130000_absence_effects`, `…140000_vacation_account` (Cloud `20261014/15/16090000_…`) | Zwischen `…110000_time_approval` und `…150000_planning_rules`; additiv; kein Konto/Soll für Bestand; genehmigte Altabwesenheiten ohne Wirkung (abwesend, 0 Stunden); Zuweisungen gelöschter Personen und Platzhalter unberührt; keine vorgegebenen Urlaubstage (Cloud: 30) | bestanden (lokal) | `npm run test:migration` 100/100 |
+| P1 | Person austragen – `lib/shift-requests.ts` (`releaseAssignment`, auch `DELETE /api/bookings`), `lib/absence-effects.ts`, `api/absences/**` | Wie „Zuweisung aufheben“: nicht nach Schichtende/Check-in (409, nichts gespeichert), offene Anträge abgelehnt, Nachricht nur bei veröffentlichtem Plan außerhalb der Bearbeitung, keine bei Plan in Bearbeitung/Entwurf (Sammelmitteilung beim Veröffentlichen), `booking:changed` + `schedule:updated`, Platzhalter und Kollegen bleiben | bestanden (lokal) | `tests/absence-effects.ts`; `tests/plan-lifecycle.ts` und `tests/permissions.ts` unverändert grün |
+| P1 | Wirkung in Stunden, Lohn, Export, Stundenzettel, Zeitkonto – `lib/hours.ts`, `lib/payroll-service.ts`, `lib/timesheet.ts`, `lib/time-account-service.ts` | Bezahlt = Planstunden mit Lohnart-Code der Art, 0 Stunden, ausgetragen; je Person und Schicht; nur veröffentlicht, solange zugewiesen; erfasste Zeit hat Vorrang; Art nur für Berechtigte; Rücknahme hebt auf | bestanden (lokal) | `tests/absence-effects.ts` |
+| P1 | Zeitkonto – Planminuten aus `planning.ts`, Plan in Bearbeitung | Planstunden der Person aus der Momentaufnahme, Admin live; nach Verwerfen wieder gleich | bestanden (lokal) | `tests/time-accounts.ts`, `npm run test:accounts` 15/15 |
+| P1 | Urlaubskonto – Feiertage je Einsatzort | Urlaubstag mit Schicht: Bundesland des Einsatzorts (NRW Fronleichnam frei, Thüringen nicht; Einsatzort ohne Land: kein Feiertag); ohne Schicht: Organisationsfeiertage | bestanden (lokal) | `tests/vacation.ts`, `npm run test:vacation` 12/12 |
+| P1 | Gelöschte Personen (`userId` null), Platzhalter | Kein Absturz; Zeilen gelöschter Personen ohne Saldo und ohne Abwesenheit; Konten 404; bezahlte Abwesenheit entfällt mit der Person (Hinweis an der Lohnzeile); Platzhalter ohne Konten und unberührt | bestanden (lokal) | `tests/absence-effects.ts` |
+| P1 | Konfliktpanel – `lib/conflicts.ts` | Genehmigte Abwesenheit mit „bezahlt“/„0 Stunden“ bleibt roter Konflikt mit Umgang, ohne Art | bestanden (lokal) | `tests/conflicts.ts`, `tests/absence-effects.ts` |
+| P2 | Oberfläche – Einstellungen › Zeitkonten/Urlaubskonto (`?bereich=accounts` bzw. `?bereich=vacation`), „Folgen der Abwesenheit“, Kontoauszüge, Saldo-Spalte | Namensformat, ConfirmDialog statt `confirm()`, ⓘ statt eigener Hilfetexte, Schrift ≥ 12 px, 375 px ohne Überbreite | bestanden (lokal, nur Administration) | Browser auf Produktions-Build (`tests/preview.ts`, Port 3419) bei 375 px: Einstellungen › Zeitkonten (Personenzeile, Löschdialog) und › Urlaubskonto, Zeitkonto-Dialog aus „Stunden und Lohn“, „Folgen der Abwesenheit“ (Person austragen genehmigt: Schicht offen, „Schichtzuweisung aufgehoben“ versandt), eigener Kontoauszug, „Urlaubskonten“ mit Kontoauszug und Löschdialog: Seite und Dialoge ohne Überbreite (`scrollWidth` = `clientWidth`), keine Schrift unter 12 px; bei 1280 px Spalte „Saldo“. Nicht im Browser geprüft: Sicht als Disposition und Mitarbeiter |
+| P1 | Saldo-Stichtag, Lohn/Saldo nur aus genehmigten Stunden | Entscheidung AKRO; vorläufig Saldo zum Ende des Zeitraums, Genehmigung steuert Lohn und Saldo nicht, beantragter Urlaub nur angezeigt | offen | Fachliche Entscheidung AKRO |
+| P1 | Lohnfortzahlung, Urlaubsregeln, Urlaubstage | Steuerbüro/AKRO (Lohnausfallprinzip, Zuschläge bei Abwesenheit, Übertrag/Verfall); Urlaubstage trägt AKRO ein | offen | Fachliche Entscheidung AKRO |
+
+Prüfungen (lokal, 13.10.2026): `tsc` 0 Fehler · `npm run lint` 0 Fehler / 25 Warnungen (unverändert) ·
+`test:migration` 100/100 · `test:migration:history` 29/29 · `test:migration:subcontractors` 21/21 · `test:payroll` 39/39 ·
+`test:pdf` 14/14 · `test:accounts` 15/15 · `test:vacation` 12/12 ·
+`TEST_ONLY=time-accounts,absence-effects,vacation,hours,timesheet,payroll,permissions,plan-lifecycle,conflicts` (Ports
+3419/55553) 1568/1568 · vollständiges `tests/workflows.ts` (alle Reihen, Ports 3419/55553) 4093/4093 · `npm run build`
+erfolgreich. Nicht ausgeführt: Kopiemigration, Betriebsnachweise, Browserprüfung als Disposition und Mitarbeiter.
+
 ## Port Stunden prüfen (P2) und Stundenzettel (P3) aus dem Cloud-Branch (13.10.2026, externer Ordner, nicht eingespielt)
 
 Basis `588dbb9` (mit Lohn-Port P1 und Planungsregeln). Übernommen per `git cherry-pick -x`: `0ff8e24`, aus `d35d168`

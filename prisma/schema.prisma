@@ -92,6 +92,12 @@ model Organization {
   planningRuleOverrides PlanningRuleOverride[]
   payTypes          PayType[]
   surcharges        Surcharge[]
+  timeAccounts      TimeAccount[]
+  targetHours       TargetHours[]
+  timeCompensations TimeCompensation[]
+  vacationSettings  VacationSettings?
+  vacationRules     VacationRule[]
+  vacationAdjustments VacationAdjustment[]
 
   @@map("organizations")
 }
@@ -131,6 +137,11 @@ model OrganizationMember {
   assignedIssues BranchIssue[]
   planningRuleOverride PlanningRuleOverride?
   payType        PayType?          @relation(fields: [payTypeId], references: [id], onDelete: Restrict)
+  timeAccount    TimeAccount?
+  targetHours    TargetHours[]
+  compensations  TimeCompensation[]
+  vacationRule   VacationRule?
+  vacationAdjustments VacationAdjustment[]
 
   @@unique([organizationId, userId])
   @@unique([id, organizationId])
@@ -452,6 +463,7 @@ model Shift {
   exchangeRequests ModRequest[] @relation("ModRequestTargetShift")
   checkins    Checkin[]
   timeRecords TimeRecord[]
+  absenceEffects AbsenceShift[]
 
   @@map("shifts")
 }
@@ -666,6 +678,10 @@ model TimeSettings {
   useCategories    Boolean  @default(false)
   /// Selbst erfasste Zeiten (Stoppuhr, Check-in, manuell) gelten ohne Pruefung als genehmigt.
   autoApprove      Boolean  @default(false)
+  /// Zeitkonten (Ueberstundensaldo): an/aus, Berechnungsart und Sichtbarkeit fuer Mitarbeitende.
+  accountsEnabled  Boolean  @default(false)
+  accountMethod    AccountMethod @default(ACTUAL_MINUS_TARGET)
+  accountVisible   Boolean  @default(false)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -686,9 +702,13 @@ model Absence {
   note       String?
   status     AbsenceStatus @default(PENDING)
   createdAt  DateTime     @default(now())
+  /// Wer genehmigt hat und wann (leer bei Altbestand).
+  approvedById String?
+  approvedAt   DateTime?
 
   user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   category AbsenceCategory @relation(fields: [categoryId], references: [id])
+  shiftEffects AbsenceShift[]
 
   @@map("absences")
 }
@@ -705,6 +725,8 @@ model AbsenceCategory {
   name           String
   color          String   @default("#ef4444")
   isPaid         Boolean  @default(true)
+  /// Lohnart-Code fuer bezahlte Abwesenheitsstunden im Lohnexport.
+  payCode        String?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   absences     Absence[]
@@ -1058,4 +1080,166 @@ model Surcharge {
 
   @@index([organizationId])
   @@map("surcharges")
+}
+
+enum AccountMethod {
+  /// Ist - Soll (kuenftige Tage mit Planstunden)
+  ACTUAL_MINUS_TARGET
+  /// Plan - Soll
+  PLAN_MINUS_TARGET
+  /// Ist - Plan (ohne Soll)
+  ACTUAL_MINUS_PLAN
+}
+
+enum TargetPeriod {
+  WEEK
+  MONTH
+}
+
+/// Zeitkonto einer Person: einbezogen und Abweichungen von den allgemeinen Einstellungen.
+model TimeAccount {
+  id             String   @id @default(cuid())
+  organizationId String
+  memberId       String   @unique
+  included       Boolean  @default(true)
+  /// null = allgemeine Berechnungsart bzw. Sichtbarkeit
+  method         AccountMethod?
+  visible        Boolean?
+  updatedAt      DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("time_accounts")
+}
+
+/// Sollstunden ab einem Startdatum bis zum naechsten Eintrag der Person.
+model TargetHours {
+  id             String       @id @default(cuid())
+  organizationId String
+  memberId       String
+  startDate      DateTime     @db.Date
+  minutes        Int
+  period         TargetPeriod
+  createdAt      DateTime     @default(now())
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, startDate])
+  @@map("target_hours")
+}
+
+/// Ausgleich auf dem Zeitkonto (z. B. -30 h ausbezahlt, +12 h Anfangssaldo).
+model TimeCompensation {
+  id             String   @id @default(cuid())
+  organizationId String
+  memberId       String
+  date           DateTime @db.Date
+  minutes        Int
+  description    String
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, date])
+  @@map("time_compensations")
+}
+
+enum AbsenceHandling {
+  /// Schicht bleibt, zaehlt mit Planstunden (bezahlt)
+  PAID
+  /// Schicht bleibt, zaehlt 0 Stunden (unbezahlt)
+  UNPAID
+  /// Person aus der Schicht genommen; Schicht ist wieder offen
+  RELEASED
+}
+
+/// Entscheidung je betroffener Schicht beim Genehmigen einer Abwesenheit.
+model AbsenceShift {
+  id        String          @id @default(cuid())
+  absenceId String
+  shiftId   String
+  handling  AbsenceHandling
+  createdAt DateTime        @default(now())
+
+  absence Absence @relation(fields: [absenceId], references: [id], onDelete: Cascade)
+  shift   Shift   @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@unique([absenceId, shiftId])
+  @@index([shiftId])
+  @@map("absence_shifts")
+}
+
+enum VacationAllocation {
+  /// ganzer Jahresanspruch zu Beginn des Urlaubsjahres (anteilig bei spaeterem Beginn)
+  YEARLY
+  /// je Monatsanfang ein Zwoelftel
+  MONTHLY
+}
+
+/// Urlaubskonto: allgemeine Regeln der Organisation.
+model VacationSettings {
+  id               String   @id @default(cuid())
+  organizationId   String   @unique
+  enabled          Boolean  @default(false)
+  /// Abwesenheitsart, die vom Urlaubskonto abgezogen wird
+  categoryId       String?
+  /// Beginn des Urlaubsjahres als MM-TT
+  yearStart        String   @default("01-01")
+  /// Beginn des Urlaubskontos fuer alle ohne eigenes Startdatum
+  startDate        DateTime? @db.Date
+  /// Urlaubstage je Jahr; null = noch nicht eingetragen (die App gibt keine vor)
+  daysPerYear      Float?
+  allocation       VacationAllocation @default(YEARLY)
+  carryOver        Boolean  @default(true)
+  /// null = ohne Grenze
+  carryOverMax     Float?
+  /// ISO-Wochentage ohne Abzug, Vorgabe Sa und So
+  excludedWeekdays Int[]    @default([6, 7])
+  countHolidays    Boolean  @default(false)
+  /// Mitarbeitende sehen ihr eigenes Urlaubskonto
+  visible          Boolean  @default(true)
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("vacation_settings")
+}
+
+/// Abweichende Urlaubsregeln einer Person (null = allgemein).
+model VacationRule {
+  id             String    @id @default(cuid())
+  organizationId String
+  memberId       String    @unique
+  included       Boolean   @default(true)
+  daysPerYear    Float?
+  startDate      DateTime? @db.Date
+  carryOver      Boolean?
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("vacation_rules")
+}
+
+/// Manuelle Korrektur des Urlaubskontos (± Tage), z. B. Resturlaub bei Einfuehrung.
+model VacationAdjustment {
+  id             String   @id @default(cuid())
+  organizationId String
+  memberId       String
+  date           DateTime @db.Date
+  days           Float
+  comment        String
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, date])
+  @@map("vacation_adjustments")
 }

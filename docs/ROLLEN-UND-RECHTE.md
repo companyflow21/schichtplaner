@@ -91,7 +91,10 @@ Einstellungen · Kunden und Einsatzorte samt GPS · Arbeitsbereiche · Qualifika
 Zeitkategorien, Feiertagsregion · Rollen und Freigaben vergeben · Konten deaktivieren/reaktivieren · Einladungslinks für
 jedes Konto · Kontaktdaten anderer ändern · Zeitbuchungen einem Standort zuordnen · Altpläne ohne Standort · Dateiordner
 anlegen · Themen löschen · KI · Lohn (Lohnseite, Lohnarten/Zuschläge, Personalnummern, Lohnexport; `/api/payroll/**`
-antwortet Disposition und Mitarbeitenden mit 403, auch für die eigene Personalnummer) [Port P1, nicht eingespielt].
+antwortet Disposition und Mitarbeitenden mit 403, auch für die eigene Personalnummer) [Port P1, nicht eingespielt] ·
+Zeitkonten einrichten (Soll, Berechnungsart, Ausgleich buchen/löschen), Urlaubskonto einrichten (Regeln je Person,
+Korrekturen in halben Tagen), Lohnart-Code einer Abwesenheitsart (`/api/time-accounts/**` außer dem Lesen eines Kontos,
+`/api/vacation/settings|members|adjustments`: Disposition und Mitarbeitende 403) [Port P4/P5, nicht eingespielt].
 
 ### 3.2 Standortrechte (je Einsatzort)
 
@@ -123,8 +126,8 @@ Zugeordnet werden können Mitarbeiter und auch andere Manager.
 | **In Schichten einplanen** | Person steht beim Besetzen zur Auswahl („Persönlich zugeordnet“) – auch an Standorten ohne ihre Standortzuordnung; Verfügbarkeiten sichtbar; Standortzuordnung an eigenen Planungsstandorten pflegen | Profil/Kontaktdaten |
 | **Personalprofil ansehen** | Profilseite: E-Mail, Telefon, Tätigkeit, Qualifikationen; Kontaktdaten in der Liste | Beschäftigungsart, Sollstunden, Notizen; nichts ändern |
 | **Stammdaten bearbeiten** | Tätigkeit, Beschäftigungsart, Sollstunden/Monat, Qualifikationen ändern; Notizen lesen/schreiben. Schließt „ansehen“ ein. | **Name, E-Mail, Telefon** ändern (nur Admin oder die Person selbst); Rolle, Status |
-| **Abwesenheiten einsehen und entscheiden** | Abwesenheiten der Person sehen, eintragen (auf Wunsch direkt genehmigt), genehmigen/ablehnen | Eigene Abwesenheiten |
-| **Stunden einsehen** | Zeiten und Monatswerte der Person – **nur an Standorten mit „Zeiterfassung einsehen“** | Allein wirkungslos; kein Soll |
+| **Abwesenheiten einsehen und entscheiden** | Abwesenheiten der Person sehen, eintragen (auf Wunsch direkt genehmigt), genehmigen/ablehnen. [Port P5] Beim Genehmigen die Folgen je Schicht festlegen (zählt Stunden/0 Stunden), Urlaubskonto der Person und Übersicht „Urlaubskonten“, Art der Abwesenheit in „Stunden und Lohn“ | Eigene Abwesenheiten; „Person austragen“ nur zusätzlich mit „Schichten bearbeiten“ am Standort der Schicht; Urlaubskonto korrigieren |
+| **Stunden einsehen** | Zeiten und Monatswerte der Person – **nur an Standorten mit „Zeiterfassung einsehen“**. [Port P4] Zeitkonto (Saldo und Perioden) der Person, auch ohne Standortrecht | Allein wirkungslos für Zeiten; kein Soll; Zeitkonto ändern; Art einer Abwesenheit |
 | **Mitarbeiter löschen** [Neu] | Endgültiges Löschen (nur Rolle Mitarbeiter). Schließt „ansehen“ ein. Nie per Voreinstellung. | Manager/Admins löschen |
 
 Voreinstellungen: „Einplanen“ (einplanen + Profil ansehen), „Personalverantwortung“ (alles außer Löschen).
@@ -137,6 +140,9 @@ Zuweisung bestätigen. Eigene Kontaktdaten ändern: nur über die Schnittstelle 
 [Port P2/P3, nicht eingespielt] Eigene Nachträge, Stoppuhr- und Check-in-Zeiten zählen sofort, gelten in „Stunden und
 Lohn“ aber bis zur Genehmigung als „offen“ (außer mit „Selbst erfasste Zeiten automatisch genehmigen“); eigene Stunden
 genehmigt nur die Administration. Eigener Stundenzettel (PDF) unter Zeiterfassung › „Mein Stundenzettel“.
+[Port P4/P5, nicht eingespielt] Eigenes Zeitkonto (Zeiterfassung › „Zeitkonto“) und eigenes Urlaubskonto (Abwesenheiten,
+Kontoauszug) nur, wenn die Administration es freigibt (Zeitkonten: Vorgabe aus; Urlaubskonto: Vorgabe an); sonst 404.
+Im Antrag zeigt das Formular „verfügbar · dieser Zeitraum · danach“.
 
 ### 3.5 Abhängigkeiten und Kombinationen
 - **Eingeschlossen:** „bearbeiten“, „veröffentlichen“, „Anträge“ → „Dienstplan ansehen“; **„Dienstplan ansehen“ →
@@ -304,6 +310,11 @@ Fensters erzeugt einen Hinweis.
 - Danach: Nachricht an die Person; genehmigte Abwesenheit sperrt Einteilung, bestehende Zuweisungen erscheinen
   „nicht verfügbar“.
 - Grenzen: D nicht für sich selbst; **Admins können eigene genehmigen**; Kategorien und Feiertagsregion pflegt A.
+- [Port P5] Beim Genehmigen legt „Folgen der Abwesenheit“ je Schicht fest: zählt Stunden (bezahlt), 0 Stunden oder Person
+  austragen (wie „Zuweisung aufheben“: nur A oder „Schichten bearbeiten“ am Standort, nicht nach Schichtende/Check-in,
+  offene Anträge werden abgelehnt, Nachricht nur bei veröffentlichten Plänen außerhalb der Bearbeitung). Bleibt die
+  Person eingeteilt, bleibt der rote Konflikt „Genehmigte Abwesenheit (bezahlt/0 Stunden)“. Standort und Titel der
+  Schichten nennt die Vorschau nur mit „Dienstplan ansehen“.
 
 **Übernahme, Abgabe, Tausch** – UI
 - Wo: Startseite → „Anträge“; Schichtkarte „Übernahme anfragen“.
@@ -416,6 +427,11 @@ Profilseite, kein Wechsel zwischen Organisationen** (bei mehreren Mitgliedschaft
 | Lohn, Lohnarten/Zuschläge, Lohnexport [Port P1] | ✔ | ✔ | ✖ | ✖ | keine Freigabe öffnet Lohndaten |
 | Stunden genehmigen, fremde Buchung direkt ändern [Port P2] | ✔ (auch eigene) | ✔ (auch eigene) | F: Zeit bearbeiten + Stunden | ✖ | D nicht eigene; gelöschte Personen nur A |
 | Stundenzettel (PDF) [Port P3] | alle | alle | Eigener + F: Zeit einsehen + Stunden | Eigener | Personalnummer/Soll nur A und Person |
+| Zeitkonten einrichten, Soll, Ausgleich [Port P4] | ✔ | ✔ | ✖ | ✖ | |
+| Zeitkonto/Saldo sehen [Port P4] | alle | alle | Eigenes (wenn sichtbar) + F: Stunden | Eigenes (wenn sichtbar) | Saldo zum Ende des Zeitraums |
+| Folgen einer Abwesenheit festlegen [Port P5] | ✔ (auch eigene) | ✔ (auch eigene) | F: Abwesenheiten | ✖ | austragen zusätzlich F: bearbeiten am Standort |
+| Urlaubskonto einrichten, korrigieren [Port P5] | ✔ | ✔ | ✖ | ✖ | Korrekturen in halben Tagen |
+| Urlaubskonto sehen, Übersicht [Port P5] | alle | alle | Eigenes (wenn sichtbar) + F: Abwesenheiten | Eigenes (wenn sichtbar) | |
 | Leistungsnachweis je Einsatzort (PDF) [Port P3] | ✔ | ✔ | F: Zeit einsehen (Zeilen mit Stunden) | ✖ | |
 | PDF-Export [Neu] | alle | alle | sichtbare Pläne | sichtbare Pläne | |
 | Nachrichten | alle | alle | sichtbare Personen | sichtbare Personen | keine E-Mails |

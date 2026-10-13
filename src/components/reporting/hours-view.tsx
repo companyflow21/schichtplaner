@@ -15,13 +15,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ErrorMessage, json, selectClass } from "@/components/workforce/client";
 import { TimeRecordForm } from "@/components/time/time-record-form";
 import { SiteReportButton, TimesheetButton } from "./timesheet-button";
+import { TimeAccountDialog, signedHours } from "./time-account-dialog";
 import { addDate, berlinDate } from "@/lib/berlin";
 import { useNameFormat } from "@/lib/hooks/use-current-member";
 import { formatName } from "@/lib/names";
 import { euro, formatNumber, hours, type PayLine } from "@/lib/payroll";
 import { cn } from "@/lib/utils";
 
-type Status = "APPROVED" | "OPEN" | "MISSING" | "PLANNED" | "RUNNING";
+type Status = "APPROVED" | "OPEN" | "MISSING" | "PLANNED" | "RUNNING" | "ABSENT";
 /** OPEN, REVIEWED (von Pruefenden) oder AUTO (ohne Pruefer: Altbestand bei Einfuehrung oder automatische Genehmigung). */
 type Approval = "OPEN" | "REVIEWED" | "AUTO";
 type RecordView = {
@@ -31,18 +32,20 @@ type RecordView = {
   pay: { totalCents: number; lines: PayLine[]; warnings: string[] } | null;
 };
 type Row = {
-  key: string; date: string; status: Status; canEnter: boolean; plannedMinutes: number; istMinutes: number; deviationMinutes: number | null;
+  key: string; date: string; status: Status; canEnter: boolean; plannedMinutes: number;
+  /** category nur fuer die Person selbst, die Administration und wer ihre Abwesenheiten entscheidet. */
+  absence: { category: string | null; handling: "PAID" | "UNPAID" | "RELEASED" | null; pay: { totalCents: number; lines: PayLine[]; warnings: string[] } | null } | null; istMinutes: number; deviationMinutes: number | null;
   shift: { id: string; from: string; to: string; title: string | null; branchName: string | null; customerName: string | null; division: { title: string; color: string } | null; pauseMinutes: number } | null;
   records: RecordView[];
 };
 /** key: userId, bei geloeschten Personen "former:" + Id (userId null). pay nur fuer die Administration. */
 type Person = {
   key: string; userId: string | null; former: boolean; firstName: string; lastName: string; isActive: boolean; personnelNumber: string | null;
-  plannedMinutes: number; istMinutes: number; openCount: number; missingCount: number; approvable: string[]; totalCents: number | null;
+  plannedMinutes: number; istMinutes: number; openCount: number; missingCount: number; approvable: string[]; totalCents: number | null; balanceMinutes: number | null;
   pay: { payType: { title: string; hourlyRateCents: number } | null; lines: PayLine[]; warnings: string[] } | null; rows: Row[];
 };
 type Report = {
-  from: string; to: string; showPay: boolean; people: Person[]; notices: string[]; setup: { payTypes: number; surcharges: number } | null;
+  from: string; to: string; showPay: boolean; showBalance: boolean; people: Person[]; notices: string[]; setup: { payTypes: number; surcharges: number } | null;
   totals: { plannedMinutes: number; istMinutes: number; openCount: number; totalCents: number | null };
 };
 type BranchOption = { id: string; name: string; customer?: { name: string } | null };
@@ -61,6 +64,7 @@ const STATUS: Record<Status, { label: string; className: string; bar: string }> 
   MISSING: { label: "nicht erfasst", className: "bg-destructive/10 text-destructive", bar: "bg-destructive" },
   PLANNED: { label: "geplant", className: "bg-muted text-muted-foreground", bar: "bg-muted-foreground/30" },
   RUNNING: { label: "läuft", className: "bg-primary/10 text-primary", bar: "bg-primary" },
+  ABSENT: { label: "abwesend", className: "bg-accent text-accent-foreground", bar: "bg-accent-foreground/40" },
 };
 const AUTO_TITLE = "Ohne Prüfer genehmigt: Altbestand, bei Einführung der Stundenprüfung automatisch übernommen, oder Einstellung „Selbst erfasste Zeiten automatisch genehmigen“.";
 
@@ -94,6 +98,7 @@ export function HoursView() {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
   const [editing, setEditing] = useState<RecordView | null>(null);
+  const [account, setAccount] = useState<Person | null>(null);
   const [entering, setEntering] = useState<{ userId: string; date: string; timeFrom: string; timeTo: string; breakMinutes: number } | null>(null);
   const wholeMonth = from === monthStart(from) && to === monthEnd(from);
   const params = "from=" + from + "&to=" + to + (standort ? "&standort=" + encodeURIComponent(standort) : "");
@@ -108,7 +113,7 @@ export function HoursView() {
   const people = useMemo(() => (data?.people ?? []).filter((p) => (!onlyOpen || p.openCount > 0 || p.missingCount > 0) && (formatName(p, nameFormat).toLowerCase().includes(search.trim().toLowerCase()) || (p.personnelNumber ?? "").includes(search.trim()))), [data, search, onlyOpen, nameFormat]);
   const shiftMonth = (delta: -1 | 1) => { const start = delta < 0 ? monthStart(addDate(monthStart(from), -1)) : addDate(monthEnd(from), 1); setFrom(start); setTo(monthEnd(start)); setCustom(false); };
   const toggle = (id: string) => setOpen((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
-  const cols = data?.showPay ? 7 : 6;
+  const cols = 6 + (data?.showPay ? 1 : 0) + (data?.showBalance ? 1 : 0);
 
   return (
     <div className="space-y-4">
@@ -119,7 +124,9 @@ export function HoursView() {
             <InfoHint thema="Stunden und Lohn" titel="So wird geprüft">
               <p>Je Schicht stehen Plan und Ist nebeneinander. „nicht erfasst“: Schicht vorbei, keine Zeit – sie zählt nicht als gearbeitet; „Zeit wie geplant nachtragen“ erfasst sie.</p>
               <p>Genehmigen: Administration, oder Disposition mit „Zeiterfassung bearbeiten“ am Standort und „Stunden einsehen“ für die Person. Eigene Stunden genehmigt nur die Administration.</p>
-              <p>Vorläufig (AKRO entscheidet): Die Genehmigung ändert Lohn und Lohnexport nicht – offene Stunden sind enthalten.</p>
+              <p>„abwesend“: genehmigte Abwesenheit ohne erfasste Zeit – bezahlt mit Planstunden oder 0 Stunden, wie beim Genehmigen gewählt.</p>
+              <p>„Saldo“ (wenn Zeitkonten eingeschaltet sind): Stand des Zeitkontos am Ende des gewählten Zeitraums; Tage nach heute zählen mit Planstunden.</p>
+              <p>Vorläufig (AKRO entscheidet): Die Genehmigung ändert Lohn, Lohnexport und Zeitkonto nicht – offene Stunden sind enthalten.</p>
             </InfoHint>
           </h1>
           <p className="text-sm text-muted-foreground">Plan und Ist je Schicht prüfen, korrigieren und genehmigen{data?.showPay ? " – mit Lohn und Lohnexport" : ""}</p>
@@ -211,6 +218,7 @@ export function HoursView() {
                   <th className="hidden px-3 py-2 text-right font-medium sm:table-cell">Plan</th>
                   <th className="px-3 py-2 text-right font-medium">Ist</th>
                   <th className="hidden px-3 py-2 text-right font-medium sm:table-cell">Abw.</th>
+                  {data.showBalance && <th className="hidden px-3 py-2 text-right font-medium sm:table-cell">Saldo</th>}
                   {data.showPay && <th className="px-3 py-2 text-right font-medium">Lohn</th>}
                   <th className="px-3 py-2 text-right font-medium">Status</th>
                 </tr>
@@ -234,6 +242,12 @@ export function HoursView() {
                         <td className="hidden px-3 py-2 text-right tabular-nums sm:table-cell">{hours(p.plannedMinutes)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{hours(p.istMinutes)}</td>
                         <td className="hidden px-3 py-2 text-right tabular-nums sm:table-cell">{signed(p.istMinutes - p.plannedMinutes)}</td>
+                        {data.showBalance && (
+                          <td className="hidden px-3 py-2 text-right sm:table-cell">
+                            {p.balanceMinutes === null ? <span className="text-xs text-muted-foreground">–</span>
+                              : <button type="button" className={cn("rounded-md px-2 py-0.5 tabular-nums hover:bg-muted", p.balanceMinutes < 0 && "text-destructive")} onClick={(e) => { e.stopPropagation(); setAccount(p); }}>{signedHours(p.balanceMinutes)}</button>}
+                          </td>
+                        )}
                         {data.showPay && <td className="whitespace-nowrap px-3 py-2 text-right font-medium tabular-nums">{euro(p.totalCents ?? 0)}</td>}
                         <td className="whitespace-nowrap px-3 py-2 text-right">
                           {p.openCount > 0 ? <span className="rounded-full bg-warn/10 px-2 py-0.5 text-xs text-warn">{p.openCount} offen</span>
@@ -247,6 +261,7 @@ export function HoursView() {
                             <div className="space-y-2">
                               <div className="flex flex-wrap justify-end gap-2 print:hidden">
                                 {p.userId && <TimesheetButton userId={p.userId} from={from} to={to} />}
+                                {p.userId && p.balanceMinutes !== null && <Button size="sm" variant="outline" onClick={() => setAccount(p)}>Zeitkonto {signedHours(p.balanceMinutes)} h</Button>}
                                 {p.approvable.length > 0 && <Button size="sm" disabled={approve.isPending} onClick={() => approve.mutate({ ids: p.approvable, approved: true })}><Check className="size-4" />Alle offenen genehmigen ({p.approvable.length})</Button>}
                               </div>
                               {p.former && <p className="text-xs text-muted-foreground">Gelöschte Person: Die Zeiten bleiben als Historie unverändert und lassen sich nur genehmigen; nachgetragen wird nichts.</p>}
@@ -270,6 +285,7 @@ export function HoursView() {
           </div>
         </Card>
       )}
+      {account?.userId && <TimeAccountDialog userId={account.userId} name={name(account)} from={from} to={to} onClose={() => setAccount(null)} />}
       {exporting && data && <ExportDialog report={data} standort={standort} onClose={() => setExporting(false)} />}
       {/* record: bearbeitbar sind nur Buchungen mit Konto (canEdit), userId ist dort gesetzt. */}
       <TimeRecordForm open={!!editing} onOpenChange={(v) => { if (!v) setEditing(null); }} record={editing ? { ...editing, userId: editing.userId ?? "" } : null} direct />
@@ -305,7 +321,7 @@ function RowItem({ row, showPay, userId, busy, onApprove, onEdit, onEnter }: {
   onEnter: (v: { userId: string; date: string; timeFrom: string; timeTo: string; breakMinutes: number }) => void;
 }) {
   const s = STATUS[row.status];
-  const rowPay = row.records.reduce((sum, r) => sum + (r.pay?.totalCents ?? 0), 0);
+  const rowPay = row.records.reduce((sum, r) => sum + (r.pay?.totalCents ?? 0), 0) + (row.absence?.pay?.totalCents ?? 0);
   return (
     <li className="flex">
       <span className={cn("w-1 shrink-0", s.bar)} aria-hidden />
@@ -313,9 +329,9 @@ function RowItem({ row, showPay, userId, busy, onApprove, onEdit, onEnter }: {
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <span className="font-medium">{shortDate(row.date)}{row.shift ? " · Plan " + row.shift.from + "–" + row.shift.to + (row.shift.pauseMinutes ? " (Pause " + row.shift.pauseMinutes + " Min.)" : "") : " · ohne geplante Schicht"}</span>
           <span className="flex items-center gap-2">
-            <span className="tabular-nums">{row.records.length ? hours(row.istMinutes) + " h" : row.shift ? hours(row.plannedMinutes) + " h geplant" : ""}</span>
+            <span className="tabular-nums">{row.records.length || row.absence ? hours(row.istMinutes) + " h" : row.shift ? hours(row.plannedMinutes) + " h geplant" : ""}</span>
             {row.deviationMinutes !== null && row.deviationMinutes !== 0 && <span className={cn("tabular-nums text-xs", Math.abs(row.deviationMinutes) >= 15 ? "text-warn" : "text-muted-foreground")}>{signed(row.deviationMinutes)}</span>}
-            {showPay && row.records.length > 0 && <span className="whitespace-nowrap tabular-nums">{euro(rowPay)}</span>}
+            {showPay && (row.records.length > 0 || row.absence) && <span className="whitespace-nowrap tabular-nums">{euro(rowPay)}</span>}
             <span className={cn("rounded-full px-2 py-0.5 text-xs", s.className)}>{s.label}</span>
           </span>
         </div>
@@ -325,6 +341,12 @@ function RowItem({ row, showPay, userId, busy, onApprove, onEdit, onEnter }: {
             <span>{[row.shift.branchName, row.shift.customerName].filter(Boolean).join(" · ")}</span>
             {row.shift.title && <span>· {row.shift.title}</span>}
           </p>
+        )}
+        {row.absence && (
+          <div className="space-y-1 rounded-md bg-muted/40 px-2 py-1.5">
+            <p>{row.absence.category ? "Abwesenheit: " + row.absence.category : "Genehmigte Abwesenheit"} · {row.absence.handling === "PAID" ? "bezahlt mit Planstunden" : row.absence.handling === "UNPAID" ? "zählt 0 Stunden" : row.absence.handling === "RELEASED" ? "aus der Schicht ausgetragen" : "ohne Festlegung (0 Stunden)"}</p>
+            {showPay && row.absence.pay && <ul className="text-xs text-muted-foreground">{row.absence.pay.lines.map((l, i) => <li key={i}>{lineText(l)}</li>)}</ul>}
+          </div>
         )}
         {row.records.map((r) => (
           <div key={r.id} className="space-y-1 rounded-md bg-muted/40 px-2 py-1.5">

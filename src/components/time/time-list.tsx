@@ -37,6 +37,7 @@ import { summaryCan } from "@/lib/access-shared";
 import { json, useAction } from "@/components/workforce/client";
 import { TimeRecordForm } from "./time-record-form";
 import { TimesheetButton } from "@/components/reporting/timesheet-button";
+import { OwnAccountButton } from "@/components/reporting/time-account-dialog";
 import { Stopwatch } from "./stopwatch";
 import { AnomalyBadge, EmployeeAnomalyIndicator } from "./anomaly-badge";
 
@@ -304,6 +305,7 @@ export function TimeList() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <OwnAccountButton from={monthKey + "-01"} to={format(endOfMonth(currentMonth), "yyyy-MM-dd")} />
           <TimesheetButton from={monthKey + "-01"} to={format(endOfMonth(currentMonth), "yyyy-MM-dd")} label="Mein Stundenzettel" />
           <Button
             variant="outline"

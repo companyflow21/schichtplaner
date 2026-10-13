@@ -15,7 +15,9 @@ export async function GET() {
     orderBy: { name: "asc" },
   });
 
-  return NextResponse.json({ categories });
+  // Der Lohnart-Code gehoert zum Lohn: nur fuer die Administration.
+  const admin = isAdminOrAbove(member.role);
+  return NextResponse.json({ categories: categories.map(({ payCode, ...category }) => (admin ? { ...category, payCode } : category)) });
 }
 
 // POST /api/absences/categories - Create category
@@ -23,6 +25,7 @@ const createCategorySchema = z.object({
   name: z.string().min(1),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   isPaid: z.boolean(),
+  payCode: z.string().trim().max(20).nullable().optional().transform((v) => (v ? v : null)),
 });
 
 export async function POST(request: NextRequest) {
@@ -58,6 +61,7 @@ export async function POST(request: NextRequest) {
       name: data.name,
       color: data.color,
       isPaid: data.isPaid,
+      payCode: data.payCode ?? null,
     },
   });
 
@@ -70,6 +74,8 @@ const updateCategorySchema = z.object({
   name: z.string().min(1).optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   isPaid: z.boolean().optional(),
+  /** Lohnart-Code fuer bezahlte Abwesenheitsstunden im Lohnexport */
+  payCode: z.string().trim().max(20).nullable().optional().transform((v) => (v === undefined ? undefined : v || null)),
 });
 
 export async function PATCH(request: NextRequest) {
@@ -113,6 +119,7 @@ export async function PATCH(request: NextRequest) {
       ...(data.name !== undefined && { name: data.name }),
       ...(data.color !== undefined && { color: data.color }),
       ...(data.isPaid !== undefined && { isPaid: data.isPaid }),
+      ...(data.payCode !== undefined && { payCode: data.payCode }),
     },
   });
 
