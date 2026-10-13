@@ -79,7 +79,7 @@ export function AbsenceEffectsDialog({ userId, name, from, to, categoryId, absen
             {data.shifts.length === 0 ? <p className="text-muted-foreground">Keine geplanten Schichten im Zeitraum.</p> : (
               <>
                 <label className="block space-y-1">
-                  <span className="font-medium">Für alle {data.shifts.length} {data.shifts.length === 1 ? "Schicht" : "Schichten"} im Zeitraum</span>
+                  <span className="font-medium">{data.shifts.length === 1 ? "Für die Schicht im Zeitraum" : "Für alle " + data.shifts.length + " Schichten im Zeitraum"}</span>
                   <select className={selectClass} value={general} onChange={(e) => setChosen(e.target.value as Handling)}>
                     {(["PAID", "UNPAID", ...(canReleaseAll ? ["RELEASED"] : [])] as Handling[]).map((h) => <option key={h} value={h}>{LABEL[h]}</option>)}
                   </select>
