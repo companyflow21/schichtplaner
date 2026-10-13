@@ -1,5 +1,29 @@
 # Fertigstellung – Arbeitsliste
 
+## Port Stunden prüfen (P2) und Stundenzettel (P3) aus dem Cloud-Branch (13.10.2026, externer Ordner, nicht eingespielt)
+
+Basis `588dbb9` (mit Lohn-Port P1 und Planungsregeln). Übernommen per `git cherry-pick -x`: `0ff8e24`, aus `d35d168`
+nur die Stundentabelle (Doku verworfen), `5f4e78d` aus `claude/wizardly-cerf-cxbutc`; danach Anpassungscommits.
+Nichts aus P4–P6, keine Cloud-Doku. Regeln: `docs/AKRO-ERWEITERUNG.md` Abschnitt 9, Rechte: `docs/ROLLEN-UND-RECHTE.md`.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P0 | Genehmigen – `api/time/approve` | Admin; Disposition mit „Zeit bearbeiten“ + „Stunden“; eigene nur Admin; ohne „Stunden“ 403, ohne Standortrecht/fremde Organisation 404; laufende Stoppuhr 409 | bestanden (lokal) | `tests/hours.ts` |
+| P0 | Lohn auf „Stunden und Lohn“ nur Admin – `lib/hours.ts` | Disposition bekommt keine Beträge, Sätze, Lohnart, Hinweise, Personalnummern; Lohnexport weiter `requireAdmin` | bestanden (lokal) | `tests/hours.ts`, `tests/payroll.ts` |
+| P1 | Migration `20261013110000_time_approval` (Cloud: `20261013090000_time_approval`) | Nach Lohn, vor Planungsregeln; Altbuchungen genehmigt ohne Prüfer („automatisch übernommen“), laufende offen, Schicht nur aus Check-in (eindeutig), gelöschte Personen gleich behandelt | bestanden (lokal) | `npm run test:migration` 84/84 |
+| P1 | Gelöschte Personen, Sub-Platzhalter – `lib/hours.ts`, `lib/timesheet.ts` | Eigene Zeile „gelöscht“ nur für Admin, genehmigen ja, ändern 409, kein Nachtragen; Platzhalter-Schicht ohne Zeile und ohne „nicht erfasst“ | bestanden (lokal) | `tests/hours.ts` |
+| P1 | Plan in Bearbeitung | Eigener Stundenzettel und eigene Stunden mit Planspalte aus der Momentaufnahme, Planende live, nach Verwerfen alter Stand | bestanden (lokal) | `tests/timesheet.ts` |
+| P1 | Feiertage im Stundenzettel | Fronleichnam-Stunden nur am Einsatzort in NRW, nicht in Thüringen; keine Beträge | bestanden (lokal) | `tests/timesheet.ts` |
+| P2 | Oberfläche „Stunden und Lohn“ (`/hours`, `/payroll` leitet um), Zeiterfassung › „Mein Stundenzettel“ | Lohnseite aufgegangen (Namensformat, „gelöscht“, Hinweise, Lohnart/Summen); 375 px ohne Seitenüberbreite, keine Schrift unter 12 px | bestanden (lokal) | Browser auf Produktions-Build (`tests/preview.ts`, Port 3418) bei Desktop und 375 px; die Tabelle mit Lohnspalte scrollt bei 375 px innerhalb der Karte (10 px), wie in der Cloud |
+| P1 | Lohn nur aus genehmigten Stunden | Entscheidung AKRO; vorläufig steuert die Genehmigung den Lohn nicht | offen | Ansatzpunkt: `payrollData()` in `lib/payroll-service.ts`, Abfrage `db.timeRecord.findMany` (+ `approvedAt: { not: null }`) |
+| P1 | „Ist = Plan“ ohne Erfassung, Inhalt/Unterschrift Stundenzettel | Entscheidung AKRO; vorläufig „nicht erfasst“ mit Nachtragen | offen | Fachliche Entscheidung AKRO |
+
+Prüfungen (lokal, 13.10.2026): `tsc` 0 Fehler · `npm run lint` 0 Fehler / 25 Warnungen (unverändert) ·
+`test:migration` 84/84 · `test:migration:history` 29/29 · `test:migration:subcontractors` 21/21 · `test:payroll` 39/39 ·
+`test:pdf` 14/14 · `TEST_ONLY=hours,timesheet,payroll,permissions,checkin,employee-delete,plan-lifecycle` (Ports
+3418/55552) 1521/1521 · `npm run build` erfolgreich. Nicht ausgeführt: vollständiges `test:workflows`, Kopiemigration,
+Betriebsnachweise, Browserprüfung als Disposition und Mitarbeiter.
+
 ## Port Lohn (P1) aus dem Cloud-Branch (13.10.2026, externer Ordner, nicht eingespielt)
 
 Basis `e2bf1fa`. Übernommen per `git cherry-pick -x`: `8e6e865`, `4346c44`, `6c75b86` aus

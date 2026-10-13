@@ -134,6 +134,9 @@ Eigene veröffentlichte Schichten, eigene Zeiten ansehen, Stoppuhr mit Pause, Ze
 Freigabe**), Korrektur beantragen, Abwesenheit beantragen (solange offen ändern/zurückziehen), Verfügbarkeit,
 Check-in, eigene Monatsstunden inkl. Soll, Nachrichten, Push, eigene Schicht anbieten oder tauschen, alte unbestätigte
 Zuweisung bestätigen. Eigene Kontaktdaten ändern: nur über die Schnittstelle (keine Profilseite).
+[Port P2/P3, nicht eingespielt] Eigene Nachträge, Stoppuhr- und Check-in-Zeiten zählen sofort, gelten in „Stunden und
+Lohn“ aber bis zur Genehmigung als „offen“ (außer mit „Selbst erfasste Zeiten automatisch genehmigen“); eigene Stunden
+genehmigt nur die Administration. Eigener Stundenzettel (PDF) unter Zeiterfassung › „Mein Stundenzettel“.
 
 ### 3.5 Abhängigkeiten und Kombinationen
 - **Eingeschlossen:** „bearbeiten“, „veröffentlichen“, „Anträge“ → „Dienstplan ansehen“; **„Dienstplan ansehen“ →
@@ -319,6 +322,19 @@ Fensters erzeugt einen Hinweis.
 - Grenzen: **eigene Nachträge wirken ohne Freigabe**; bestehende Buchungen nur per begründetem Korrekturantrag
   (Entscheidung durch „Zeit bearbeiten“ + „Stunden“, nicht für eigene – **Admins doch**); Löschen für niemanden;
   Buchungen ohne Standort sieht nur A.
+- [Port P2] Prüfende (A; D mit „Zeit bearbeiten“ am Standort der Buchung + „Stunden“) ändern fremde Buchungen in
+  „Stunden und Lohn“ direkt: sofort wirksam, genehmigt, Vorher/Nachher als entschiedene Korrektur im Verlauf.
+  Mitarbeitende beantragen weiter. Zeiten gelöschter Personen bleiben unverändert (409), A kann sie genehmigen.
+
+**Stunden und Lohn** [Port P2/P3, nicht eingespielt] – UI
+- Wo: Navigation „Stunden und Lohn“ (`/hours`; `/payroll` leitet dorthin), Gruppe Organisation, mobil unter „Mehr“.
+- Wer: sehen wie die Auswertung (eigene; fremde mit „Zeit einsehen“ am Standort + „Stunden“); genehmigen und
+  zurücknehmen A oder D mit „Zeit bearbeiten“ + „Stunden“, eigene nur A (`POST /api/time/approve`: nicht sichtbare
+  Buchung ohne Standortrecht 404, sonst 403). Lohnspalten, Lohnart, Hinweise und Lohnexport nur A. Gelöschte Personen
+  (eigene Zeile „gelöscht“) nur A.
+- Stundenzettel (PDF): eigener für jede Person; fremder mit denselben Rechten wie „Stunden und Lohn“; Personalnummer
+  und Soll nur A und die Person selbst. Leistungsnachweis je Einsatzort (PDF): „Zeit einsehen“ am Standort, Zeilen nur
+  für Personen mit „Stunden“.
 
 **Check-in mit Standortprüfung** – UI
 - Wo: Startseite „Jetzt einchecken“ (ab 30 Minuten vor Beginn bis Schichtende, nur HTTPS); bei Problemen manueller Antrag.
@@ -398,6 +414,9 @@ Profilseite, kein Wechsel zwischen Organisationen** (bei mehreren Mitgliedschaft
 | Check-in | Eigene | Eigene | Eigene; Team: F: Zeit einsehen + Stunden | Eigene | nur eigene Schicht |
 | Auswertung/CSV | alle mit Soll | alle mit Soll | Eigene + F: Zeit einsehen + Stunden | Eigene | D ohne Soll anderer |
 | Lohn, Lohnarten/Zuschläge, Lohnexport [Port P1] | ✔ | ✔ | ✖ | ✖ | keine Freigabe öffnet Lohndaten |
+| Stunden genehmigen, fremde Buchung direkt ändern [Port P2] | ✔ (auch eigene) | ✔ (auch eigene) | F: Zeit bearbeiten + Stunden | ✖ | D nicht eigene; gelöschte Personen nur A |
+| Stundenzettel (PDF) [Port P3] | alle | alle | Eigener + F: Zeit einsehen + Stunden | Eigener | Personalnummer/Soll nur A und Person |
+| Leistungsnachweis je Einsatzort (PDF) [Port P3] | ✔ | ✔ | F: Zeit einsehen (Zeilen mit Stunden) | ✖ | |
 | PDF-Export [Neu] | alle | alle | sichtbare Pläne | sichtbare Pläne | |
 | Nachrichten | alle | alle | sichtbare Personen | sichtbare Personen | keine E-Mails |
 | Standortmeldungen | ✔ | ✔ | F: Standortmeldungen | ✖ | |
