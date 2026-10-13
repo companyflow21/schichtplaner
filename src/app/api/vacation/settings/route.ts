@@ -31,7 +31,7 @@ const input = z.object({
   categoryId: z.string().min(1).nullable().optional(),
   yearStart: z.string().regex(/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, "Beginn des Urlaubsjahres als MM-TT.").optional(),
   startDate: z.string().refine(validDate, "Ungültiges Datum.").nullable().optional(),
-  daysPerYear: z.number().min(0).max(366).optional(),
+  daysPerYear: z.number().min(0).max(366).nullable().optional(),
   allocation: z.enum(["YEARLY", "MONTHLY"]).optional(),
   carryOver: z.boolean().optional(),
   carryOverMax: z.number().min(0).max(366).nullable().optional(),

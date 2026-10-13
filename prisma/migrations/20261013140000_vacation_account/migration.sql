@@ -12,7 +12,7 @@ CREATE TABLE "vacation_settings" (
     "categoryId" TEXT,
     "yearStart" TEXT NOT NULL DEFAULT '01-01',
     "startDate" DATE,
-    "daysPerYear" DOUBLE PRECISION NOT NULL DEFAULT 30,
+    "daysPerYear" DOUBLE PRECISION,
     "allocation" "VacationAllocation" NOT NULL DEFAULT 'YEARLY',
     "carryOver" BOOLEAN NOT NULL DEFAULT true,
     "carryOverMax" DOUBLE PRECISION,

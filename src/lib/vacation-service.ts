@@ -26,9 +26,12 @@ type MemberRow = { id: string; userId: string; vacationRule: { included: boolean
 type Settings = NonNullable<Awaited<ReturnType<typeof vacationSettings>>>;
 const day = (value: Date) => value.toISOString().slice(0, 10);
 
+/** Urlaubstage je Jahr der Person: eigene Regel vor der allgemeinen; null = nirgends eingetragen (kein Konto). */
+const daysPerYearOf = (member: MemberRow, settings: Settings) => member.vacationRule?.daysPerYear ?? settings.daysPerYear;
+
 function rulesFor(member: MemberRow, settings: Settings, asOf: string): VacationRules {
   return {
-    yearStart: settings.yearStart, daysPerYear: member.vacationRule?.daysPerYear ?? settings.daysPerYear, allocation: settings.allocation,
+    yearStart: settings.yearStart, daysPerYear: daysPerYearOf(member, settings) ?? 0, allocation: settings.allocation,
     carryOver: member.vacationRule?.carryOver ?? settings.carryOver, carryOverMax: settings.carryOverMax, excludedWeekdays: settings.excludedWeekdays,
     countHolidays: settings.countHolidays,
     startDate: (member.vacationRule?.startDate ?? settings.startDate)?.toISOString().slice(0, 10) ?? vacationYear(asOf, settings.yearStart).from,
@@ -110,7 +113,7 @@ export async function vacationFor(a: Access, userId: string, asOf = berlinDate()
   if (!member || !mayView(a, userId, settings?.visible ?? true)) throw new ApiError("Nicht gefunden.", 404);
   const category = settings?.categoryId ? await db.absenceCategory.findFirst({ where: { id: settings.categoryId, organizationId: a.orgId }, select: { name: true } }) : null;
   const base = { memberId: member.id, enabled: !!settings?.enabled, canEdit: a.isAdmin, categoryId: settings?.categoryId ?? null, categoryName: category?.name ?? null };
-  if (!settings?.enabled || !settings.categoryId || member.vacationRule?.included === false) return { ...base, active: false, rules: null, years: [], current: null, adjustments: [] };
+  if (!settings?.enabled || !settings.categoryId || member.vacationRule?.included === false || daysPerYearOf(member, settings) === null) return { ...base, active: false, rules: null, years: [], current: null, adjustments: [] };
   const { rules, years, adjustments } = (await compute(a.orgId, [member], settings, asOf)).get(member.id)!;
   return { ...base, active: true, rules, years, current: years[years.length - 1] ?? null, adjustments };
 }
@@ -125,7 +128,7 @@ export async function vacationOverview(a: Access, asOf = berlinDate()) {
     where: { organizationId: a.orgId, isActive: true, ...(managed ? { userId: { in: managed } } : {}) },
     select: { id: true, userId: true, vacationRule: true, user: { select: { firstName: true, lastName: true } } },
   });
-  const included = members.filter((m) => m.vacationRule?.included !== false);
+  const included = members.filter((m) => m.vacationRule?.included !== false && daysPerYearOf(m, settings) !== null);
   const accounts = await compute(a.orgId, included, settings, asOf);
   const people = included.map((m) => {
     const { years, rules } = accounts.get(m.id)!;

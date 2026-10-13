@@ -1191,7 +1191,8 @@ model VacationSettings {
   yearStart        String   @default("01-01")
   /// Beginn des Urlaubskontos fuer alle ohne eigenes Startdatum
   startDate        DateTime? @db.Date
-  daysPerYear      Float    @default(30)
+  /// Urlaubstage je Jahr; null = noch nicht eingetragen (die App gibt keine vor)
+  daysPerYear      Float?
   allocation       VacationAllocation @default(YEARLY)
   carryOver        Boolean  @default(true)
   /// null = ohne Grenze

@@ -451,8 +451,8 @@ async function main() {
   await vac.exec(await readFile("prisma/migrations/" + VACATION + "/migration.sql", "utf8"));
   check((await rows(vac, `SELECT 1 FROM "vacation_settings"`)).length === 0, "no organization gets a vacation account by the migration");
   await vac.exec(`INSERT INTO "vacation_settings" ("id","organizationId","updatedAt") VALUES ('v1','u1',${now})`);
-  const vs = (await rows<{ enabled: boolean; daysPerYear: number; yearStart: string; excludedWeekdays: number[]; carryOver: boolean; visible: boolean; categoryId: string | null }>(vac, `SELECT "enabled","daysPerYear","yearStart","excludedWeekdays","carryOver","visible","categoryId" FROM "vacation_settings"`))[0];
-  check(!vs.enabled && vs.categoryId === null && vs.daysPerYear === 30 && vs.yearStart === "01-01" && vs.excludedWeekdays.join() === "6,7" && vs.carryOver && vs.visible, "defaults: off, no category, 30 days, calendar year, weekends free, carry-over, visible");
+  const vs = (await rows<{ enabled: boolean; daysPerYear: number | null; yearStart: string; excludedWeekdays: number[]; carryOver: boolean; visible: boolean; categoryId: string | null }>(vac, `SELECT "enabled","daysPerYear","yearStart","excludedWeekdays","carryOver","visible","categoryId" FROM "vacation_settings"`))[0];
+  check(!vs.enabled && vs.categoryId === null && vs.daysPerYear === null && vs.yearStart === "01-01" && vs.excludedWeekdays.join() === "6,7" && vs.carryOver && vs.visible, "defaults: off, no category, no vacation days preset (cloud: 30), calendar year, weekends free, carry-over, visible");
   await assert.rejects(vac.exec(`INSERT INTO "vacation_settings" ("id","organizationId","updatedAt") VALUES ('v2','u1',${now})`), /unique|duplicate/i);
   await vac.exec(`INSERT INTO "vacation_rules" ("id","organizationId","memberId","updatedAt") VALUES ('r1','u1','um',${now})`);
   await assert.rejects(vac.exec(`INSERT INTO "vacation_rules" ("id","organizationId","memberId","updatedAt") VALUES ('r2','u1','um',${now})`), /unique|duplicate/i);
