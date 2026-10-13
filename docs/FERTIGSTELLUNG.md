@@ -1,5 +1,28 @@
 # Fertigstellung – Arbeitsliste
 
+## Port Lohn (P1) aus dem Cloud-Branch (13.10.2026, externer Ordner, nicht eingespielt)
+
+Basis `e2bf1fa`. Übernommen per `git cherry-pick -x`: `8e6e865`, `4346c44`, `6c75b86` aus
+`claude/wizardly-cerf-cxbutc`; danach Anpassungscommits an die Hauptlinie. Nichts aus P0 außer der Datei
+`src/lib/csv.ts` (vom Lohnexport importiert), nichts aus P2–P6. Regeln: `docs/AKRO-ERWEITERUNG.md` Abschnitt 8.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P0 | Lohn nur Administration – `api/payroll/**`, Seite `/payroll` | Disposition und Mitarbeitende 403 auf jeder Lohn-Schnittstelle (auch eigene Personalnummer), fremde Organisation 404 | bestanden (lokal) | `tests/payroll.ts` |
+| P1 | Migration `20261013100000_payroll` (Cloud: `20261012090000_payroll`) | Nach `20261012120000_schedule_editing`, SQL unverändert, rein additiv; Zeiten gelöschter Personen und Bundesland je Einsatzort unberührt | bestanden (lokal) | `npm run test:migration` 72/72 |
+| P1 | Zeiten gelöschter Personen – `lib/payroll-service.ts` | `userId` null führt nicht zum Absturz; eigene Zeile mit Namen aus `FormerEmployee`, Arbeitsbereich über behaltene Zuweisung, Export ohne Personalnummer | bestanden (lokal) | `tests/payroll.ts`, `tests/payroll-unit.ts` |
+| P1 | Feiertage je Einsatzort – `lib/payroll.ts` (`holidaysForRecord`) | Fronleichnam in NRW mit, in Thüringen ohne Zuschlag; ohne Einsatzort Organisationsfeiertage; Einsatzort ohne Bundesland: 0 und sichtbarer Hinweis | bestanden (lokal) | `tests/payroll.ts`, `tests/payroll-unit.ts`; Browser (Hinweis sichtbar) |
+| P1 | Sub-Platzhalter | Kein Lohn, keine Zeile, stören die Schichtzuordnung nicht | bestanden (lokal) | `tests/payroll.ts` |
+| P2 | Oberfläche Lohn und Einstellungen › Lohnarten/Zuschläge | Namensformat der Organisation, „gelöscht“-Kennzeichen, `?bereich=payroll`, Navigation „Lohn“ (mobil unter „Mehr“), Löschen mit Bestätigungsdialog; 375 px ohne Überbreite | bestanden (lokal) | Browser auf Produktions-Build (`npm run preview:test`): Zuschlag angelegt, Person gelöscht, Lohnseite, Exportdialog und Einstellungen bei 375 px ohne Überbreite |
+| P1 | Steuerliche Behandlung, Sätze, Vorrangregeln | Mit Steuerbüro abgestimmt | offen | Fachliche Entscheidung AKRO |
+| P1 | Lohn nur aus freigegebenen Stunden | Entscheidung vor P2 (Stundenfreigabe) | offen | Fachliche Entscheidung AKRO |
+
+Prüfungen (lokal, 13.10.2026): `tsc` 0 Fehler · `npm run lint` 0 Fehler / 25 Warnungen (unverändert) ·
+`test:migration` 72/72 · `test:migration:history` 29/29 · `test:migration:subcontractors` 21/21 ·
+`test:payroll` 39/39 · `TEST_ONLY=payroll,permissions,employee-delete,subcontractors` (Ports 3416/55550)
+1161/1161 · `npm run build` erfolgreich. Nicht ausgeführt: vollständiges `test:workflows`, Kopiemigration,
+Betriebsnachweise.
+
 ## Diagnose: Mitarbeiter sehen keine Pläne (11.10.2026)
 
 Auftrag: Ursache der fehlenden Mitarbeitersicht feststellen. Die laufende Netcup-App
