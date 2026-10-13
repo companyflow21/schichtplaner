@@ -13,9 +13,10 @@ export async function GET(request: Request) {
     const q = new URL(request.url).searchParams;
     const date = q.get("date") || berlinDate();
     if (!validDate(date)) throw new ApiError("Ungültiges Datum.");
-    const view = await vacationFor(a, q.get("userId") || a.userId, date);
+    const userId = q.get("userId") || a.userId;
+    const view = await vacationFor(a, userId, date);
     const from = q.get("from"), to = q.get("to");
-    const cost = view.active && from && to && validDate(from) && validDate(to) && from <= to ? await vacationCost(a.orgId, from, to) : null;
+    const cost = view.active && from && to && validDate(from) && validDate(to) && from <= to ? await vacationCost(a.orgId, userId, from, to) : null;
     return { ...view, cost };
   });
 }
