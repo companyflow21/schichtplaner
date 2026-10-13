@@ -5,6 +5,9 @@
  * sichtbar (nur lesend), negative Zahlen im CSV bleiben Zahlen, Nachricht als
  * ungelesen markieren. "Reaktivieren" im Mitarbeitermenue war in der
  * Hauptlinie schon behoben; hier nur noch die Schnittstelle als Gegenprobe.
+ * Dazu der Sicherheitsfix der Anmelde-, Registrierungs- und Aktivierungsformulare
+ * (method="post", sonst landen E-Mail und Passwort bei einem Absenden vor der
+ * Hydration in der Adresszeile).
  * Teil von tests/workflows.ts (TEST_ONLY=abgleich-fixes).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -15,7 +18,15 @@ import type { TestContext } from "./permissions";
 export async function abgleichFixTests(t: TestContext) {
   const { users, check, categoryId } = t;
   const session = async (email: string) => { const s = new t.Session(); await s.login(email); return s; };
-  const admin = await session(users.admin.email), sA = await session(users.staffA.email);
+  const admin = await session(users.admin.email), sA = await session(users.staffA.email), mA = await session(users.managerA.email);
+
+  // --- Anmelde-, Registrierungs- und Aktivierungsformular senden per POST (nie per GET mit E-Mail und Passwort in der URL) ---
+  for (const page of ["/login", "/register", "/activate"]) {
+    const html = await (await fetch(t.base + page)).text();
+    check(/<form[^>]*method="post"/.test(html), page + ": the form is sent as POST");
+    const res = await fetch(t.base + page, { method: "POST", redirect: "manual", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "email=probe%40akro-test.invalid&password=nur-ein-test" });
+    check(res.status === 200 && !res.headers.get("location"), page + ": a native POST before hydration is answered without redirect, nothing ends up in the address");
+  }
 
   // --- Abwesenheit: eingetragen von der Leitung = genehmigt; eigener Antrag bleibt offen ---
   const leaver = (await admin.request("/api/employees", "POST", { employees: [{ firstName: "Ida", lastName: "Austritt", email: "ida.austritt@akro-test.invalid", role: "EMPLOYEE" }] }, 201)).members[0];
@@ -27,12 +38,16 @@ export async function abgleichFixTests(t: TestContext) {
 
   // --- Deaktivieren (PATCH; DELETE ist in der Hauptlinie das endgueltige Loeschen): Abwesenheit bleibt sichtbar, ist aber nicht mehr entscheidbar ---
   const pending = (await admin.request("/api/absences", "POST", { userId: leaver.userId, categoryId, dateFrom: "2027-04-01", dateTo: "2027-04-01" }, 201)).absence;
+  await admin.request("/api/employees/" + users.managerA.memberId + "/access", "PUT", { kind: "staff", memberId: leaver.id, rights: ["MANAGE_ABSENCES"] });
+  const seenByManager = async () => ((await mA.request("/api/absences?year=2027")).absences as any[]).filter((x) => x.userId === leaver.userId).length;
+  check(await seenByManager() === 2, "manager with the staff right sees the absences of the assigned person");
   await admin.request("/api/employees/" + leaver.id, "PATCH", { isActive: false });
   const listed = (await admin.request("/api/absences?year=2027")).absences as any[];
   const keptApproved = listed.find((x) => x.id === byAdmin.id), keptPending = listed.find((x) => x.id === pending.id);
   check(keptApproved && keptPending, "absences of a deactivated person stay visible to the administration");
   check(keptPending.canDecide === false && keptApproved.canDecide === false, "absences of a deactivated person are read-only");
   await admin.request("/api/absences/" + pending.id, "PATCH", { status: "APPROVED" }, 404);
+  check(await seenByManager() === 0, "the staff assignment ends with the deactivation: managers do not see the history of deactivated people");
   const options = (await admin.request("/api/absences?year=2027")).people as any[];
   check(!options.some((p) => p.userId === leaver.userId), "a deactivated person cannot be chosen for new absences");
   await admin.request("/api/absences", "POST", { userId: leaver.userId, categoryId, dateFrom: "2027-05-01", dateTo: "2027-05-01" }, 404);
@@ -42,6 +57,7 @@ export async function abgleichFixTests(t: TestContext) {
   await admin.request("/api/employees/" + leaver.id, "PATCH", { isActive: true });
   const again = (await admin.request("/api/absences?year=2027")).absences as any[];
   check(again.find((x) => x.id === pending.id)?.canDecide === true, "after reactivation the open request can be decided again");
+  check(await seenByManager() === 2, "after reactivation the manager sees the absences again");
   await admin.request("/api/absences/" + pending.id, "PATCH", { status: "APPROVED" });
 
   // --- CSV: negative deutsche Zahlen bleiben Zahlen, Formelzeichen werden entschaerft ---
