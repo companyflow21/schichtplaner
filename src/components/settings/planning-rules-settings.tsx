@@ -6,17 +6,30 @@ import { Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InfoHint } from "@/components/ui/info-hint";
 import { ErrorMessage, json, selectClass, useAction } from "@/components/workforce/client";
 import { RULE_LABEL, type PartialRules, type RuleKey, type Rules } from "@/lib/planning-rules";
 import { cn } from "@/lib/utils";
 
-type Member = { memberId: string; userId: string; firstName: string; lastName: string; own: PartialRules };
+type Member = { memberId: string; userId: string; name: string; own: PartialRules };
 type Data = { general: Rules; members: Member[] };
 
 const GROUPS: { title: string; keys: RuleKey[] }[] = [
   { title: "Zeitverteilung", keys: ["hours", "dailyHours", "rest"] },
   { title: "Arbeitstage", keys: ["consecutiveDays", "daysPerWeek", "workdayBlocks", "consecutiveWeekends", "freeDayAfterWeekend", "freeDayBlocks"] },
 ];
+/** Erklaerung je Regel (ⓘ) - beschreibt, wie src/lib/planning-rules.ts zaehlt. */
+const RULE_HELP: Record<RuleKey, string> = {
+  hours: "Summe der Planstunden (Dauer minus Pause) je Kalenderwoche (Mo–So) oder Kalendermonat. Eine Schicht zählt zu dem Tag, an dem sie beginnt. Vorbelegt: höchstens 48 h je Woche nach dem Arbeitszeitgesetz.",
+  dailyHours: "Summe der Planstunden aller Schichten, die an einem Tag beginnen. Vorbelegt: 10 h nach dem Arbeitszeitgesetz.",
+  rest: "Zeit vom Ende einer Schicht bis zum Beginn der nächsten. Schichten mit höchstens 15 Minuten Abstand gelten als ein Block. Vorbelegt: 11 h nach dem Arbeitszeitgesetz.",
+  consecutiveDays: "Tage mit mindestens einer Schicht ohne freien Tag dazwischen. Gemeldet werden die Tage über der Grenze.",
+  daysPerWeek: "Tage mit mindestens einer Schicht in einer Kalenderwoche (Mo–So).",
+  workdayBlocks: "Meldet einen Arbeitstag ohne Arbeitstag davor und danach.",
+  consecutiveWeekends: "Ein Wochenende zählt, wenn am Samstag oder Sonntag eine Schicht beginnt.",
+  freeDayAfterWeekend: "Für jeden Samstag oder Sonntag mit Schicht ein freier Werktag (Mo–Fr) in der Woche danach.",
+  freeDayBlocks: "Meldet einen einzelnen freien Tag zwischen zwei Arbeitstagen.",
+};
 const num = (text: string) => { const v = Number(text.trim().replace(",", ".")); return text.trim() === "" || !Number.isFinite(v) ? null : v; };
 const show = (value: number | null) => (value === null ? "" : String(value).replace(".", ","));
 
@@ -32,30 +45,36 @@ export function PlanningRulesSettings() {
   if (query.error || !query.data) return <ErrorMessage error={query.error ?? new Error("Planungsregeln konnten nicht geladen werden.")} />;
   const { general, members } = query.data;
   const person = members.find((m) => m.memberId === selected) ?? null;
-  const people = members.filter((m) => (m.lastName + ", " + m.firstName).toLowerCase().includes(search.trim().toLowerCase()));
+  const people = members.filter((m) => m.name.toLowerCase().includes(search.trim().toLowerCase()));
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">Planungsregeln</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Hinweise für die Planung: Verstöße erscheinen im Wochenplan und beim Veröffentlichen, sperren aber nichts. Gezählt werden alle Schichten einer Person an allen Standorten, ohne Tage mit genehmigter Abwesenheit.</p>
+        <div className="flex items-center gap-1">
+          <h2 className="text-xl font-semibold">Planungsregeln</h2>
+          <InfoHint thema="Planungsregeln">
+            <p>Verstöße erscheinen im Wochenplan unter der Konfliktprüfung und beim Veröffentlichen, sperren aber nichts.</p>
+            <p>Gezählt werden alle Schichten einer Person an allen Standorten, auch in Entwürfen, ohne Tage mit genehmigter Abwesenheit. Subunternehmer-Platzhalter zählen nicht.</p>
+          </InfoHint>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">Hinweise für die Planung; alle Regeln sind zunächst ausgeschaltet.</p>
       </div>
       <div className="grid gap-4 md:grid-cols-[15rem_1fr]">
         <Card className="space-y-2 p-3">
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Person suchen …" aria-label="Person suchen" />
           <select className={cn(selectClass, "md:hidden")} value={selected ?? ""} onChange={(e) => setSelected(e.target.value || null)} aria-label="Regeln für">
             <option value="">Allgemeine Regeln</option>
-            {people.map((m) => <option key={m.memberId} value={m.memberId}>{m.lastName}, {m.firstName}{Object.keys(m.own).length ? " (weicht ab)" : ""}</option>)}
+            {people.map((m) => <option key={m.memberId} value={m.memberId}>{m.name}{Object.keys(m.own).length ? " (weicht ab)" : ""}</option>)}
           </select>
           <ul className="hidden max-h-[28rem] space-y-0.5 overflow-y-auto md:block">
             <li><PersonButton active={!selected} onClick={() => setSelected(null)} label="Allgemeine Regeln" /></li>
             {people.map((m) => (
-              <li key={m.memberId}><PersonButton active={selected === m.memberId} onClick={() => setSelected(m.memberId)} label={m.lastName + ", " + m.firstName} deviates={Object.keys(m.own).length > 0} /></li>
+              <li key={m.memberId}><PersonButton active={selected === m.memberId} onClick={() => setSelected(m.memberId)} label={m.name} deviates={Object.keys(m.own).length > 0} /></li>
             ))}
           </ul>
         </Card>
         <Card className="space-y-5 p-4">
           <div>
-            <h3 className="font-semibold">{person ? person.firstName + " " + person.lastName : "Allgemeine Regeln"}</h3>
+            <h3 className="font-semibold">{person ? person.name : "Allgemeine Regeln"}</h3>
             <p className="text-sm text-muted-foreground">{person ? "Abweichungen gelten nur für diese Person; „allgemein“ übernimmt wieder die allgemeine Regel." : "Gelten für alle, soweit für eine Person nichts anderes eingestellt ist."}</p>
           </div>
           <RuleList key={selected ?? "general"} general={general} member={person} />
@@ -69,7 +88,7 @@ function PersonButton({ active, onClick, label, deviates = false }: { active: bo
   return (
     <button type="button" onClick={onClick} aria-current={active} className={cn("flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-sm", active ? "bg-accent font-medium text-accent-foreground" : "hover:bg-muted")}>
       <span className="truncate">{label}</span>
-      {deviates && <span className="shrink-0 rounded-full bg-warn/10 px-2 py-0.5 text-[11px] text-warn">weicht ab</span>}
+      {deviates && <span className="shrink-0 rounded-full bg-warn/10 px-2 py-0.5 text-xs text-warn">weicht ab</span>}
     </button>
   );
 }
@@ -153,13 +172,16 @@ function RuleRow({ ruleKey, rule, own, person, pending, onSave, onReset }: {
   return (
     <li className="space-y-2 px-3 py-2.5 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <label className="flex items-center gap-2 font-medium">
-          <input type="checkbox" className="size-4 accent-primary" checked={enabled} disabled={pending} onChange={(e) => toggle(e.target.checked)} />
-          {RULE_LABEL[ruleKey]}
-        </label>
+        <span className="flex items-center gap-1">
+          <label className="flex items-center gap-2 font-medium max-md:min-h-11">
+            <input type="checkbox" className="size-4 accent-primary" checked={enabled} disabled={pending} onChange={(e) => toggle(e.target.checked)} />
+            {RULE_LABEL[ruleKey]}
+          </label>
+          <InfoHint thema={RULE_LABEL[ruleKey]}><p>{RULE_HELP[ruleKey]}</p></InfoHint>
+        </span>
         {person && (own
-          ? <span className="flex items-center gap-2"><span className="rounded-full bg-warn/10 px-2 py-0.5 text-[11px] text-warn">eigene Regel</span><Button size="xs" variant="ghost" disabled={pending} onClick={onReset}>allgemein</Button></span>
-          : <span className="text-[11px] text-muted-foreground">allgemein</span>)}
+          ? <span className="flex items-center gap-2"><span className="rounded-full bg-warn/10 px-2 py-0.5 text-xs text-warn">eigene Regel</span><Button size="xs" variant="ghost" className="max-md:h-11" disabled={pending} onClick={onReset}>allgemein</Button></span>
+          : <span className="text-xs text-muted-foreground">allgemein</span>)}
       </div>
       {enabled && detail && <div className="pl-6">{detail}</div>}
       {error && <p role="alert" className="pl-6 text-xs text-destructive">{error}</p>}
