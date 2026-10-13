@@ -4,26 +4,33 @@ import { db } from "@/lib/db";
 import { anyBranchIds, branchIds, requireAccess, requireAdmin } from "@/lib/access";
 import { branchInput, branchPatch } from "@/lib/org-structure";
 import { BRANCH_RIGHTS, type BranchRightKey } from "@/lib/access-shared";
+import { CUSTOMER_ARCHIVED } from "@/lib/archive";
 
 const rightParam = z.enum(BRANCH_RIGHTS.map((r) => r.key) as [BranchRightKey, ...BranchRightKey[]]);
 
-/** Sichtbare Standorte; mit ?right=... nur die, an denen dieses Recht besteht. */
+/**
+ * Sichtbare Standorte; mit ?right=... nur die, an denen dieses Recht besteht.
+ * Archivierte nur mit ?archived=include (Standortfilter der Auswertung).
+ */
 export async function GET(request: Request) {
   return api(async () => {
     const a = await requireAccess();
-    const q = new URL(request.url).searchParams.get("right");
+    const params = new URL(request.url).searchParams;
+    const q = params.get("right");
     const ids = q ? branchIds(a, rightParam.parse(q)) : anyBranchIds(a);
     const branches = await db.branch.findMany({
-      where: { organizationId: a.orgId, ...(ids ? { id: { in: ids } } : {}) },
+      where: { organizationId: a.orgId, ...(ids ? { id: { in: ids } } : {}), ...(params.get("archived") === "include" ? {} : { archivedAt: null }) },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, address: true, meetingPoint: true, notes: true, positions: true, isActive: true, customerId: true, customer: { select: { id: true, name: true } }, latitude: true, longitude: true, checkinRadiusM: true, gpsCheckinRequired: true, holidayState: true },
+      select: { id: true, name: true, address: true, meetingPoint: true, notes: true, positions: true, isActive: true, archivedAt: true, customerId: true, customer: { select: { id: true, name: true } }, latitude: true, longitude: true, checkinRadiusM: true, gpsCheckinRequired: true, holidayState: true },
     });
     return { branches };
   });
 }
 
 async function checkCustomer(orgId: string, customerId: string) {
-  if (!await db.customer.findFirst({ where: { id: customerId, organizationId: orgId } })) throw new ApiError("Kunde nicht gefunden.", 404);
+  const customer = await db.customer.findFirst({ where: { id: customerId, organizationId: orgId }, select: { archivedAt: true } });
+  if (!customer) throw new ApiError("Kunde nicht gefunden.", 404);
+  if (customer.archivedAt) throw new ApiError(CUSTOMER_ARCHIVED, 409);
 }
 
 export async function POST(request: Request) {

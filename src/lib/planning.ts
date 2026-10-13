@@ -1,7 +1,7 @@
 import type { Prisma, Shift, Schedule } from "@prisma/client";
 import { ApiError } from "./errors";
 import { addDate, overlaps, rangeMinutes, shiftRange } from "./berlin";
-import { branchIds, can, type Access } from "./access";
+import { ARCHIVED_MESSAGE, branchIds, can, type Access } from "./access";
 import { normalizeBranchRights } from "./access-shared";
 import { CHECKED_IN, wallToUtcMinutes } from "./checkin";
 import { isEditing, notifiesEmployees, scheduleStatus } from "./schedule-status";
@@ -47,7 +47,7 @@ export function lastShiftDate(shift: { dayOfWeek: number; shiftFrom: string; shi
  * Pruefung einer Einteilung, getrennt nach Wirkung:
  * - blocks: harte Sperren, die keine Bestaetigung aufhebt: genehmigte
  *   Abwesenheit, ausdruecklich eingetragene Nichtverfuegbarkeit, inaktives
- *   Konto und inaktiver Einsatzort.
+ *   Konto und inaktiver oder archivierter Einsatzort.
  * - warnings: kurze Hinweise, die die Planung mit einer Bestaetigung
  *   uebersteuert (zeitliche Ueberschneidung, fehlende Qualifikation,
  *   Taetigkeit, Arbeitsbereich, Schicht ausserhalb der eingetragenen
@@ -122,6 +122,7 @@ export async function assessAssignment(tx: Tx, shift: PlannedShift, userId: stri
   if (shift.schedule.branchId) {
     const branch = await tx.branch.findUnique({ where: { id: shift.schedule.branchId } });
     if (!branch?.isActive) blocks.push("Einsatzort ist nicht aktiv.");
+    if (branch?.archivedAt) blocks.push(ARCHIVED_MESSAGE);
     if (branch && positionMismatch(branch.positions, member.position)) warnings.push("Tätigkeit passt nicht zum Einsatzort.");
   }
   if (shift.divisionId) {
@@ -159,6 +160,7 @@ export async function assessContractorAssignment(tx: Tx, shift: PlannedShift, co
   if (shift.schedule.branchId) {
     const branch = await tx.branch.findUnique({ where: { id: shift.schedule.branchId } });
     if (!branch?.isActive) blocks.push("Einsatzort ist nicht aktiv.");
+    if (branch?.archivedAt) blocks.push(ARCHIVED_MESSAGE);
     if (branch?.positions.length) warnings.push("Bei Platzhaltern ist die Tätigkeit nicht hinterlegt. Bitte die Tätigkeiten am Einsatzort beim Subunternehmer prüfen.");
   }
   if (shift.requiredQualifications.length) warnings.push("Bei Platzhaltern sind Qualifikationen nicht hinterlegt. Bitte die erforderlichen Qualifikationen beim Subunternehmer prüfen: " + shift.requiredQualifications.join(", ") + ".");
@@ -208,7 +210,7 @@ export async function planningPool(tx: Tx, a: Access, branchId: string | null): 
   if (branch) {
     const managed = branchIds(a, "EDIT_SHIFTS");
     const siblings = branch.customerId
-      ? await tx.branch.findMany({ where: { organizationId: a.orgId, customerId: branch.customerId, id: managed ? { in: managed.filter(id => id !== branch.id) } : { not: branch.id } }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+      ? await tx.branch.findMany({ where: { organizationId: a.orgId, customerId: branch.customerId, archivedAt: null, id: managed ? { in: managed.filter(id => id !== branch.id) } : { not: branch.id } }, select: { id: true, name: true }, orderBy: { name: "asc" } })
       : [];
     const names = new Map(siblings.map(s => [s.id, s.name]));
     const grants = await tx.branchAccess.findMany({
