@@ -376,48 +376,72 @@ async function main() {
   check(autoDefault.length === 1 && autoDefault[0].d === "false", "auto-approval setting exists and defaults to off");
   await ap.close();
 
-  // Zeitkonten: additiv, zunaechst aus; ein Soll je Person und Startdatum.
-  const ACCOUNTS = "20261014090000_time_accounts";
+  // Zeitkonten (Cloud: 20261014090000_time_accounts): additiv nach der Stundenfreigabe und vor den Planungsregeln,
+  // zunaechst aus, ohne Konto fuer bestehende Personen; ein Soll je Person und Startdatum. Konto, Soll und Ausgleich
+  // haengen an der Mitgliedschaft und entfallen mit dem Loeschen der Person (geloeschte Personen haben kein Zeitkonto).
+  const ACCOUNTS = "20261013120000_time_accounts";
+  check(ACCOUNTS > APPROVAL && ACCOUNTS < RULES, "time account migration is ordered after time approval and before the planning rules");
   const acc = await database(ACCOUNTS);
   await acc.exec(`
     INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('k1','Org Konto',${now});
     INSERT INTO "users" ("id","email","firstName","lastName","updatedAt") VALUES ('ka','ka@akro-test.invalid','Kai','Alt',${now});
-    INSERT INTO "organization_members" ("id","organizationId","userId","role","isActivated") VALUES ('km','k1','ka','EMPLOYEE',true);
+    INSERT INTO "organization_members" ("id","organizationId","userId","role","isActivated","targetHoursPerMonth") VALUES ('km','k1','ka','EMPLOYEE',true,160);
     INSERT INTO "time_settings" ("id","organizationId","autoApprove") VALUES ('ks','k1',true);
+    INSERT INTO "former_employees" ("id","organizationId","firstName","lastName") VALUES ('kf','k1','Kurt','Frueher');
+    INSERT INTO "time_records" ("id","organizationId","userId","formerEmployeeId","date","type","timeFrom","timeTo","updatedAt") VALUES ('kr','k1',null,'kf','2026-09-28','MANUAL','08:00','16:00',${now});
   `);
   await acc.exec(await readFile("prisma/migrations/" + ACCOUNTS + "/migration.sql", "utf8"));
   const ts = (await rows<{ autoApprove: boolean; accountsEnabled: boolean; accountMethod: string; accountVisible: boolean }>(acc, `SELECT "autoApprove","accountsEnabled","accountMethod","accountVisible" FROM "time_settings" WHERE "id"='ks'`))[0];
   check(ts.autoApprove === true && ts.accountsEnabled === false && ts.accountMethod === "ACTUAL_MINUS_TARGET" && ts.accountVisible === false, "existing time settings keep their values; accounts start switched off");
+  check((await rows(acc, `SELECT 1 FROM "time_accounts"`)).length === 0 && (await rows(acc, `SELECT 1 FROM "target_hours"`)).length === 0, "no account and no target is derived for existing people (not even from the monthly target hours)");
+  const formerTime = (await rows<{ userId: string | null; formerEmployeeId: string | null }>(acc, `SELECT "userId","formerEmployeeId" FROM "time_records" WHERE "id"='kr'`))[0];
+  check(formerTime.userId === null && formerTime.formerEmployeeId === "kf", "times of deleted people stay unchanged history");
   await acc.exec(`INSERT INTO "target_hours" ("id","organizationId","memberId","startDate","minutes","period") VALUES ('kt1','k1','km','2026-01-05',2400,'WEEK')`);
   await assert.rejects(acc.exec(`INSERT INTO "target_hours" ("id","organizationId","memberId","startDate","minutes","period") VALUES ('kt2','k1','km','2026-01-05',1200,'WEEK')`), /unique|duplicate/i);
   check(true, "one target per person and start date");
+  await acc.exec(`
+    INSERT INTO "time_accounts" ("id","organizationId","memberId","updatedAt") VALUES ('kc','k1','km',${now});
+    INSERT INTO "time_compensations" ("id","organizationId","memberId","date","minutes","description") VALUES ('kx','k1','km','2026-01-05',720,'Anfangssaldo');
+  `);
+  await assert.rejects(acc.exec(`INSERT INTO "time_accounts" ("id","organizationId","memberId","updatedAt") VALUES ('kc2','k1','km',${now})`), /unique|duplicate/i);
   await acc.exec(`DELETE FROM "organization_members" WHERE "id"='km'`);
-  check((await rows(acc, `SELECT 1 FROM "target_hours"`)).length === 0, "targets are removed with the member");
+  check((await rows(acc, `SELECT 1 FROM "target_hours"`)).length === 0 && (await rows(acc, `SELECT 1 FROM "time_accounts"`)).length === 0 && (await rows(acc, `SELECT 1 FROM "time_compensations"`)).length === 0, "one account per person; account, targets and compensations are removed with the member");
   await acc.close();
 
-  // Abwesenheit: Altbestand ohne Wirkung und ohne "genehmigt von"; Entscheidung je Schicht eindeutig.
-  const EFFECTS = "20261015090000_absence_effects";
+  // Abwesenheit wirkt (Cloud: 20261015090000_absence_effects): Altbestand ohne Wirkung und ohne "genehmigt von" - eine
+  // genehmigte Altabwesenheit erscheint in "Stunden und Lohn" als abwesend mit 0 Stunden. Entscheidung je Schicht
+  // eindeutig; Zuweisungen (auch geloeschter Personen und Platzhalter) bleiben unberuehrt.
+  const EFFECTS = "20261013130000_absence_effects";
+  check(EFFECTS > ACCOUNTS && EFFECTS < RULES, "absence effects migration is ordered after the time accounts and before the planning rules");
   const eff = await database(EFFECTS);
   await eff.exec(`
     INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('e1','Org Abw',${now});
     INSERT INTO "users" ("id","email","firstName","lastName","updatedAt") VALUES ('ea','ea@akro-test.invalid','Eva','Alt',${now});
-    INSERT INTO "absence_categories" ("id","organizationId","name") VALUES ('ec','e1','Urlaub');
+    INSERT INTO "former_employees" ("id","organizationId","firstName","lastName") VALUES ('ef','e1','Ernst','Frueher');
+    INSERT INTO "subcontractors" ("id","organizationId","name","updatedAt") VALUES ('esc','e1','Sub GmbH',${now});
+    INSERT INTO "contractor_workers" ("id","organizationId","subcontractorId","name","updatedAt") VALUES ('ew','e1','esc','Platzhalter 1',${now});
+    INSERT INTO "absence_categories" ("id","organizationId","name","isPaid") VALUES ('ec','e1','Urlaub',true);
     INSERT INTO "absences" ("id","userId","categoryId","dateFrom","dateTo","status") VALUES ('ex','ea','ec','2026-09-01','2026-09-02','APPROVED');
-    INSERT INTO "schedules" ("id","organizationId","weekNumber","year","updatedAt") VALUES ('ep','e1',36,2026,${now});
-    INSERT INTO "shifts" ("id","scheduleId","dayOfWeek","shiftFrom","shiftTo") VALUES ('es','ep',2,'08:00','16:00');
+    INSERT INTO "schedules" ("id","organizationId","weekNumber","year","isPublic","updatedAt") VALUES ('ep','e1',36,2026,true,${now});
+    INSERT INTO "shifts" ("id","scheduleId","dayOfWeek","shiftFrom","shiftTo","maxEmployees") VALUES ('es','ep',2,'08:00','16:00',3);
+    INSERT INTO "bookings" ("id","shiftId","userId","formerEmployeeId","contractorWorkerId") VALUES ('eb1','es','ea',null,null),('eb2','es',null,'ef',null),('eb3','es',null,null,'ew');
   `);
   await eff.exec(await readFile("prisma/migrations/" + EFFECTS + "/migration.sql", "utf8"));
-  const legacy = (await rows<{ status: string; approvedById: string | null }>(eff, `SELECT "status","approvedById" FROM "absences" WHERE "id"='ex'`))[0];
-  check(legacy.status === "APPROVED" && legacy.approvedById === null && (await rows(eff, `SELECT 1 FROM "absence_shifts"`)).length === 0, "approved legacy absences keep their status and have no effects");
+  const legacy = (await rows<{ status: string; approvedById: string | null; approvedAt: Date | null }>(eff, `SELECT "status","approvedById","approvedAt" FROM "absences" WHERE "id"='ex'`))[0];
+  check(legacy.status === "APPROVED" && legacy.approvedById === null && legacy.approvedAt === null && (await rows(eff, `SELECT 1 FROM "absence_shifts"`)).length === 0, "approved legacy absences keep their status, have no approver and no effects (shown as absent with 0 hours)");
   check((await rows<{ payCode: string | null }>(eff, `SELECT "payCode" FROM "absence_categories" WHERE "id"='ec'`))[0].payCode === null, "categories start without payroll code");
+  check((await rows(eff, `SELECT 1 FROM "bookings" WHERE "shiftId"='es'`)).length === 3, "assignments of people, deleted people and placeholders stay unchanged");
   await eff.exec(`INSERT INTO "absence_shifts" ("id","absenceId","shiftId","handling") VALUES ('f1','ex','es','PAID')`);
   await assert.rejects(eff.exec(`INSERT INTO "absence_shifts" ("id","absenceId","shiftId","handling") VALUES ('f2','ex','es','UNPAID')`), /unique|duplicate/i);
+  await assert.rejects(eff.exec(`INSERT INTO "absence_shifts" ("id","absenceId","shiftId","handling") VALUES ('f3','ex','fehlt','PAID')`), /foreign key/i);
   await eff.exec(`DELETE FROM "absences" WHERE "id"='ex'`);
-  check((await rows(eff, `SELECT 1 FROM "absence_shifts"`)).length === 0, "one decision per absence and shift; removed with the absence");
+  check((await rows(eff, `SELECT 1 FROM "absence_shifts"`)).length === 0, "one decision per absence and shift, only for existing shifts; removed with the absence");
   await eff.close();
 
-  // Urlaubskonto: additiv und zunaechst aus; je Organisation eine Regel, je Person eine Abweichung.
-  const VACATION = "20261016090000_vacation_account";
+  // Urlaubskonto (Cloud: 20261016090000_vacation_account): additiv und zunaechst aus; je Organisation eine Regel, je
+  // Person eine Abweichung. Regeln und Korrekturen haengen an der Mitgliedschaft und entfallen mit der Person.
+  const VACATION = "20261013140000_vacation_account";
+  check(VACATION > EFFECTS && VACATION < RULES, "vacation account migration is ordered after the absence effects and before the planning rules");
   const vac = await database(VACATION);
   await vac.exec(`
     INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('u1','Org Urlaub',${now});
@@ -427,8 +451,8 @@ async function main() {
   await vac.exec(await readFile("prisma/migrations/" + VACATION + "/migration.sql", "utf8"));
   check((await rows(vac, `SELECT 1 FROM "vacation_settings"`)).length === 0, "no organization gets a vacation account by the migration");
   await vac.exec(`INSERT INTO "vacation_settings" ("id","organizationId","updatedAt") VALUES ('v1','u1',${now})`);
-  const vs = (await rows<{ enabled: boolean; daysPerYear: number; yearStart: string; excludedWeekdays: number[]; carryOver: boolean; visible: boolean }>(vac, `SELECT "enabled","daysPerYear","yearStart","excludedWeekdays","carryOver","visible" FROM "vacation_settings"`))[0];
-  check(!vs.enabled && vs.daysPerYear === 30 && vs.yearStart === "01-01" && vs.excludedWeekdays.join() === "6,7" && vs.carryOver && vs.visible, "defaults: off, 30 days, calendar year, weekends free, carry-over, visible");
+  const vs = (await rows<{ enabled: boolean; daysPerYear: number; yearStart: string; excludedWeekdays: number[]; carryOver: boolean; visible: boolean; categoryId: string | null }>(vac, `SELECT "enabled","daysPerYear","yearStart","excludedWeekdays","carryOver","visible","categoryId" FROM "vacation_settings"`))[0];
+  check(!vs.enabled && vs.categoryId === null && vs.daysPerYear === 30 && vs.yearStart === "01-01" && vs.excludedWeekdays.join() === "6,7" && vs.carryOver && vs.visible, "defaults: off, no category, 30 days, calendar year, weekends free, carry-over, visible");
   await assert.rejects(vac.exec(`INSERT INTO "vacation_settings" ("id","organizationId","updatedAt") VALUES ('v2','u1',${now})`), /unique|duplicate/i);
   await vac.exec(`INSERT INTO "vacation_rules" ("id","organizationId","memberId","updatedAt") VALUES ('r1','u1','um',${now})`);
   await assert.rejects(vac.exec(`INSERT INTO "vacation_rules" ("id","organizationId","memberId","updatedAt") VALUES ('r2','u1','um',${now})`), /unique|duplicate/i);
