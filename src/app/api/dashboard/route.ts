@@ -4,7 +4,7 @@ import { addDate, berlinDate, berlinTime, minuteOfDay, shiftRange } from "@/lib/
 import { branchIds, can, requireAccess, staffIds, timeScope, type Access } from "@/lib/access";
 import { checkAssignment, shiftInclude, shiftView } from "@/lib/planning";
 import { monthlyReport } from "@/lib/report";
-import { dashboardTasks } from "@/lib/dashboard-tasks";
+import { dashboardTasks, openConfirmations } from "@/lib/dashboard-tasks";
 import { planningOverview } from "@/lib/overview";
 import { frozenView } from "@/lib/schedule-frozen";
 
@@ -79,11 +79,12 @@ export async function GET() {
       manager: true,
       tasks: await dashboardTasks(a, overview),
       overview: cards,
-      todayShifts,
+      // openConfirmations je Schicht: dieselbe Zählregel wie "Bestätigungen offen" (lib/dashboard-tasks.ts).
+      todayShifts: todayShifts.map((s) => ({ ...s, openConfirmations: openConfirmations(s) })),
       counts: {
         openSlots: plans ? views.reduce((sum, s) => sum + s.missing, 0) : null,
-        // Nur Altbestand ohne Bestaetigung; Einteilungen der Planung (PLANNER) sind verbindlich.
-        unconfirmed: plans ? views.reduce((sum, s) => sum + (s.isPublic ? s.bookings.filter((b) => b.userId && !b.confirmedAt).length : 0), 0) : null,
+        // Regel "Bestätigungen offen" siehe openConfirmations: nur Altbestand ohne Bestätigung an noch nicht beendeten Schichten.
+        unconfirmed: plans ? views.reduce((sum, s) => sum + openConfirmations(s), 0) : null,
         pendingRequests, pendingAbsences, pendingCorrections,
         openIssues: issues ? [...cards.customers.flatMap((c) => c.branches), ...cards.unassigned].reduce((sum, b) => sum + (b.issuesOpen ?? 0), 0) : null,
       },
