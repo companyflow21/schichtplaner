@@ -381,7 +381,7 @@ function DayCell({
         "hover:ring-1 hover:ring-primary/50",
         weekend && !absence && !holiday && "text-muted-foreground/50",
         today && "font-bold ring-1 ring-primary",
-        holiday && !absence && "bg-accent text-[var(--brand)] dark:text-[var(--brand)]",
+        holiday && !absence && "bg-accent text-primary",
         borderStyle
       )}
       style={{
