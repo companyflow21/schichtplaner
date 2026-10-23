@@ -131,11 +131,19 @@
      AKRO-Blau fuehrt (Navigation, Hauptaktion). Status nur mit Text:
      Service-Gruen = passend/erledigt, warmes Orange = Hinweis,
      Fire-Rot = Fehler. Das Orange ist die einzige Ergaenzung zur
-     Dachmarke - noetig, damit Hinweis und Fehler unterscheidbar bleiben;
-     alle Werte erreichen mindestens 4,5:1 auf Karte, Papier und Tonflaeche. */
-  --status-ok: var(--service);
-  --status-hinweis: #a15700;
-  --status-fehler: var(--fire);
+     Dachmarke - noetig, damit Hinweis und Fehler unterscheidbar bleiben.
+
+     Gemessen (WCAG, Text als StatusBadge auf 10 % Toenung ueber Karte,
+     Papier, Panelkopf, vertiefter Flaeche, Heute-Flaeche und --muted):
+     mindestens 4,58:1 (ok 4,60 / hinweis 4,60 / fehler 4,58). Die
+     Markenwerte --service (#237249) und --fire (#af431f) blieben auf Papier
+     knapp darunter (4,49 / 4,37), deshalb stehen die Statuswerte hier als
+     eigene, dunklere Stufe desselben Farbtons (OKLCH-Farbton unveraendert,
+     nur Helligkeit gesenkt: #237249 -> #1c6d44, #a15700 -> #924e00,
+     #af431f -> #a73c17). --service und --fire selbst bleiben unveraendert. */
+  --status-ok: #1c6d44;
+  --status-hinweis: #924e00;
+  --status-fehler: #a73c17;
 
   /* Diagramme: Sparten zuerst, dann Tiefblau und Sekundaertext. */
   --chart-1: var(--security);
@@ -204,7 +212,15 @@
   --card-foreground: var(--ink);
   --popover: #102e5b;
   --popover-foreground: var(--ink);
-  --primary: #4d7dff;
+  /* Marke auf dunkler Flaeche: Text in --primary (text-primary: Initialen
+     auf bg-primary/10, Links, "Schicht hinzufuegen") erreichte mit #4d7dff
+     auf Karte (#102e5b) nur 3,64:1, auf Initialen-Chips 3,2:1. #8db0ff ist
+     derselbe Blauton (OKLCH-Farbton 265,4 statt 265,6), nur heller: Text
+     >= 4,56:1 auf Karte, Papier, Panelkopf, --muted, Heute-Flaeche und
+     --secondary, auch mit 10 % Marke als Tonung darueber (schwaechster
+     Fall: Initialen-Chip auf --secondary, 4,56:1). Der Primaerknopf
+     behaelt mit dunklem Text (#06143a) 8,37:1. */
+  --primary: #8db0ff;
   --primary-foreground: #06143a;
   --secondary: #16376a;
   --secondary-foreground: #d5e3f7;
@@ -215,7 +231,8 @@
   --destructive: var(--status-fehler);
   --border: var(--line);
   --input: #355687;
-  --ring: #4d7dff;
+  /* Fokusring wie die Marke im Dunkelmodus: 6,26:1 auf Karte, 7,77:1 auf Papier. */
+  --ring: #8db0ff;
 
   /* Statusfarben auf dunkler Flaeche: Tuerkis aus den dunklen
      Markenwerten (chart-2); Orange und Rot aufgehellt, damit Hinweis und
@@ -295,10 +312,15 @@
     letter-spacing: -0.02em;
   }
 
-  /* Fokusring wie im Designsystem; auf blauen Flaechen weiss. */
+  /* Fokusring wie im Designsystem: 3 px, 2 px Abstand; auf blauen Flaechen
+     weiss. Farbe ist --ring (hell die Marke, dunkel das hellere Blau), nicht
+     --brand: #073ae8 hatte auf dunklen Flaechen nur 1,8:1. Der Abstand liegt
+     bei 2 px, weil ein Ring von 6 px Abstand in Panels mit overflow-hidden
+     abgeschnitten wurde. Bausteine (Button, Input) nutzen diesen Ring und
+     setzen keinen eigenen, damit ein Fokus ueberall gleich aussieht. */
   :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
-    outline: 3px solid var(--brand);
-    outline-offset: 6px;
+    outline: 3px solid var(--ring);
+    outline-offset: 2px;
     border-radius: 3px;
   }
 
@@ -335,6 +357,18 @@
     line-height: 1.3;
     letter-spacing: 0.025em;
     color: var(--muted-foreground);
+  }
+
+  /* Pflichtfeld: Sternchen hinter dem Beschriftungstext, per CSS, damit der
+     Text der Beschriftung (und der zugaengliche Name des Feldes)
+     unveraendert bleibt. Die Alternativtext-Angabe nach dem Schraegstrich
+     haelt das Sternchen aus dem Namen heraus; Screenreader melden
+     "erforderlich" ueber das Attribut required. Die erste Zeile ist der
+     Rueckfall fuer Browser ohne Alternativtext-Syntax. */
+  .akro-pflicht::after {
+    content: " *";
+    content: " *" / "";
+    font-weight: 600;
   }
 
   /* Dunkle Strukturflaeche (Kopfleiste, Fusszeile) - deckend, kein Glas. */
@@ -425,7 +459,14 @@
   }
 }
 
-/* Weniger Bewegung: keine Uebergaenge, kein Einsinken. */
+/* Weniger Bewegung: keine Uebergaenge, kein Einsinken, kein Gleiten und
+   Einblenden (animate-in/out laufen mit 0,01 ms, damit Radix das Ende der
+   Animation noch meldet und Dialoge sauber schliessen).
+   Ausnahme Ladeanzeigen: Eine stehende Anzeige sieht aus wie ein
+   haengendes Programm. Deshalb laufen animate-spin (Drehkreuz in Knoepfen,
+   Karten, Listen) und animate-pulse (Skelette) weiter, nur langsamer:
+   2 s statt 1 s je Umdrehung, 3 s statt 2 s je Puls. Es ist keine
+   Raumbewegung und kein Springen, nur Drehung bzw. Helligkeit. */
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -437,6 +478,16 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition: none !important;
+  }
+
+  .animate-spin {
+    animation-duration: 2s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  .animate-pulse {
+    animation-duration: 3s !important;
+    animation-iteration-count: infinite !important;
   }
 
   button:active,
