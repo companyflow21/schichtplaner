@@ -71,8 +71,14 @@ function headings(data: CandidateData): Record<Candidate["group"], string> {
   };
 }
 
-function getInitials(firstName: string, lastName: string): string {
-  return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+/**
+ * Initialen aus Vor- und Nachname, unabhaengig vom Namensformat der
+ * Organisation. Satzzeichen zaehlen nicht: Subunternehmer-Platzhalter tragen
+ * "· Name" als Nachnamen und ergaeben sonst "S·".
+ */
+export function initialen(firstName: string, lastName: string): string {
+  const erstes = (teil: string) => teil.match(/[\p{L}\p{N}]/u)?.[0] ?? "";
+  return (erstes(firstName) + erstes(lastName)).toUpperCase() || "?";
 }
 
 /**
@@ -124,12 +130,17 @@ export function EmployeePicker({
     <>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>{children}</PopoverTrigger>
-        <PopoverContent className="w-80 p-0" align="start" sideOffset={4}>
-          <Command>
+        <PopoverContent className="w-80 max-w-[calc(100vw-1rem)] p-0" align="start" sideOffset={4}>
+          {/* Mobil: Suchfeld 44 px hoch und 16 px Schrift (kein Zoom beim Fokus). */}
+          <Command className="[&_[data-slot=command-input-wrapper]]:max-md:h-11">
             {heading && (
-              <div className="border-b px-3 py-2 text-[12.5px] font-medium">{heading}</div>
+              <div className="border-b px-3 py-2 text-[13px] font-medium">{heading}</div>
             )}
-            <CommandInput placeholder={replace ? "Ersatz suchen..." : "Mitarbeiter suchen..."} />
+            <CommandInput
+              aria-label={replace ? "Ersatz suchen" : "Mitarbeiter suchen"}
+              placeholder={replace ? "Ersatz suchen..." : "Mitarbeiter suchen..."}
+              className="max-md:text-base"
+            />
             <CommandList className="max-h-[360px]">
               {isLoading ? (
                 <div className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
@@ -150,20 +161,19 @@ export function EmployeePicker({
                         value={`${c.firstName} ${c.lastName} ${c.userId}`}
                         onSelect={() => handleSelect(c)}
                         disabled={!c.selectable}
-                        className={cn("items-start", !c.selectable && "opacity-70")}
+                        // Gesperrte bleiben lesbar (kein Abblenden des Textes); der Grund steht darunter.
+                        className="items-start gap-2 max-md:min-h-11 data-[disabled=true]:opacity-100"
                       >
+                        <Avatar size="sm" className="mt-px">
+                          <AvatarFallback className={cn("text-xs font-medium tracking-tight", c.selectable ? "bg-secondary text-secondary-foreground" : "bg-muted text-muted-foreground")}>
+                            {initialen(c.firstName, c.lastName)}
+                          </AvatarFallback>
+                        </Avatar>
                         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                          <div className="flex items-center gap-2">
-                            <Avatar size="sm" className="data-[size=sm]:size-7">
-                              <AvatarFallback className="text-xs">
-                                {getInitials(c.firstName, c.lastName)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="truncate text-sm">
-                              {formatName(c, nameFormat)}
-                            </span>
-                          </div>
-                          <span className="flex items-start gap-1 pl-9 text-xs leading-snug text-muted-foreground">
+                          <span className={cn("truncate text-sm leading-6", !c.selectable && "text-muted-foreground")} title={formatName(c, nameFormat)}>
+                            {formatName(c, nameFormat)}
+                          </span>
+                          <span className="flex items-start gap-1 text-xs leading-snug text-muted-foreground">
                             {!c.selectable ? (
                               <Ban className="mt-px size-3 shrink-0" aria-hidden="true" />
                             ) : c.reasons.includes("Verfügbar eingetragen.") ? (
@@ -172,7 +182,7 @@ export function EmployeePicker({
                             {c.reasons.join(" ")}
                           </span>
                           {c.hints.length > 0 && (
-                            <span className="flex items-start gap-1 pl-9 text-xs leading-snug text-warn">
+                            <span className="flex items-start gap-1 text-xs leading-snug text-warn">
                               <AlertTriangle className="mt-px size-3 shrink-0" aria-hidden="true" />
                               {c.hints.join(" ")}
                             </span>
@@ -191,7 +201,7 @@ export function EmployeePicker({
                       key={worker.id}
                       value={`${worker.subcontractor.name} ${worker.name} ${worker.id}`}
                       disabled={!worker.selectable}
-                      className="items-start"
+                      className="items-start max-md:min-h-11 data-[disabled=true]:opacity-100"
                       onSelect={() => {
                         if (!worker.selectable) return;
                         setOpen(false);
@@ -200,7 +210,7 @@ export function EmployeePicker({
                       }}
                     >
                       <div className="flex min-w-0 flex-col gap-0.5">
-                        <span className="text-sm">{worker.subcontractor.name} · {worker.name}</span>
+                        <span className={cn("text-sm", !worker.selectable && "text-muted-foreground")}>{worker.subcontractor.name} · {worker.name}</span>
                         <span className="text-xs text-muted-foreground">{worker.reasons.join(" ")}</span>
                         {worker.hints.length > 0 && <span className="text-xs text-warn">{worker.hints.join(" ")}</span>}
                       </div>
