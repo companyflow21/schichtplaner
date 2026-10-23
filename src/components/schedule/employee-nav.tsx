@@ -117,7 +117,7 @@ export function EmployeeNav({
             size="sm"
             className="gap-1.5"
           >
-            <Users className="size-3.5" />
+            <Users className="size-3.5" aria-hidden="true" />
             {selectedEmployee ? (
               <>
                 {formatName(selectedEmployee.user, nameFormat)}
@@ -137,14 +137,15 @@ export function EmployeeNav({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-72 p-0" align="start">
-          {/* Search */}
-          <div className="flex items-center gap-2 border-b px-3 py-2">
-            <Search className="size-3.5 text-muted-foreground" />
+          {/* Suche: normales Eingabefeld mit eigenem Fokusring. */}
+          <div className="relative border-b p-2">
+            <Search className="pointer-events-none absolute top-1/2 left-4 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Mitarbeiter suchen..."
-              className="h-7 border-0 bg-transparent p-0 text-sm focus-visible:ring-0 shadow-none"
+              aria-label="Mitarbeiter suchen"
+              className="h-9 pl-8 text-sm max-md:h-11"
             />
           </div>
 
@@ -154,7 +155,7 @@ export function EmployeeNav({
             <button
               type="button"
               className={cn(
-                "flex items-center gap-2 w-full rounded-sm px-2 py-1.5 text-sm transition-colors",
+                "flex items-center gap-2 w-full rounded-sm px-2 py-1.5 text-sm transition-colors max-md:min-h-11",
                 !selectedEmployeeId
                   ? "bg-accent text-accent-foreground"
                   : "hover:bg-accent/50"
@@ -183,7 +184,7 @@ export function EmployeeNav({
                   key={emp.id}
                   type="button"
                   className={cn(
-                    "flex items-center gap-2 w-full rounded-sm px-2 py-1.5 text-sm transition-colors",
+                    "flex items-center gap-2 w-full rounded-sm px-2 py-1.5 text-sm transition-colors max-md:min-h-11",
                     isSelected
                       ? "bg-accent text-accent-foreground"
                       : "hover:bg-accent/50"
@@ -220,11 +221,13 @@ export function EmployeeNav({
       {selectedEmployeeId && (
         <Button
           variant="ghost"
-          size="sm"
-          className="size-7 p-0"
+          size="icon-sm"
+          aria-label="Personenfilter aufheben"
+          title="Personenfilter aufheben"
+          className="max-md:size-11"
           onClick={() => onSelectEmployee(null)}
         >
-          <X className="size-3.5" />
+          <X className="size-3.5" aria-hidden="true" />
         </Button>
       )}
     </div>
