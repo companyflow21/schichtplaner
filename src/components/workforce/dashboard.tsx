@@ -622,20 +622,16 @@ function Abschnitt({ titel, leer, eintraege, render, className }: { titel: strin
   );
 }
 
-/** Eine Schicht als Zeile: Zeit und Status oben, Ort und Namen darunter - auch auf dem Handy vollstaendig. */
-function SchichtZeile({ shift, namen, status, aktion }: { shift: Shift; namen?: string; status?: React.ReactNode; aktion?: React.ReactNode }) {
+/** Eine eigene oder offene Schicht als Zeile: Zeit oben, Ort darunter - auch auf dem Handy vollstaendig. */
+function SchichtZeile({ shift, aktion }: { shift: Shift; aktion?: React.ReactNode }) {
   const ort = [shift.branch?.name, shift.title].filter(Boolean).join(" · ") || "Schicht";
   return (
     <article className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 transition-colors hover:bg-[var(--flaeche-kopf)]">
       <div className="min-w-0 flex-1 basis-56">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="tabular text-[14px] font-medium">{dateLabel(shift.date)} · {shift.shiftFrom}–{shift.shiftTo}</span>
-          {status}
         </div>
-        <p className="mt-0.5 text-[13px] text-muted-foreground">
-          {ort}
-          {namen ? ` · ${namen}` : ""}
-        </p>
+        <p className="mt-0.5 text-[13px] text-muted-foreground">{ort}</p>
       </div>
       {aktion}
     </article>
