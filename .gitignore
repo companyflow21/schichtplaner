@@ -46,3 +46,6 @@ next-env.d.ts
 
 # Datenbank-Backups enthalten Personendaten - niemals einchecken
 backups/
+
+# Impeccable-Arbeitsdateien (Critique-Snapshots, Live-Server)
+.impeccable/
