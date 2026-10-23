@@ -5,9 +5,12 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ArrowRight, Building2, ChevronRight, Clock, EyeOff, Lock, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
+import { formatName } from "@/lib/names";
+import { useNameFormat } from "@/lib/hooks/use-current-member";
 import { monthLinkForOpen } from "@/components/schedule/month-grid";
 import { BEARBEITUNG_HINWEIS } from "@/components/schedule/employee-grid";
 import { dateLabel, ErrorMessage, json, useAction } from "./client";
@@ -27,6 +30,10 @@ type Shift = {
   isPublic: boolean;
   /** Plan in Bearbeitung: Bestaetigen und Antraege ruhen. */
   requestsPaused?: boolean;
+  /** Nachtschicht: endet am Folgetag. */
+  endsNextDay?: boolean;
+  /** Nur Startseite der Planung: Zaehlregel "Bestaetigungen offen" (lib/dashboard-tasks.ts). */
+  openConfirmations?: number;
   description: string | null;
   branch: {
     name: string;
@@ -38,6 +45,8 @@ type Shift = {
   bookings: {
     /** null: geloeschte Person (Historie). */
     userId: string | null;
+    /** Platzhalter eines Subunternehmers: Name bleibt in der Form "Firma · Name". */
+    contractorWorkerId?: string | null;
     confirmedAt: string | null;
     /** PLANNER: von der Planung fest eingeteilt, EMPLOYEE: selbst bestätigt, null: Altbestand. */
     confirmation?: "PLANNER" | "EMPLOYEE" | null;
@@ -92,8 +101,14 @@ type Dashboard = ManagerData | EmployeeData;
 const abschnittTitel = "text-[17px] font-semibold tracking-[-0.02em]";
 const textLink = "font-medium text-primary underline-offset-4 hover:underline";
 
+/** Wie die Auswertung: Dezimalkomma, höchstens zwei Stellen ("7,5 h"). */
 function stunden(minuten: number) {
-  return (minuten / 60).toLocaleString("de-DE", { maximumFractionDigits: 1 }) + " h";
+  return (minuten / 60).toLocaleString("de-DE", { maximumFractionDigits: 2 }) + " h";
+}
+
+/** Mit Vorzeichen und echtem Minus ("−7,5 h"). */
+function stundenMitVorzeichen(minuten: number) {
+  return (minuten > 0 ? "+" : minuten < 0 ? "−" : "") + stunden(Math.abs(minuten));
 }
 
 function anzahl(zahl: number, eins: string, mehr: string) {
@@ -126,7 +141,7 @@ export function Dashboard() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <p className="akro-label md:hidden">{dateLabel(data.today)}</p>
-          <h1 className="text-[28px] leading-tight font-semibold tracking-[-0.03em]">{data.manager ? "Übersicht" : "Heute"}</h1>
+          <h1 className="text-[28px] leading-tight font-semibold tracking-[-0.03em]">Heute</h1>
           <p className="mt-1 text-[14px] text-muted-foreground">Guten Tag, {data.firstName}</p>
         </div>
         {/* Wartet eine Bestaetigung, ist sie die Hauptaktion - dann tritt der Plan zurueck. */}
@@ -148,9 +163,18 @@ export function Dashboard() {
             {data.manager
               ? anzahl(data.reports.employees.length, "Person", "Personen") + " in deiner Auswertung"
               : eigeneMonatszeile
-                ? `${stunden(eigeneMonatszeile.totalMinutes)} erfasst${eigeneMonatszeile.targetStatus === "unset" ? " · Soll nicht festgelegt" : eigeneMonatszeile.targetMinutes !== null ? ` · Soll ${stunden(eigeneMonatszeile.targetMinutes)}` : ""} · Abweichung zum Plan ${stunden(eigeneMonatszeile.deviationMinutes)}`
+                ? `${stunden(eigeneMonatszeile.totalMinutes)} erfasst${eigeneMonatszeile.targetStatus === "unset" ? " · Soll nicht festgelegt" : eigeneMonatszeile.targetMinutes !== null ? ` · Soll ${stunden(eigeneMonatszeile.targetMinutes)}` : ""}`
                 : "Noch keine Zeiten erfasst"}
           </p>
+          {!data.manager && eigeneMonatszeile && (
+            <p className="tabular mt-0.5 flex items-center gap-1 text-[13px] text-muted-foreground">
+              Abweichung zum Plan {stundenMitVorzeichen(eigeneMonatszeile.deviationMinutes)}
+              <InfoHint thema="Abweichung zum Plan">
+                <p>Erfasste Stunden minus die Stunden der veröffentlichten Schichten dieses Monats, auch der noch kommenden.</p>
+                <p>Ein Minus heißt: Es ist mehr eingeplant als bisher erfasst.</p>
+              </InfoHint>
+            </p>
+          )}
         </div>
         <Button asChild variant="outline" size="sm"><Link href="/reporting">Zur Auswertung</Link></Button>
       </section>
@@ -162,6 +186,7 @@ export function Dashboard() {
 
 /** Disposition: erst was zu tun ist, dann Kunden und Standorte, dann der heutige Plan. */
 function ManagerStart({ data }: { data: ManagerData }) {
+  const nameFormat = useNameFormat();
   const { overview, counts } = data;
   const cards = [...overview.customers.flatMap((c) => c.branches), ...overview.unassigned];
   const leer = !overview.customers.length && !overview.unassigned.length;
@@ -228,38 +253,83 @@ function ManagerStart({ data }: { data: ManagerData }) {
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Abschnitt
-          titel="Heute im Dienstplan"
-          leer="Heute keine Schichten an deinen Standorten."
-          eintraege={data.todayShifts}
-          render={(s) => {
-            // Nur Altbestand ohne Bestätigung; Einteilungen der Planung sind verbindlich.
-            const unbestätigt = s.bookings.filter((b) => b.userId && !b.confirmedAt).length;
-            return (
-              <SchichtZeile
-                key={s.id}
-                shift={s}
-                namen={s.bookings.map((b) => `${b.user.firstName} ${b.user.lastName}`).join(", ")}
-                status={
-                  s.missing > 0 ? (
-                    <StatusBadge ton="hinweis" klein>{s.missing} offen</StatusBadge>
-                  ) : !s.isPublic ? (
-                    <EntwurfBadge />
-                  ) : unbestätigt > 0 ? (
-                    <StatusBadge ton="neutral" klein>{unbestätigt} unbestätigt</StatusBadge>
-                  ) : (
-                    <StatusBadge ton="ok" klein>besetzt</StatusBadge>
-                  )
-                }
-              />
-            );
-          }}
-        />
+        <section className={cn("akro-panel overflow-hidden", data.own.length === 0 && "lg:col-span-2")} aria-labelledby="heute-titel">
+          <div className="akro-panel-kopf flex items-center justify-between gap-3 border-b px-4 py-2.5">
+            <h2 id="heute-titel" className="text-[14px] font-semibold tracking-[-0.02em]">Heute im Dienstplan</h2>
+            {data.todayShifts.length > 0 && <span className="akro-kennzahl text-[13px] text-muted-foreground">{data.todayShifts.length}</span>}
+          </div>
+          {data.todayShifts.length ? (
+            <ul className="divide-y divide-[var(--linie-fein)]">
+              {[...data.todayShifts].sort((x, y) => x.date.localeCompare(y.date) || x.shiftFrom.localeCompare(y.shiftFrom)).map((s) => (
+                <HeuteZeile key={s.id} shift={s} heute={data.today} nameFormat={nameFormat} />
+              ))}
+            </ul>
+          ) : (
+            <p className="px-4 py-3 text-[14px] text-muted-foreground">Heute keine Schichten an deinen Standorten.</p>
+          )}
+        </section>
         {data.own.length > 0 && (
           <Abschnitt titel="Deine nächsten Schichten" leer="" eintraege={data.own.slice(0, 8)} render={(s) => <SchichtZeile key={s.id} shift={s} />} />
         )}
       </div>
     </>
+  );
+}
+
+/** Mehr als drei Namen: die ersten drei, der Rest als "+N" - alle Namen im Titel. */
+const SICHTBARE_NAMEN = 3;
+
+/**
+ * Eine Schicht von heute als Zeile: Zeit, Einsatzort, Besetzung, Namen.
+ * Nachtschichten tragen "+1" (Ende am Folgetag); eine von gestern beginnende
+ * Nachtschicht ist als solche benannt.
+ */
+function HeuteZeile({ shift, heute, nameFormat }: { shift: Shift; heute: string; nameFormat: string | undefined }) {
+  const ort = [shift.branch?.name, shift.title].filter(Boolean).join(" · ") || "Schicht";
+  const alle = shift.bookings.map((b) => formatName(b.user, nameFormat, { contractor: !!b.contractorWorkerId }));
+  const sichtbar = alle.slice(0, SICHTBARE_NAMEN);
+  const rest = alle.slice(SICHTBARE_NAMEN);
+  // Bei "Nachname, Vorname" trennt ein Semikolon die Personen eindeutig.
+  const trenner = nameFormat === "LASTNAME_FIRSTNAME" ? "; " : ", ";
+  const unbestätigt = shift.openConfirmations ?? 0;
+  const vonGestern = shift.date < heute;
+  return (
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
+      <span className="tabular w-[9.5rem] shrink-0 text-[14px] font-medium">
+        {shift.shiftFrom}–{shift.shiftTo}
+        {shift.endsNextDay && !vonGestern && (
+          <span className="ml-1 text-[12px] font-normal text-muted-foreground" title="Endet am nächsten Tag">
+            +1<span className="sr-only"> (endet am nächsten Tag)</span>
+          </span>
+        )}
+        {vonGestern && <span className="ml-1.5 text-[12px] font-normal text-muted-foreground">von gestern</span>}
+      </span>
+      <span className="order-3 min-w-0 basis-full text-[14px] break-words sm:order-none sm:flex-1 sm:basis-40">{ort}</span>
+      <span className="order-2 shrink-0 sm:order-none">
+        {shift.missing > 0 ? (
+          <StatusBadge ton="hinweis" klein>{shift.missing} offen</StatusBadge>
+        ) : !shift.isPublic ? (
+          <EntwurfBadge />
+        ) : unbestätigt > 0 ? (
+          <StatusBadge ton="neutral" klein>{unbestätigt} unbestätigt</StatusBadge>
+        ) : (
+          <StatusBadge ton="ok" klein>besetzt</StatusBadge>
+        )}
+      </span>
+      {alle.length > 0 && (
+        <span className="order-4 min-w-0 basis-full text-[13px] text-muted-foreground sm:order-none sm:flex-[3_1_16rem]">
+          {sichtbar.join(trenner)}
+          {rest.length > 0 && (
+            <>
+              {trenner}
+              <span className="font-medium text-foreground" title={alle.join(trenner)}>
+                +{rest.length}<span className="sr-only"> weitere: {rest.join(trenner)}</span>
+              </span>
+            </>
+          )}
+        </span>
+      )}
+    </li>
   );
 }
 
@@ -351,6 +421,8 @@ function MitarbeiterStart({ data, action }: { data: EmployeeData; action: Return
       ? <StatusBadge ton="ok" klein>bestätigt</StatusBadge>
       : <StatusBadge ton="hinweis" klein>Bestätigung offen</StatusBadge>;
   const adresse = nächste?.branch?.address?.trim();
+  const weitere = data.own.slice(1, 8);
+  const offene = data.open.slice(0, 8);
 
   async function adresseKopieren() {
     if (!adresse) return;
@@ -428,29 +500,42 @@ function MitarbeiterStart({ data, action }: { data: EmployeeData; action: Return
 
           </div>
         ) : (
-          <p className="p-4 text-[14px] text-muted-foreground">Noch keine kommende Schicht veröffentlicht.</p>
+          <div className="space-y-2 p-4 text-[14px]">
+            <p className="text-muted-foreground">Noch keine kommende Schicht veröffentlicht.</p>
+            {data.plans.length > 0 && <Link href="/schedule/month" className={textLink}>Standortpläne ansehen</Link>}
+          </div>
         )}
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Abschnitt titel="Weitere eigene Schichten" leer="Keine weiteren Schichten geplant." eintraege={data.own.slice(1, 8)} render={(s) => <SchichtZeile key={s.id} shift={s} />} />
-        <Abschnitt
-          titel="Offene Schichten für dich"
-          leer="Keine passenden offenen Schichten."
-          eintraege={data.open.slice(0, 8)}
-          render={(s) => (
-            <SchichtZeile
-              key={s.id}
-              shift={s}
-              aktion={
-                <Button size="sm" variant="outline" disabled={action.isPending} onClick={() => action.mutate({ url: "/api/mod-requests", data: { shiftId: s.id }, message: "Übernahme angefragt" })}>
-                  Übernahme anfragen
-                </Button>
-              }
+      {/* Listen nur mit Inhalt: zwei leere Kästen unter der nächsten Schicht sagen nichts, ein Satz genügt. */}
+      {weitere.length > 0 || offene.length > 0 ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {weitere.length > 0 && (
+            <Abschnitt titel="Weitere eigene Schichten" leer="" eintraege={weitere} className={offene.length === 0 ? "lg:col-span-2" : undefined} render={(s) => <SchichtZeile key={s.id} shift={s} />} />
+          )}
+          {offene.length > 0 && (
+            <Abschnitt
+              titel="Offene Schichten für dich"
+              leer=""
+              eintraege={offene}
+              className={weitere.length === 0 ? "lg:col-span-2" : undefined}
+              render={(s) => (
+                <SchichtZeile
+                  key={s.id}
+                  shift={s}
+                  aktion={
+                    <Button size="sm" variant="outline" disabled={action.isPending} onClick={() => action.mutate({ url: "/api/mod-requests", data: { shiftId: s.id }, message: "Übernahme angefragt" })}>
+                      Übernahme anfragen
+                    </Button>
+                  }
+                />
+              )}
             />
           )}
-        />
-      </div>
+        </div>
+      ) : nächste ? (
+        <p className="-mt-4 text-[13px] text-muted-foreground">Keine weiteren Schichten geplant und keine passenden offenen Schichten.</p>
+      ) : null}
 
       {data.plans.length > 0 && (
         <section className="akro-panel overflow-hidden" aria-labelledby="plaene-titel">
@@ -497,12 +582,13 @@ function OffeneAufgaben({ eintraege }: { eintraege: Aufgabe[] }) {
         </div>
       ) : (
         <div className="akro-panel overflow-hidden">
-          {/* Haarlinien statt Zwischenraeume; der Versatz legt die aeusseren Linien unter den Rand. */}
-          <ul className="-mr-px -mb-px grid sm:grid-cols-2 xl:grid-cols-3">
+          {/* Haarlinien statt Zwischenraeume; der Versatz legt die aeusseren Linien unter den Rand.
+              Die Felder umbrechen und wachsen: auch die letzte Zeile ist gefuellt, es bleibt keine leere Zelle. */}
+          <ul className="-mr-px -mb-px flex flex-wrap">
             {offen.map((e) => {
               const hinweis = e.dringend;
               return (
-                <li key={e.label} className="border-r border-b">
+                <li key={e.label} className="min-w-0 flex-[1_1_16rem] border-r border-b">
                   <Link href={e.href} className="flex h-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--flaeche-kopf)]">
                     <span className={cn("akro-kennzahl min-w-9 text-[24px]", hinweis ? "text-warn" : "text-foreground")}>{e.zahl}</span>
                     <span className="min-w-0 flex-1 text-[14px] leading-snug">
@@ -524,9 +610,9 @@ function OffeneAufgaben({ eintraege }: { eintraege: Aufgabe[] }) {
   );
 }
 
-function Abschnitt({ titel, leer, eintraege, render }: { titel: string; leer: string; eintraege: Shift[]; render: (shift: Shift) => React.ReactNode }) {
+function Abschnitt({ titel, leer, eintraege, render, className }: { titel: string; leer: string; eintraege: Shift[]; render: (shift: Shift) => React.ReactNode; className?: string }) {
   return (
-    <section className="akro-panel overflow-hidden">
+    <section className={cn("akro-panel overflow-hidden", className)}>
       <div className="akro-panel-kopf flex items-center justify-between gap-3 border-b px-4 py-2.5">
         <h2 className="text-[14px] font-semibold tracking-[-0.02em]">{titel}</h2>
         {eintraege.length > 0 && <span className="akro-kennzahl text-[13px] text-muted-foreground">{eintraege.length}</span>}
@@ -559,7 +645,7 @@ function SchichtZeile({ shift, namen, status, aktion }: { shift: Shift; namen?: 
 /** Geruest in der Form des spaeteren Inhalts. */
 function DashboardSkeleton() {
   return (
-    <div className="space-y-8" aria-busy="true" aria-label="Übersicht wird geladen">
+    <div className="space-y-8" aria-busy="true" aria-label="Startseite wird geladen">
       <div className="flex items-end justify-between gap-3">
         <Skeleton className="h-8 w-56" />
         <Skeleton className="h-9 w-40" />
