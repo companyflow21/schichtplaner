@@ -45,12 +45,12 @@ export function WeekSwitcher({
   const Tag = as as "p";
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <div className="flex min-h-10 max-w-full items-center rounded-lg border bg-card">
+      <div className="flex min-h-10 max-w-full items-center rounded-lg border bg-card max-md:min-h-11">
         <button
           type="button"
           onClick={onPrev}
           aria-label={prevLabel}
-          className="flex size-10 shrink-0 items-center justify-center rounded-l-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-offset-[-3px]"
+          className="flex size-10 shrink-0 items-center justify-center rounded-l-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-offset-[-3px] max-md:size-11"
         >
           <ChevronLeft className="size-4" aria-hidden="true" />
         </button>
@@ -62,7 +62,7 @@ export function WeekSwitcher({
           type="button"
           onClick={onNext}
           aria-label={nextLabel}
-          className="flex size-10 shrink-0 items-center justify-center rounded-r-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-offset-[-3px]"
+          className="flex size-10 shrink-0 items-center justify-center rounded-r-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-offset-[-3px] max-md:size-11"
         >
           <ChevronRight className="size-4" aria-hidden="true" />
         </button>
