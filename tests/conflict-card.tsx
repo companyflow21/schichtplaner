@@ -71,6 +71,7 @@ check(full.includes("2 Konflikte,") && full.includes("1 Hinweis") && full.includ
 check(full.includes("Di 13.10., 08:00–16:00 – Genehmigte Abwesenheit.") && full.includes("Zeitliche Überschneidung mit Di 13.10., 12:00–20:00 am Standort Konflikt Süd."), "Panel: Eintraege mit Tag, Zeit und Ursache");
 check(full.includes('href="/schedule/flexible/42-2026?standort=sued"') && full.includes("Plan Konflikt Süd öffnen"), "Panel: Link in die Woche des anderen Standorts");
 check(konfliktText({ ...overlap, other: { shiftId: "s9", date, from: "12:00", to: "20:00" } }) === "Zeitliche Überschneidung mit Di 13.10., 12:00–20:00 an einem anderen Standort." && !panel([{ ...overlap, other: { shiftId: "s9", date, from: "12:00", to: "20:00" } }]).includes("href="), "Panel: ohne Recht am anderen Standort nur 'anderer Standort' und kein Link");
-check(panel([]).includes("Keine Konflikte in dieser Woche") && !panel([]).includes("<ul"), "Panel: Leerzustand");
+check(full.includes("<details") && full.includes("<summary") && full.indexOf("2 Konflikte,") < full.indexOf("</summary>") && full.indexOf("Genehmigte Abwesenheit.") > full.indexOf("</summary>"), "Panel: Zähler in der Kopfzeile, Liste je Person aufklappbar");
+check(panel([]) === "", "Panel: ohne Befund kein Panel (\"Keine Konflikte\" steht in der Kennwertzeile des Kopfes)");
 queryClient.clear();
 console.log("SUCCESS: " + checks + " Konfliktkarten-Prüfungen bestanden.");

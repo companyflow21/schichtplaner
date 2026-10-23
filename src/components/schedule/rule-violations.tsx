@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Check } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ViolationReport } from "@/lib/planning-rules";
 import type { ShiftData } from "@/types/schedule";
@@ -38,33 +38,38 @@ export function verstößeText(n: number): string {
 
 /**
  * Regelverstoesse der Woche unter dem Konfliktpanel, in gleicher Optik:
- * Kopfzeile mit Zaehler, Liste je Person; ein Klick springt zur Karte, wenn
- * eine beteiligte Schicht in diesem Plan steht. Verstoesse sind Hinweise
- * (orange) - Einteilen und Veroeffentlichen bleiben moeglich. Ohne
- * eingeschaltete Regel erscheint nichts.
+ * Kopfzeile mit Zaehler, aufklappbar die Liste je Person; ein Klick springt
+ * zur Karte, wenn eine beteiligte Schicht in diesem Plan steht. Verstoesse
+ * sind Hinweise (orange) - Einteilen und Veroeffentlichen bleiben moeglich.
+ * Ohne eingeschaltete Regel erscheint nichts; ohne Verstoss eine Zeile (der
+ * Wochenplan blendet sie aus, siehe schedule-grid.tsx).
  */
 export function RuleViolationPanel({ data, shifts, isAdmin, onSprung }: { data: ViolationReport; shifts: ShiftData[]; isAdmin: boolean; onSprung: (shiftId: string) => void }) {
   if (!data.enabled) return null;
   const zeiten = new Map(shifts.map((s) => [s.id, s.shiftFrom + "–" + s.shiftTo]));
+  const regeln = isAdmin && (
+    <Link href="/settings?bereich=rules" className="text-[12px] font-medium text-primary underline-offset-4 hover:underline max-md:flex max-md:min-h-11 max-md:items-center">
+      Regeln ansehen
+    </Link>
+  );
+  if (data.count === 0) {
+    return (
+      <section aria-label="Regelverstöße" className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+        <p role="status" aria-live="polite" className="flex items-center gap-1.5 font-semibold text-ok"><Check className="size-4" aria-hidden="true" />Keine Regelverstöße in dieser Woche</p>
+        {regeln}
+      </section>
+    );
+  }
   return (
-    <section aria-label="Regelverstöße" className={cn("akro-panel mb-4 p-3 text-[13px]", data.count > 0 && "border-warn/40")}>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <p role="status" aria-live="polite" className="text-[14px] font-semibold">
-          {data.count === 0 ? (
-            <span className="flex items-center gap-1.5 text-ok"><Check className="size-4" aria-hidden="true" />Keine Regelverstöße in dieser Woche</span>
-          ) : (
-            <span className="flex items-center gap-1.5 text-warn"><AlertTriangle className="size-4" aria-hidden="true" />{verstößeText(data.count)}</span>
-          )}
-        </p>
-        {data.count > 0 && <span className="text-muted-foreground">Hinweise – Einteilen und Veröffentlichen bleiben möglich.</span>}
-        {isAdmin && (
-          <Link href="/settings?bereich=rules" className="ml-auto text-[12px] font-medium text-primary underline-offset-4 hover:underline max-md:flex max-md:min-h-11 max-md:items-center">
-            Regeln ansehen
-          </Link>
-        )}
-      </div>
-      {data.people.length > 0 && (
-        <ul className="mt-2 space-y-2">
+    <section aria-label="Regelverstöße" className="akro-panel mb-3 border-warn/40 text-[13px]">
+      <details className="group">
+        <summary className="flex min-h-10 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-[inherit] px-3 py-2 focus-visible:outline-offset-[-3px] max-md:min-h-11 [&::-webkit-details-marker]:hidden">
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90 motion-reduce:transition-none" aria-hidden="true" />
+          <span role="status" aria-live="polite" className="flex items-center gap-1.5 text-[14px] font-semibold text-warn"><AlertTriangle className="size-4" aria-hidden="true" />{verstößeText(data.count)}</span>
+          <span className="text-muted-foreground">Hinweise – Einteilen und Veröffentlichen bleiben möglich.</span>
+        </summary>
+        {regeln && <div className="border-t px-3 pt-2">{regeln}</div>}
+        <ul className={cn("space-y-2 px-3 py-2", !regeln && "border-t")}>
           {data.people.map((p) => (
             <li key={p.userId}>
               <p className="font-medium">{p.name}</p>
@@ -97,7 +102,7 @@ export function RuleViolationPanel({ data, shifts, isAdmin, onSprung }: { data: 
             </li>
           ))}
         </ul>
-      )}
+      </details>
     </section>
   );
 }
