@@ -37,7 +37,8 @@ function examine(date: string, from: string, to: string, expectedEnd: string, in
     const html = renderToStaticMarkup(<QueryClientProvider client={queryClient}><ShiftCard shift={clientView} canEdit onEdit={() => {}} /></QueryClientProvider>);
     check(html.includes("durch andere Person ersetzen") === !ended, label + ": Wechselaktion nur vor Schichtende");
     check((html.match(/aus der Schicht entfernen/g) ?? []).length === (ended ? 0 : 2), label + ": Mitarbeiter- und Sub-Entfernen nur vor Schichtende");
-    check(html.includes("Schicht beendet") === ended && html.includes("Kopieren"), label + ": Historienhinweis korrekt, Kopieren bleibt möglich");
+    // Kopieren ist ein Icon-Knopf; sein Name steht im aria-label.
+    check(html.includes("Schicht beendet") === ended && html.includes('aria-label="Schicht auf weitere Tage kopieren"'), label + ": Historienhinweis korrekt, Kopieren bleibt möglich");
   } finally { Date.now = realNow; }
 }
 
