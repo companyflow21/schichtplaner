@@ -1,14 +1,15 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { isToday } from "date-fns";
-import { Lock } from "lucide-react";
+import { AlertTriangle, Lock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { dayNames, formatDateShort } from "@/lib/utils/calendar";
 import { cn } from "@/lib/utils";
-import type { ScheduleResponse, ShiftData, BookingUser } from "@/types/schedule";
+import type { ScheduleResponse, ShiftData, ShiftBooking, BookingUser } from "@/types/schedule";
 import { formatName } from "@/lib/names";
 import { useNameFormat } from "@/lib/hooks/use-current-member";
 import { useWorkTimeHints, WorkTimeHints } from "./worktime-hints";
@@ -22,10 +23,13 @@ interface EmployeeGridProps {
   standort?: string | null;
 }
 
+/** Eine Schicht mit der Zuweisung der Person dieser Zeile. */
+type Einsatz = { shift: ShiftData; booking: ShiftBooking };
+
 type EmployeeRow = {
   key: string;
   user: BookingUser;
-  dayShifts: Record<number, ShiftData[]>;
+  dayShifts: Record<number, Einsatz[]>;
   totalHours: number;
 };
 
@@ -41,6 +45,41 @@ function shiftDurationHours(shift: ShiftData): number {
   return (shift.plannedMinutes ?? 0) / 60;
 }
 
+/** Stunden in deutscher Schreibweise: "7,5 h". */
+function stunden(hours: number): string {
+  return hours.toLocaleString("de-DE", { maximumFractionDigits: 2 }) + " h";
+}
+
+/** Beendet: das echte Schichtende (Server, Berlin-Regel) liegt zurueck - wie bei der Schichtkarte. */
+function beendet(shift: ShiftData, now: number): boolean {
+  return Date.parse(shift.endsAt ?? "") <= now;
+}
+
+/** Zuweisung noch nicht bestaetigt (Altbestand); Planungseinteilungen gelten sofort als fest. */
+function bestaetigungOffen(booking: ShiftBooking): boolean {
+  return !booking.confirmedAt && !booking.former && !booking.contractorWorkerId;
+}
+
+/** Aktuelle Zeit, jede Minute neu - damit Schichten ohne Neuladen als beendet erscheinen. */
+function useJetzt(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  return now;
+}
+
+/** Nachtschicht: "+1" wie im Monatsplan, ausgeschrieben fuer Screenreader. */
+function Folgetag() {
+  return (
+    <span className="ml-1 font-normal text-muted-foreground" title="endet am Folgetag">
+      <span aria-hidden="true">+1</span>
+      <span className="sr-only">(endet am Folgetag)</span>
+    </span>
+  );
+}
+
 /**
  * Employee-centric schedule view.
  * Rows = employees, Columns = Mo-So.
@@ -48,6 +87,7 @@ function shiftDurationHours(shift: ShiftData): number {
  */
 export function EmployeeGrid({ weekNumber, year, weekDates, standort }: EmployeeGridProps) {
   const nameFormat = useNameFormat();
+  const now = useJetzt();
   const worktime = useWorkTimeHints(weekNumber, year, standort);
   const hintCount = (key: string) => worktime.data?.hints.filter((h) => h.userId === key).length ?? 0;
   const { data, isLoading } = useQuery<ScheduleResponse>({
@@ -78,7 +118,7 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
           });
         }
         const row = userMap.get(key)!;
-        row.dayShifts[shift.dayOfWeek].push(shift);
+        row.dayShifts[shift.dayOfWeek].push({ shift, booking });
         row.totalHours += shiftDurationHours(shift);
       }
     }
@@ -116,16 +156,18 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
     );
   }
 
+  const nameOf = (emp: EmployeeRow) => formatName(emp.user, nameFormat, { contractor: emp.key.startsWith("contractor:") });
+
   return (
     <>
       {balken}
       {hinweis}
-      {/* Ab Tablet: Tabelle, Zeilen = Personen, Spalten = Mo-So */}
-      <div className="akro-panel hidden overflow-x-auto md:block">
+      {/* Ab Tablet: Tabelle, Zeilen = Personen, Spalten = Mo-So. relative haelt sr-only-Texte im Rollbereich. */}
+      <div className="akro-panel relative hidden overflow-x-auto md:block">
         <table className="w-full border-collapse">
           <thead>
             <tr className="akro-panel-kopf">
-              <th className="border-r px-3 py-2 text-left text-xs font-semibold text-muted-foreground w-44">
+              <th className="w-52 border-r px-3 py-2 text-left text-xs font-semibold text-muted-foreground">
                 Mitarbeiter
               </th>
               {weekDates.map((date, idx) => {
@@ -139,8 +181,8 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
                     )}
                   >
                     <div>{dayNames[idx]}</div>
-                    <div className="text-xs text-muted-foreground font-normal">
-                      {formatDateShort(date)}
+                    <div className={cn("text-xs font-normal", today ? "text-primary" : "text-muted-foreground")}>
+                      {formatDateShort(date)}.
                     </div>
                   </th>
                 );
@@ -151,119 +193,177 @@ export function EmployeeGrid({ weekNumber, year, weekDates, standort }: Employee
             </tr>
           </thead>
           <tbody>
-            {employees.map((emp) => (
-              <tr key={emp.key} className="border-t hover:bg-muted/10 transition-colors">
-                {/* Employee name */}
-                <td className="border-r px-3 py-2 align-middle">
-                  <div className="flex items-center gap-2">
-                    <Avatar size="sm" className="data-[size=sm]:size-7">
-                      <AvatarFallback className="text-xs">
-                        {getInitials(emp.user.firstName, emp.user.lastName)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <div className="text-xs font-medium truncate max-w-[120px]">
-                        {formatName(emp.user, nameFormat, { contractor: emp.key.startsWith("contractor:") })}
-                      </div>
-                      {hintCount(emp.key) > 0 && <a href="#arbeitszeithinweise" className="block text-xs font-medium text-warn">⚠ {hintCount(emp.key)} {hintCount(emp.key) === 1 ? "Hinweis" : "Hinweise"}</a>}
-                    </div>
-                  </div>
-                </td>
-
-                {/* Day cells */}
-                {Array.from({ length: 7 }, (_, dayIdx) => {
-                  const day = dayIdx + 1;
-                  const dayShifts = emp.dayShifts[day] ?? [];
-                  const today = isToday(weekDates[dayIdx]);
-
-                  return (
-                    <td
-                      key={day}
-                      className={cn(
-                        "border-r px-2 py-1.5 align-middle text-center min-w-[100px]",
-                        today && "bg-[var(--flaeche-heute)]"
-                      )}
-                    >
-                      {dayShifts.length === 0 ? (
-                        <span className="text-xs text-muted-foreground/50" aria-label="frei">–</span>
-                      ) : (
-                        <div className="space-y-0.5">
-                          {dayShifts.map((shift) => (
-                            <SchichtMarke key={shift.id} shift={shift} zeigeStandort={!standort} />
-                          ))}
+            {employees.map((emp) => {
+              const name = nameOf(emp);
+              const hints = hintCount(emp.key);
+              return (
+                <tr key={emp.key} className="border-t hover:bg-muted/10 transition-colors">
+                  {/* Employee name */}
+                  <td className="border-r px-3 py-2 align-middle">
+                    <div className="flex items-center gap-2">
+                      <Avatar size="sm" className="data-[size=sm]:size-7">
+                        <AvatarFallback className="text-xs">
+                          {getInitials(emp.user.firstName, emp.user.lastName)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <div className="max-w-40 truncate text-[13px] font-medium" title={name}>
+                          {name}
                         </div>
-                      )}
-                    </td>
-                  );
-                })}
+                        {hints > 0 && (
+                          <a href="#arbeitszeithinweise" className="inline-flex min-h-6 items-center gap-1 text-xs font-medium text-warn underline-offset-4 hover:underline">
+                            <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
+                            {hints} {hints === 1 ? "Hinweis" : "Hinweise"}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </td>
 
-                {/* Total hours */}
-                <td className="px-3 py-2 align-middle text-center">
-                  <span className="tabular text-xs font-semibold">
-                    {emp.totalHours.toFixed(1)} h
-                  </span>
-                </td>
-              </tr>
-            ))}
+                  {/* Day cells */}
+                  {Array.from({ length: 7 }, (_, dayIdx) => {
+                    const day = dayIdx + 1;
+                    const einsaetze = emp.dayShifts[day] ?? [];
+                    const today = isToday(weekDates[dayIdx]);
+
+                    return (
+                      <td
+                        key={day}
+                        className={cn(
+                          "border-r px-2 py-1.5 align-middle text-center min-w-[100px]",
+                          today && "bg-[var(--flaeche-heute)]"
+                        )}
+                      >
+                        {einsaetze.length === 0 ? (
+                          <span className="text-xs text-muted-foreground">
+                            <span aria-hidden="true">–</span>
+                            <span className="sr-only">frei</span>
+                          </span>
+                        ) : (
+                          <div className="space-y-0.5">
+                            {einsaetze.map(({ shift, booking }) => (
+                              <SchichtMarke key={shift.id} shift={shift} booking={booking} vorbei={beendet(shift, now)} zeigeStandort={!standort} />
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+
+                  {/* Total hours */}
+                  <td className="px-3 py-2 align-middle text-center">
+                    <span className="tabular text-xs font-semibold">{stunden(emp.totalHours)}</span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
-      {/* Handy: je Person eine Karte mit ihren Schichten der Woche */}
+      {/* Handy: je Person ihre Schichten der Woche - Tag, Zeit, Einsatzort, Status */}
       <div className="space-y-3 md:hidden">
-        {employees.map((emp) => (
-          <section key={emp.key} className="akro-panel overflow-hidden" aria-label={formatName(emp.user, nameFormat, { contractor: emp.key.startsWith("contractor:") })}>
-            <div className="akro-panel-kopf flex items-center gap-2 border-b px-4 py-2.5">
-              <Avatar size="sm" className="data-[size=sm]:size-7">
-                <AvatarFallback className="text-xs">
-                  {getInitials(emp.user.firstName, emp.user.lastName)}
-                </AvatarFallback>
-              </Avatar>
-              <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">
-                {formatName(emp.user, nameFormat, { contractor: emp.key.startsWith("contractor:") })}
-              </span>
-              {hintCount(emp.key) > 0 && <a href="#arbeitszeithinweise" className="text-[12px] font-medium text-warn">⚠ {hintCount(emp.key)}</a>}
-              <span className="tabular text-[13px] text-muted-foreground">{emp.totalHours.toFixed(1)} h</span>
-            </div>
-            <ul className="divide-y divide-[var(--linie-fein)]">
-              {weekDates.flatMap((date, dayIdx) =>
-                (emp.dayShifts[dayIdx + 1] ?? []).map((shift) => (
-                  <li key={shift.id} className={cn("flex items-baseline gap-3 px-4 py-2.5", isToday(date) && "bg-[var(--flaeche-heute)]")}>
-                    <span className="w-16 shrink-0 text-[13px] font-medium">
-                      {dayNames[dayIdx]} {formatDateShort(date)}
-                      {isToday(date) && <span className="block text-xs font-medium text-primary">heute</span>}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="tabular block text-[14px] font-semibold">{shift.shiftFrom}–{shift.shiftTo}</span>
-                      <span className="block truncate text-[13px] text-muted-foreground">
-                        {[standort ? null : shift.branch?.name, shift.title].filter(Boolean).join(" · ") || "Schicht"}
-                      </span>
-                    </span>
-                  </li>
-                ))
-              )}
-            </ul>
-          </section>
-        ))}
+        {employees.map((emp) => {
+          const name = nameOf(emp);
+          const hints = hintCount(emp.key);
+          return (
+            <section key={emp.key} className="akro-panel overflow-hidden" aria-label={name}>
+              <div className="akro-panel-kopf flex min-h-12 items-center gap-2 border-b px-4 py-2.5">
+                <Avatar size="sm" className="data-[size=sm]:size-7">
+                  <AvatarFallback className="text-xs">
+                    {getInitials(emp.user.firstName, emp.user.lastName)}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="min-w-0 flex-1 truncate text-[14px] font-semibold" title={name}>
+                  {name}
+                </span>
+                {hints > 0 && (
+                  // 44 px Tippflaeche, die in den Rand der Kopfzeile ragt.
+                  <a href="#arbeitszeithinweise" className="-my-2.5 inline-flex min-h-11 min-w-11 items-center justify-center gap-1 text-[12px] font-medium text-warn">
+                    <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
+                    {hints}
+                    <span className="sr-only">{hints === 1 ? "Arbeitszeithinweis" : "Arbeitszeithinweise"}</span>
+                  </a>
+                )}
+                <span className="tabular text-[13px] text-muted-foreground">{stunden(emp.totalHours)}</span>
+              </div>
+              <ul className="divide-y divide-[var(--linie-fein)]">
+                {weekDates.flatMap((date, dayIdx) =>
+                  (emp.dayShifts[dayIdx + 1] ?? []).map(({ shift, booking }) => (
+                    <SchichtZeile
+                      key={shift.id}
+                      date={date}
+                      dayIdx={dayIdx}
+                      shift={shift}
+                      vorbei={beendet(shift, now)}
+                      offen={bestaetigungOffen(booking)}
+                      ort={[standort ? null : shift.branch?.name, shift.title].filter(Boolean).join(" · ") || "Schicht"}
+                    />
+                  ))
+                )}
+              </ul>
+            </section>
+          );
+        })}
       </div>
       {worktime.data && <WorkTimeHints data={worktime.data} people={employees.map((e) => ({ userId: e.key.includes(":") ? null : e.key, firstName: e.user.firstName, lastName: e.user.lastName }))} />}
     </>
   );
 }
 
-/** Eine Schicht in der Tabelle: lesbare Zeit, Bereichsfarbe nur als Kante. */
-function SchichtMarke({ shift, zeigeStandort }: { shift: ShiftData; zeigeStandort: boolean }) {
+/** Eine Zeile auf dem Handy: Tag · Zeit · Einsatzort · Status. Beendete Schichten treten zurueck. */
+function SchichtZeile({ date, dayIdx, shift, vorbei, offen, ort }: { date: Date; dayIdx: number; shift: ShiftData; vorbei: boolean; offen: boolean; ort: string }) {
+  const heute = isToday(date);
+  return (
+    <li className={cn("flex items-center gap-3 px-4 py-2.5", heute && "bg-[var(--flaeche-heute)]")}>
+      <span className={cn("w-14 shrink-0 text-[13px] leading-tight font-medium", vorbei && "text-muted-foreground")}>
+        {dayNames[dayIdx]} {formatDateShort(date)}.
+        {heute && <span className="block text-xs font-semibold text-primary">heute</span>}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className={cn("tabular block text-[14px]", vorbei ? "font-medium text-muted-foreground" : "font-semibold")}>
+          <span className="whitespace-nowrap">{shift.shiftFrom}–{shift.shiftTo}</span>
+          {shift.endsNextDay && <Folgetag />}
+        </span>
+        <span className="block truncate text-[13px] text-muted-foreground" title={ort}>{ort}</span>
+      </span>
+      {vorbei ? (
+        <StatusBadge ton="neutral" klein>beendet</StatusBadge>
+      ) : offen ? (
+        <StatusBadge ton="hinweis" klein>Bestätigung offen</StatusBadge>
+      ) : null}
+    </li>
+  );
+}
+
+/** Eine Schicht in der Tabelle: lesbare Zeit, Bereichsfarbe als Punkt, Zustand als Text. */
+function SchichtMarke({ shift, booking, vorbei, zeigeStandort }: { shift: ShiftData; booking: ShiftBooking; vorbei: boolean; zeigeStandort: boolean }) {
   return (
     <div
-      title={shift.branch?.name}
-      className="inline-block rounded-[6px] border border-l-[3px] bg-card px-1.5 py-0.5 text-left text-xs leading-snug"
-      style={{ borderLeftColor: shift.division?.color ?? "var(--line)" }}
+      title={[shift.branch?.name, shift.division?.title, shift.title].filter(Boolean).join(" · ") || undefined}
+      className={cn(
+        "inline-flex max-w-full flex-col items-start rounded-[6px] border px-1.5 py-0.5 text-left text-xs leading-snug",
+        vorbei ? "border-dashed bg-transparent" : "bg-card"
+      )}
     >
-      <span className="tabular whitespace-nowrap font-medium text-foreground">{shift.shiftFrom}–{shift.shiftTo}</span>
+      <span className="flex items-center gap-1.5 whitespace-nowrap">
+        {shift.division && (
+          <span aria-hidden="true" className="size-2 shrink-0 rounded-full" style={{ backgroundColor: shift.division.color }} />
+        )}
+        <span className={cn("tabular font-medium", vorbei ? "text-muted-foreground" : "text-foreground")}>
+          {shift.shiftFrom}–{shift.shiftTo}
+        </span>
+        {shift.endsNextDay && <Folgetag />}
+      </span>
       {/* In der zusammengefuehrten Sicht steht der Standort dabei. */}
       {zeigeStandort && shift.branch && (
-        <span className="block max-w-[110px] truncate text-xs text-muted-foreground">{shift.branch.name}</span>
+        <span className="block max-w-[110px] truncate text-muted-foreground">{shift.branch.name}</span>
       )}
+      {vorbei ? (
+        <span className="text-muted-foreground">beendet</span>
+      ) : bestaetigungOffen(booking) ? (
+        <span className="font-medium text-warn">Bestätigung offen</span>
+      ) : null}
     </div>
   );
 }
