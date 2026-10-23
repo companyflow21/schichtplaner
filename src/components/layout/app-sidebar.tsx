@@ -13,14 +13,21 @@ import { UserMenu } from "./user-menu";
 
 const SPEICHER_SCHLUESSEL = "akro:sidebar-eingeklappt";
 
+/** Unter 1280 px braucht das Wochenraster den Platz: dort startet die Leiste eingeklappt. */
+const SCHMAL = "(max-width: 1279px)";
+
 // Kleiner Speicher ausserhalb von React: der eingeklappte Zustand gehoert
 // zum Browser des Nutzers, nicht zum Server.
 const zuhoerer = new Set<() => void>();
 
 function abonnieren(cb: () => void) {
   zuhoerer.add(cb);
+  // Ohne ausdrueckliche Wahl folgt die Leiste der Fensterbreite.
+  const breite = window.matchMedia(SCHMAL);
+  breite.addEventListener("change", cb);
   return () => {
     zuhoerer.delete(cb);
+    breite.removeEventListener("change", cb);
   };
 }
 
@@ -28,13 +35,16 @@ function melden() {
   zuhoerer.forEach((cb) => cb());
 }
 
+/** Gespeicherte Wahl hat Vorrang ("1" eingeklappt, "0" ausgeklappt); sonst entscheidet die Breite. */
 function leseZustand(): boolean {
   try {
-    return window.localStorage.getItem(SPEICHER_SCHLUESSEL) === "1";
+    const gewaehlt = window.localStorage.getItem(SPEICHER_SCHLUESSEL);
+    if (gewaehlt === "1") return true;
+    if (gewaehlt === "0") return false;
   } catch {
-    // Ohne Browser-Speicher bleibt die Leiste ausgeklappt.
-    return false;
+    // Ohne Browser-Speicher gilt die Breite.
   }
+  return window.matchMedia(SCHMAL).matches;
 }
 
 /** Gemeinsame Form aller Eintraege auf der Schiene. */
@@ -113,7 +123,7 @@ export function AppSidebar() {
           <button
             type="button"
             onClick={toggle}
-            className="flex size-9 items-center justify-center rounded-[var(--radius)] text-[color:var(--schiene-gedimmt)] transition-colors hover:bg-[var(--schiene-flaeche)] hover:text-[color:var(--schiene-text)]"
+            className="flex size-11 items-center justify-center rounded-[var(--radius)] text-[color:var(--schiene-gedimmt)] transition-colors hover:bg-[var(--schiene-flaeche)] hover:text-[color:var(--schiene-text)]"
             aria-label="Navigation einklappen"
           >
             <PanelLeftClose className="size-4" />
