@@ -7,7 +7,7 @@ export default function EmployeesLoading() {
         <Skeleton className="h-8 w-40" />
         <Skeleton className="h-10 w-44" />
       </div>
-      <div className="rounded-lg border border-border bg-white">
+      <div className="rounded-lg border border-border bg-card">
         <div className="border-b border-border p-4">
           <Skeleton className="h-10 w-64" />
         </div>
