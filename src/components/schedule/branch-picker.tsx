@@ -47,7 +47,7 @@ export function useStandortMerken(standort: string | null) {
 function PlanStatus({ status }: { status?: BranchStatus }) {
   if (!status || status.draftWeeks === null || status.shifts === null || status.openSlots === null) return null;
   return (
-    <span className="flex flex-wrap items-center justify-end gap-1.5">
+    <span className="flex flex-wrap items-center gap-1.5 sm:justify-end">
       {status.shifts === 0 ? <StatusBadge ton="neutral" klein>keine Schichten</StatusBadge>
         : status.openSlots > 0 ? <StatusBadge ton="hinweis" klein>{status.openSlots} offen oder Konflikt</StatusBadge>
         : <StatusBadge ton="ok" klein>besetzt</StatusBadge>}
@@ -144,10 +144,13 @@ export function BranchPicker({ href, title = "Dienstplan", automatisch = false }
                   <li key={b.id}>
                     <Link href={href(b.id)} className="flex min-h-11 items-center gap-3 px-4 py-3 text-[14px] transition-colors hover:bg-[var(--flaeche-kopf)]">
                       <Building2 className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                      <span className="min-w-0 flex-1 truncate font-medium">{b.name}</span>
-                      {!b.isActive && <StatusBadge ton="neutral" klein>inaktiv</StatusBadge>}
-                      <PlanStatus status={statusById.get(b.id)} />
-                      <ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
+                      {/* Auf dem Handy stehen die Badges unter dem Namen, damit er lesbar bleibt. */}
+                      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="max-w-full min-w-0 truncate font-medium max-sm:basis-full sm:flex-1">{b.name}</span>
+                        {!b.isActive && <StatusBadge ton="neutral" klein>inaktiv</StatusBadge>}
+                        <PlanStatus status={statusById.get(b.id)} />
+                      </span>
+                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                     </Link>
                     {(statusById.get(b.id)?.openSlots ?? 0) > 0 && statusById.get(b.id)?.draftWeeks !== null && (
                       <Link href={monthLinkForOpen(b.id, statusById.get(b.id)!.openDays)} className="block px-4 pb-2.5 pl-11 text-[12px] font-medium text-primary hover:underline max-md:flex max-md:min-h-11 max-md:items-center max-md:pb-0">Offene Tage im Monatsplan zeigen</Link>

@@ -58,9 +58,9 @@ export function ConflictPanel({ data, shifts, standort, onSprung }: { data: Week
   }
   const liste = [...personen.entries()].sort(([, a], [, b]) => a.name.localeCompare(b.name, "de"));
   return (
-    <section aria-label="Konfliktprüfung" className={cn("akro-panel mb-3 text-[13px]", fehler > 0 ? "border-destructive/35" : "border-warn/40")}>
+    <section aria-label="Konfliktprüfung" className={cn("akro-panel mb-2 text-[13px]", fehler > 0 ? "border-destructive/35" : "border-warn/40")}>
       <details className="group">
-        <summary className="flex min-h-10 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-[inherit] px-3 py-2 focus-visible:outline-offset-[-3px] max-md:min-h-11 [&::-webkit-details-marker]:hidden">
+        <summary className="flex min-h-9 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-[inherit] px-3 py-1.5 focus-visible:outline-offset-[-3px] max-md:min-h-11 [&::-webkit-details-marker]:hidden">
           <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90 motion-reduce:transition-none" aria-hidden="true" />
           <span role="status" aria-live="polite" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px] font-semibold">
             <span className={cn("flex items-center gap-1.5", fehler > 0 ? "text-destructive" : "text-muted-foreground")}><Ban className="size-4" aria-hidden="true" />{fehler} {fehler === 1 ? "Konflikt" : "Konflikte"},</span>

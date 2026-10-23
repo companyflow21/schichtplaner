@@ -25,6 +25,7 @@ export function WeekSwitcher({
   nextLabel = "Nächste Woche",
   as = "p",
   labelRef,
+  heuteMobilAusblenden = false,
   className,
 }: {
   /** Zeitraum, z. B. "19.10.–25.10.2026" oder "Okt 2026". */
@@ -41,6 +42,8 @@ export function WeekSwitcher({
   nextLabel?: string;
   as?: "h1" | "h2" | "p";
   labelRef?: Ref<HTMLElement>;
+  /** Auf dem Handy den deaktivierten "Heute"-Knopf weglassen (Platz in einer klebenden Zeile). */
+  heuteMobilAusblenden?: boolean;
   className?: string;
 }) {
   const Tag = as as "p";
@@ -69,7 +72,7 @@ export function WeekSwitcher({
         </button>
       </div>
       {onToday && (
-        <Button variant="outline" size="sm" disabled={heuteAktiv} onClick={onToday} className="max-md:h-11">
+        <Button variant="outline" size="sm" disabled={heuteAktiv} onClick={onToday} className={cn("max-md:h-11", heuteAktiv && heuteMobilAusblenden && "max-md:hidden")}>
           Heute
         </Button>
       )}

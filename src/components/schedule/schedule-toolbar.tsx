@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode, type Ref } from "react";
+import { useState, useSyncExternalStore, type ReactNode, type Ref } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getISOWeek } from "date-fns";
@@ -47,6 +47,14 @@ interface ScheduleToolbarProps {
   mitarbeiterFilter?: ReactNode;
   /** Ziel des Fokus nach dem Blaettern. */
   zeitraumRef?: Ref<HTMLElement>;
+}
+
+/** Handybreite wie Tailwinds max-md - dort steht "Weitere Aktionen" neben dem Objektnamen. */
+const HANDY = "(max-width: 767px)";
+function abonniereHandy(melden: () => void) {
+  const abfrage = window.matchMedia(HANDY);
+  abfrage.addEventListener("change", melden);
+  return () => abfrage.removeEventListener("change", melden);
 }
 
 /** Letzte ISO-Woche eines Jahres; der 28.12. liegt immer darin. */
@@ -117,6 +125,7 @@ export function ScheduleToolbar({
   const [moreOpen, setMoreOpen] = useState(false);
   // Zeitpunkt des Ladens - fuer "Schicht beendet" in der Zaehlregel.
   const [geladenUm] = useState(() => Date.now());
+  const handy = useSyncExternalStore(abonniereHandy, () => window.matchMedia(HANDY).matches, () => false);
   const current = getCurrentKW();
   const weekDates = getWeekDates(weekNumber, year);
   const istAktuelleWoche = weekNumber === current.weekNumber && year === current.year;
@@ -166,23 +175,88 @@ export function ScheduleToolbar({
     </Button>
   );
 
+  // Seltenes und Werkzeuge; am Desktop am Ende der Aktionen, auf dem Handy neben dem Objektnamen.
+  const menü = (
+    <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="icon-sm" aria-label="Weitere Aktionen" title="Weitere Aktionen" className="shrink-0 max-md:size-11">
+          <MoreHorizontal className="size-4" aria-hidden="true" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="max-h-[var(--radix-popover-content-available-height)] w-64 space-y-3 overflow-y-auto p-3 max-md:[&_a]:h-11 max-md:[&_button]:h-11">
+        {filter && (
+          <div className="space-y-2 md:hidden">
+            <p className="akro-label">Filter</p>
+            <div className="flex flex-wrap gap-2">{filter}</div>
+          </div>
+        )}
+        {/* Einheitliche Liste: alle Werkzeuge volle Breite, linksbuendig. */}
+        <div className="space-y-2 [&_button]:w-full [&_button]:justify-start">
+          <p className="akro-label">Export und Ansicht</p>
+          <PdfExportDialog week={{ year, weekNumber }} branch={branch} userId={selectedEmployeeId} />
+          {schedule?.id && csv && csvKnopf("md:hidden")}
+          {/* Die klassische Tabelle ist eine Darstellungsvariante der Planung. */}
+          <Button variant="outline" size="sm" className="w-full justify-start gap-1.5" asChild>
+            <Link href={`/schedule/classic/${formatKW(weekNumber, year)}${suffix}`}>
+              <Table2 className="size-3.5" aria-hidden="true" />
+              Klassische Tabelle
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" className="w-full justify-start gap-1.5" asChild>
+            <Link href={`/schedule/flexible/${formatKW(weekNumber, year)}?wahl=1`}>
+              <ArrowLeftRight className="size-3.5" aria-hidden="true" />
+              Standort wechseln
+            </Link>
+          </Button>
+          {schedule?.id && access?.edit && (
+            <>
+              <p className="akro-label pt-1">Darstellung</p>
+              <OptionsMenu scheduleId={schedule.id} settingsLayout={schedule.settingsLayout} showTitle={schedule.showTitle} showPauses={schedule.showPauses} />
+            </>
+          )}
+          {schedule?.id && (
+            <>
+              <p className="akro-label pt-1">Werkzeuge</p>
+              <BriefingButton scheduleId={schedule.id} isManager={!!access?.edit} />
+              {access?.edit && <LiveMode scheduleId={schedule.id} isManager />}
+              {isAdmin && <AISuggestButton scheduleId={schedule.id} />}
+            </>
+          )}
+          {/* Gefaehrliche Aktion abgesetzt am Ende; waehrend der Bearbeitung gesperrt. */}
+          {darfVeröffentlichen && schedule?.isPublic && (
+            <>
+              <Separator className="my-1" />
+              <VisibilityToggle scheduleId={schedule.id} isPublic wochenLabel={wochenLabel} disabled={status === "EDITING"} className="w-full justify-start text-destructive hover:text-destructive" />
+              {status === "EDITING" && (
+                <p className="text-[13px] leading-5 text-muted-foreground">Während der Bearbeitung nicht möglich – zuerst die Änderungen veröffentlichen oder verwerfen.</p>
+              )}
+            </>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+
   return (
     <>
       <ExportModal open={exportOpen} onOpenChange={setExportOpen} defaultMonth={weekDates[0].getMonth() + 1} defaultYear={weekDates[0].getFullYear()} standort={standort} />
 
       {/* Zeile 1: wo - Kunde und Objekt, rechts die Ansicht */}
       <div className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-        <div className="min-w-0 flex-1 basis-56">
-          <p className="akro-label truncate">{standort === "ohne" ? "Altbestand" : branch?.customer?.name ?? "Ohne Kunde"}</p>
-          <h1 className="truncate text-[21px] leading-tight font-semibold tracking-[-0.02em]">
-            {standort === "ohne" ? "Ohne Standort" : branch?.name}
-          </h1>
+        <div className="flex min-w-0 flex-1 basis-56 items-end gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="akro-label truncate">{standort === "ohne" ? "Altbestand" : branch?.customer?.name ?? "Ohne Kunde"}</p>
+            <h1 className="truncate text-[21px] leading-tight font-semibold tracking-[-0.02em]">
+              {standort === "ohne" ? "Ohne Standort" : branch?.name}
+            </h1>
+          </div>
+          {handy && menü}
         </div>
         <ViewSwitcher kw={formatKW(weekNumber, year)} standort={standort} />
       </div>
 
       {/* Zeile 2: wann und wie es steht. Auf dem Handy klebt der Zeitraum unter der Kopfschiene (75 px). */}
-      <div className="mb-4 max-md:contents md:flex md:flex-wrap md:items-center md:gap-x-4 md:gap-y-2">
+      <div className="mb-3 max-md:contents md:flex md:flex-wrap md:items-center md:gap-x-4 md:gap-y-2">
         <div className="flex flex-wrap items-center gap-2 max-md:sticky max-md:top-[75px] max-md:z-20 max-md:-mx-4 max-md:mb-3 max-md:border-b max-md:bg-background max-md:px-4 max-md:py-2">
           <WeekSwitcher
             label={<>{formatDateShort(weekDates[0])}.–{formatDateShort(weekDates[6])}.<span className="max-sm:hidden">{year}</span></>}
@@ -191,9 +265,10 @@ export function ScheduleToolbar({
             onNext={vor}
             onToday={() => geheZu(current.weekNumber, current.year)}
             heuteAktiv={istAktuelleWoche}
+            heuteMobilAusblenden
             labelRef={zeitraumRef}
           />
-          {schedule && <PlanStatusBadge schedule={schedule} />}
+          {schedule && <PlanStatusBadge schedule={schedule} klein />}
         </div>
 
         <ul aria-label="Stand der Woche" data-kennwerte className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium max-md:mb-3">
@@ -212,7 +287,7 @@ export function ScheduleToolbar({
           )}
         </ul>
 
-        <div className="flex flex-wrap items-center gap-2 max-md:mb-4 md:ml-auto">
+        <div className="flex flex-wrap items-center gap-2 max-md:mb-3 md:ml-auto">
           {/* Filter ab Tablet sichtbar, auf dem Handy im Menue */}
           {filter && <div className="hidden items-center gap-2 md:flex">{filter}</div>}
           {schedule?.id && csv && csvKnopf("max-md:hidden")}
@@ -227,64 +302,7 @@ export function ScheduleToolbar({
             <BearbeitungStarten scheduleId={schedule.id} wochenLabel={wochenLabel + "/" + year} wochenbeginn={weekDates[0]} variant="default" className="max-md:h-11" />
           )}
 
-          <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="icon-sm" aria-label="Weitere Aktionen" title="Weitere Aktionen" className="max-md:size-11">
-                <MoreHorizontal className="size-4" aria-hidden="true" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-64 space-y-3 p-3 max-md:[&_a]:h-11 max-md:[&_button]:h-11">
-              {filter && (
-                <div className="space-y-2 md:hidden">
-                  <p className="akro-label">Filter</p>
-                  <div className="flex flex-wrap gap-2">{filter}</div>
-                </div>
-              )}
-              {/* Einheitliche Liste: alle Werkzeuge volle Breite, linksbuendig. */}
-              <div className="space-y-2 [&_button]:w-full [&_button]:justify-start">
-                <p className="akro-label">Export und Ansicht</p>
-                <PdfExportDialog week={{ year, weekNumber }} branch={branch} userId={selectedEmployeeId} />
-                {schedule?.id && csv && csvKnopf("md:hidden")}
-                {/* Die klassische Tabelle ist eine Darstellungsvariante der Planung. */}
-                <Button variant="outline" size="sm" className="w-full justify-start gap-1.5" asChild>
-                  <Link href={`/schedule/classic/${formatKW(weekNumber, year)}${suffix}`}>
-                    <Table2 className="size-3.5" aria-hidden="true" />
-                    Klassische Tabelle
-                  </Link>
-                </Button>
-                <Button variant="outline" size="sm" className="w-full justify-start gap-1.5" asChild>
-                  <Link href={`/schedule/flexible/${formatKW(weekNumber, year)}?wahl=1`}>
-                    <ArrowLeftRight className="size-3.5" aria-hidden="true" />
-                    Standort wechseln
-                  </Link>
-                </Button>
-                {schedule?.id && access?.edit && (
-                  <>
-                    <p className="akro-label pt-1">Darstellung</p>
-                    <OptionsMenu scheduleId={schedule.id} settingsLayout={schedule.settingsLayout} showTitle={schedule.showTitle} showPauses={schedule.showPauses} />
-                  </>
-                )}
-                {schedule?.id && (
-                  <>
-                    <p className="akro-label pt-1">Werkzeuge</p>
-                    <BriefingButton scheduleId={schedule.id} isManager={!!access?.edit} />
-                    {access?.edit && <LiveMode scheduleId={schedule.id} isManager />}
-                    {isAdmin && <AISuggestButton scheduleId={schedule.id} />}
-                  </>
-                )}
-                {/* Gefaehrliche Aktion abgesetzt am Ende; waehrend der Bearbeitung gesperrt. */}
-                {darfVeröffentlichen && schedule?.isPublic && (
-                  <>
-                    <Separator className="my-1" />
-                    <VisibilityToggle scheduleId={schedule.id} isPublic wochenLabel={wochenLabel} disabled={status === "EDITING"} className="w-full justify-start text-destructive hover:text-destructive" />
-                    {status === "EDITING" && (
-                      <p className="text-[13px] leading-5 text-muted-foreground">Während der Bearbeitung nicht möglich – zuerst die Änderungen veröffentlichen oder verwerfen.</p>
-                    )}
-                  </>
-                )}
-              </div>
-            </PopoverContent>
-          </Popover>
+          {!handy && menü}
         </div>
       </div>
     </>

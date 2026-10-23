@@ -358,17 +358,19 @@ function Hinweiszeile({ children, aktion, sitzungsSchluessel }: { children: Reac
     setGeschlossen(true);
   }
   return (
-    <p className="mb-3 flex min-h-9 items-center gap-x-2 gap-y-1 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] py-1 pr-1 pl-3 text-[13px] max-md:flex-wrap">
-      <AlertTriangle className="size-3.5 shrink-0 text-warn" aria-hidden="true" />
-      <span className="min-w-0 md:truncate">{children}</span>
-      {aktion}
+    <p className="mb-2 flex min-h-9 items-start gap-2 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] py-1 pr-1 pl-3 text-[13px] leading-5 md:items-center">
+      <AlertTriangle className="mt-[7px] size-3.5 shrink-0 text-warn md:mt-0" aria-hidden="true" />
+      <span className="min-w-0 flex-1 py-1 md:truncate">
+        {children}
+        {aktion && <> {aktion}</>}
+      </span>
       {sitzungsSchluessel && (
         <button
           type="button"
           onClick={schliessen}
           aria-label="Hinweis ausblenden"
           title="Hinweis ausblenden"
-          className="ml-auto flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-offset-[-3px] max-md:size-11"
+          className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-offset-[-3px] max-md:-my-1 max-md:size-11"
         >
           <X className="size-4" aria-hidden="true" />
         </button>
@@ -377,9 +379,10 @@ function Hinweiszeile({ children, aktion, sitzungsSchluessel }: { children: Reac
   );
 }
 
+/** Aktion im Hinweis: im Satzfluss; auf dem Handy reicht die Tippflaeche per Innenabstand auf 44 px. */
 function HinweisLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <Link href={href} className="shrink-0 font-medium whitespace-nowrap text-primary underline-offset-4 hover:underline max-md:inline-flex max-md:min-h-11 max-md:items-center">
+    <Link href={href} className="ml-1 font-medium whitespace-nowrap text-primary underline-offset-4 hover:underline max-md:py-3">
       {children}
     </Link>
   );

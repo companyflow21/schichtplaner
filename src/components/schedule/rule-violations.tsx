@@ -61,9 +61,9 @@ export function RuleViolationPanel({ data, shifts, isAdmin, onSprung }: { data: 
     );
   }
   return (
-    <section aria-label="Regelverstöße" className="akro-panel mb-3 border-warn/40 text-[13px]">
+    <section aria-label="Regelverstöße" className="akro-panel mb-2 border-warn/40 text-[13px]">
       <details className="group">
-        <summary className="flex min-h-10 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-[inherit] px-3 py-2 focus-visible:outline-offset-[-3px] max-md:min-h-11 [&::-webkit-details-marker]:hidden">
+        <summary className="flex min-h-9 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-[inherit] px-3 py-1.5 focus-visible:outline-offset-[-3px] max-md:min-h-11 [&::-webkit-details-marker]:hidden">
           <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90 motion-reduce:transition-none" aria-hidden="true" />
           <span role="status" aria-live="polite" className="flex items-center gap-1.5 text-[14px] font-semibold text-warn"><AlertTriangle className="size-4" aria-hidden="true" />{verstößeText(data.count)}</span>
           <span className="text-muted-foreground">Hinweise – Einteilen und Veröffentlichen bleiben möglich.</span>
