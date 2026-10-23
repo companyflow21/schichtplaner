@@ -172,6 +172,7 @@ export function CopyShiftDialog({ shift, open, onOpenChange, onDone }: CopyShift
           <DialogTitle>Schicht kopieren</DialogTitle>
           <DialogDescription>
             {shift.shiftFrom}–{shift.shiftTo}
+            {shift.endsNextDay ? " (endet am Folgetag)" : ""}
             {shift.title ? " · " + shift.title : ""}
             {shift.branch ? " · " + shift.branch.name : ""}. Gleicher Standort; Zeiten, Pause, Plätze, Tätigkeit und Hinweise
             werden übernommen.
