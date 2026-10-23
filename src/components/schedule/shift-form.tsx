@@ -2,7 +2,7 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Check, Copy, UserPlus, X } from "lucide-react";
+import { Check, Copy, Info, UserPlus, X } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,11 +15,19 @@ import { QualifikationAuswahl } from "@/components/workforce/qualification-selec
 import { cn } from "@/lib/utils";
 import { CopyShiftDialog, PreviewSummary, ShiftPreviewList } from "./copy-shift-dialog";
 import { DeleteShiftButton } from "./delete-shift-button";
-import type { ShiftData, DivisionOption, PoolData, ShiftPreview } from "@/types/schedule";
+import type { ShiftData, DivisionOption, PoolData, ShiftPreview, ScheduleStatus } from "@/types/schedule";
 import { formatName } from "@/lib/names";
 import { useNameFormat } from "@/lib/hooks/use-current-member";
 
-type Props = { open: boolean; onOpenChange: (value: boolean) => void; scheduleId: string; branchId: string | null; defaultDayOfWeek?: number; shift?: ShiftData | null };
+/** Vorbelegung beim Anlegen, z. B. aus der juengsten Schicht der Woche. Beim Bearbeiten ohne Wirkung. */
+export type ShiftFormVorlage = { shiftFrom: string; shiftTo: string; pauseMinutes: number; title: string | null; maxEmployees: number; divisionId: string | null };
+type Props = {
+  open: boolean; onOpenChange: (value: boolean) => void; scheduleId: string; branchId: string | null; defaultDayOfWeek?: number; shift?: ShiftData | null;
+  /** Vorgabewerte fuer eine neue Schicht; ohne Angabe 08:00-17:00, keine Pause, ein Platz. */
+  vorlage?: ShiftFormVorlage | null;
+  /** Status des Wochenplans: bei PUBLISHED und EDITING erscheint ein Hinweis ueber den Folgen. */
+  planStatus?: ScheduleStatus;
+};
 type BranchOption = { id: string; name: string; isActive: boolean; positions: string[]; customerId: string | null; customer: { name: string } | null };
 
 /** Beschriftung ueber dem Feld, 13 px: im Dialog ist nichts kleiner als 12 px. */
@@ -74,14 +82,29 @@ function AssigneeSelect({ branchId, value, onChange, limit }: { branchId: string
   </div>;
 }
 
-function Editor({ open, onOpenChange, scheduleId, branchId, defaultDayOfWeek = 1, shift }: Props) {
+/** Folgen der Aenderung je Planstatus, ueber dem Fuss des Dialogs. Entwurf: kein Hinweis noetig. */
+const planHinweis: Partial<Record<ScheduleStatus, string>> = {
+  PUBLISHED: "Veröffentlichte Woche: Die Änderung ist sofort sichtbar, eingeteilte Personen werden benachrichtigt.",
+  EDITING: "Wird erst beim Veröffentlichen sichtbar.",
+};
+
+function Editor({ open, onOpenChange, scheduleId, branchId, defaultDayOfWeek = 1, shift, vorlage, planStatus }: Props) {
   const action = useAction(), [days, setDays] = useState([shift?.dayOfWeek || defaultDayOfWeek]);
   const [kopieren, setKopieren] = useState(false);
+  // Die Vorlage gilt nur beim Anlegen; eine bestehende Schicht zeigt immer ihre eigenen Werte.
+  const vor = shift ? null : vorlage ?? null;
+  // Fokus zurueck an den Ausloeser: Der Dialog ist kontrolliert und hat keinen Trigger,
+  // Radix liesse den Fokus sonst auf <body> fallen. Gemerkt wird beim ersten Rendern,
+  // noch vor dem Fokus auf "Beginn".
+  const [ausloeser] = useState<HTMLElement | null>(() => {
+    const el = typeof document === "undefined" ? null : document.activeElement;
+    return el instanceof HTMLElement && el !== document.body ? el : null;
+  });
   // Fest gehalten: Die Auswahllisten laden oft erst nach dem Oeffnen. Ein nur
   // anfaenglich gesetzter Wert fiel dann auf den ersten Eintrag zurueck.
-  const [ort, setOrt] = useState(shift?.branchId || ""), [bereich, setBereich] = useState(shift?.divisionId || "");
+  const [ort, setOrt] = useState(shift?.branchId || ""), [bereich, setBereich] = useState(shift?.divisionId || vor?.divisionId || "");
   // Anlegen mit Einteilung: erst Vorschau (nichts gespeichert), dann anlegen.
-  const [places, setPlaces] = useState(shift?.maxEmployees || 1);
+  const [places, setPlaces] = useState(shift?.maxEmployees || vor?.maxEmployees || 1);
   const [assignees, setAssignees] = useState<string[]>([]);
   const [preview, setPreview] = useState<ShiftPreview | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -110,7 +133,7 @@ function Editor({ open, onOpenChange, scheduleId, branchId, defaultDayOfWeek = 1
   // Eigenes Schliessen statt des kleinen Standard-X: 44 px Touchflaeche auf dem Handy.
   // Fokus beim Oeffnen auf "Beginn" wie bisher, nicht auf die Einsatzort-Auswahl oben
   // (Pfeiltasten wuerden dort den Ort verstellen).
-  return <Sheet open={open} onOpenChange={onOpenChange}><SheetContent side="right" showCloseButton={false} className="w-full gap-0 p-0 sm:max-w-[30rem]" onOpenAutoFocus={e => { e.preventDefault(); (e.currentTarget as HTMLElement).querySelector<HTMLElement>("[name=shiftFrom]")?.focus(); }}>
+  return <Sheet open={open} onOpenChange={onOpenChange}><SheetContent side="right" showCloseButton={false} className="w-full gap-0 p-0 sm:max-w-[30rem]" onOpenAutoFocus={e => { e.preventDefault(); (e.currentTarget as HTMLElement).querySelector<HTMLElement>("[name=shiftFrom]")?.focus(); }} onCloseAutoFocus={e => { if (ausloeser?.isConnected) { e.preventDefault(); ausloeser.focus(); } }}>
     <form className="flex min-h-0 flex-1 flex-col" onChange={e => { if (!(e.target as HTMLElement).closest("[data-keep-preview]")) reset(); }} onInvalidCapture={e => {
       // Ungueltiges Feld in den eingeklappten Optionen: aufklappen, damit die Meldung sichtbar wird.
       const more = (e.target as HTMLElement).closest("details");
@@ -133,10 +156,10 @@ function Editor({ open, onOpenChange, scheduleId, branchId, defaultDayOfWeek = 1
       } finally { busy.current = false; }
     }}>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-        <SheetHeader className="p-0 pr-10"><SheetTitle>{shift ? "Schicht bearbeiten" : "Schicht erstellen"}</SheetTitle><SheetDescription>Bei einer Endzeit vor der Startzeit endet die Schicht am Folgetag.</SheetDescription></SheetHeader>
+        <SheetHeader className="p-0 pr-10"><SheetTitle>{shift ? "Schicht bearbeiten" : "Schicht erstellen"}</SheetTitle><SheetDescription>Bei einer Endzeit vor der Startzeit endet die Schicht am Folgetag.</SheetDescription><p className="flex flex-wrap justify-between gap-x-4 text-xs text-muted-foreground">{vor && <span>Vorbelegt aus einer Schicht dieser Woche.</span>}<span aria-hidden="true" className="ml-auto">* Pflichtfeld</span></p></SheetHeader>
         <ErrorMessage error={locations.error || divisions.error} />
         {shift ? (
-          <label className={feld}>Einsatzort<select name="branchId" value={ort} onChange={e => setOrt(e.target.value)} className={selectClass} required={!shift.branchId}>
+          <label className={feld}><span className={cn(!shift.branchId && "akro-pflicht")}>Einsatzort</span><select name="branchId" value={ort} onChange={e => setOrt(e.target.value)} className={selectClass} required={!shift.branchId}>
             {!shift.branchId && <option value="">Bitte zuordnen</option>}
             {shift.branchId && !plannable.some(b => b.id === shift.branchId) && <option value={shift.branchId}>{locations.isPending ? "Wird geladen …" : "Bisheriger Einsatzort"}</option>}
             {plannable.map(b => <option key={b.id} value={b.id}>{b.name}{b.customer ? " · " + b.customer.name : ""}</option>)}
@@ -145,18 +168,18 @@ function Editor({ open, onOpenChange, scheduleId, branchId, defaultDayOfWeek = 1
           <p className="text-[13px] text-muted-foreground">Einsatzort: <span className="font-medium text-foreground">{currentBranch ? currentBranch.name + (currentBranch.customer ? " · " + currentBranch.customer.name : "") : "Standort des Plans"}</span></p>
         )}
         <div className="grid grid-cols-3 items-end gap-3">
-          <label className={feld}>Beginn<TimeInput name="shiftFrom" defaultValue={shift?.shiftFrom || "08:00"} required /></label>
-          <label className={feld}>Ende<TimeInput name="shiftTo" defaultValue={shift?.shiftTo || "17:00"} required /></label>
-          <label className={feld}>Pause in Minuten<Input name="pauseValue" type="number" min={0} max={120} defaultValue={shift?.pauseValue || 0} required /></label>
+          <label className={feld}><span className="akro-pflicht">Beginn</span><TimeInput name="shiftFrom" defaultValue={shift?.shiftFrom || vor?.shiftFrom || "08:00"} required /></label>
+          <label className={feld}><span className="akro-pflicht">Ende</span><TimeInput name="shiftTo" defaultValue={shift?.shiftTo || vor?.shiftTo || "17:00"} required /></label>
+          <label className={feld}><span className="akro-pflicht">Pause in Minuten</span><Input name="pauseValue" type="number" min={0} max={120} defaultValue={shift?.pauseValue || vor?.pauseMinutes || 0} required /></label>
         </div>
         <fieldset><legend className="mb-1.5 text-[13px] font-medium">{shift ? "Wochentag" : "Wochentage"}</legend><div className="grid grid-cols-7 gap-1 sm:gap-2">{["Mo","Di","Mi","Do","Fr","Sa","So"].map((name,i) => <Button type="button" key={name} className="px-0" variant={days.includes(i+1) ? "default" : "outline"} aria-pressed={days.includes(i+1)} onClick={() => { reset(); setDays(old => shift ? [i+1] : old.includes(i+1) ? old.length > 1 ? old.filter(d => d !== i+1) : old : [...old,i+1]); }}>{name}</Button>)}</div></fieldset>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className={feld}>Tätigkeit / Titel<Input name="title" list="shift-positions" defaultValue={shift?.title || ""} maxLength={100} /><datalist id="shift-positions">{[...new Set(currentBranch?.positions ?? [])].map(p => <option key={p} value={p} />)}</datalist></label>
+          <label className={feld}>Tätigkeit / Titel<Input name="title" list="shift-positions" defaultValue={shift?.title || vor?.title || ""} maxLength={100} /><datalist id="shift-positions">{[...new Set(currentBranch?.positions ?? [])].map(p => <option key={p} value={p} />)}</datalist></label>
           <label className={feld}>Arbeitsbereich<select name="divisionId" value={bereich} onChange={e => setBereich(e.target.value)} className={selectClass}><option value="">Kein Arbeitsbereich</option>{shift?.divisionId && !divisions.data?.divisions.some(d => d.id === shift.divisionId) && <option value={shift.divisionId}>{divisions.isPending ? "Wird geladen …" : "Bisheriger Arbeitsbereich"}</option>}{divisions.data?.divisions.map(d => <option key={d.id} value={d.id}>{d.title}</option>)}</select></label>
         </div>
         <fieldset className="space-y-3 rounded-[var(--radius)] border px-3 pt-1 pb-3">
           <legend className="px-1 text-[13px] font-medium">Besetzung</legend>
-          <label className="flex items-center justify-between gap-3 text-[13px] font-medium">Benötigte Mitarbeitende<Input name="maxEmployees" type="number" min={1} max={100} defaultValue={shift?.maxEmployees || 1} onChange={e => setPlaces(Math.max(1, Number(e.target.value) || 1))} className="w-24" required /></label>
+          <label className="flex items-center justify-between gap-3 text-[13px] font-medium"><span className="akro-pflicht">Benötigte Mitarbeitende</span><Input name="maxEmployees" type="number" min={1} max={100} defaultValue={shift?.maxEmployees || vor?.maxEmployees || 1} onChange={e => setPlaces(Math.max(1, Number(e.target.value) || 1))} className="w-24" required /></label>
           {!shift && <>
             <AssigneeSelect branchId={branchId} value={assignees} limit={places} onChange={value => { reset(); setAssignees(value); }} />
             <p className={cn("text-[13px]", tooMany ? "text-destructive" : "text-muted-foreground")}>{staffingHint}</p>
@@ -167,16 +190,19 @@ function Editor({ open, onOpenChange, scheduleId, branchId, defaultDayOfWeek = 1
           <summary className="min-h-11 cursor-pointer py-3 text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">Weitere Optionen <span className="font-normal text-muted-foreground">· {shift ? "Pausenregel, Qualifikationen" : "Pausenregel, Wiederholen, Qualifikationen"}</span></summary>
           <div className="grid gap-4 pb-3 sm:grid-cols-2">
             <label className={feld}>Pausenregel<select name="pauseOption" className={selectClass} defaultValue={shift?.pauseOption || "PER_SHIFT"}><option value="PER_SHIFT">Pro Schicht</option><option value="PER_HOUR">Pro Stunde</option></select></label>
-            {!shift && <label className={feld}>Wöchentlich wiederholen (Wochen)<Input name="repeatWeeks" type="number" min={1} max={52} defaultValue={1} required /></label>}
+            {!shift && <label className={feld}><span className="akro-pflicht">Wöchentlich wiederholen (Wochen)</span><Input name="repeatWeeks" type="number" min={1} max={52} defaultValue={1} required /></label>}
             <fieldset className="sm:col-span-2 max-md:[&_label]:min-h-11"><legend className="mb-1.5 text-[13px] font-medium">Erforderliche Qualifikationen</legend><QualifikationAuswahl name="qualifications" defaultValue={shift?.requiredQualifications ?? []} idPrefix={"schicht-" + (shift?.id ?? "neu")} /></fieldset>
           </div>
         </details>
         {withAssignees && preview && <div ref={insBild} data-keep-preview className="space-y-2" aria-live="polite"><p className="text-sm font-medium">Vorschau – noch nichts gespeichert</p><ShiftPreviewList preview={preview} /><PreviewSummary preview={preview} confirmed={confirmed} onConfirmedChange={setConfirmed} idPrefix="neue-schicht" /></div>}
         {shift && shift.branchId && <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4"><p className="text-[13px] text-muted-foreground">Auf weitere Tage am selben Standort kopieren – auf Wunsch mit den Zuweisungen.</p><Button type="button" variant="outline" onClick={() => setKopieren(true)}><Copy className="size-4" />Kopieren …</Button></div>}
       </div>
-      <div className="flex flex-wrap items-center gap-2 border-t bg-background px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        {shift && <DeleteShiftButton shiftId={shift.id} onDeleted={() => onOpenChange(false)} />}
-        <div className="ml-auto flex gap-2"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button><Button disabled={action.isPending || check.isPending || blocked}>{submitLabel}</Button></div>
+      <div className="border-t bg-background px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        {planHinweis[planStatus ?? "DRAFT"] && <p role="note" className="mb-3 flex items-start gap-2 text-[13px] text-muted-foreground"><Info aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{planHinweis[planStatus ?? "DRAFT"]}</p>}
+        <div className="flex flex-wrap items-center gap-2">
+          {shift && <DeleteShiftButton shiftId={shift.id} onDeleted={() => onOpenChange(false)} />}
+          <div className="ml-auto flex gap-2"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button><Button disabled={action.isPending || check.isPending || blocked}>{submitLabel}</Button></div>
+        </div>
       </div>
     </form>
     {/* Wie das Standard-X nach dem Inhalt: zuletzt in der Tab-Reihenfolge, bleibt beim Scrollen sichtbar. */}
