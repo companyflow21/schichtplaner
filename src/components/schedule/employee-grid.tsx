@@ -75,7 +75,7 @@ function Folgetag() {
   return (
     <span className="ml-1 font-normal text-muted-foreground" title="endet am Folgetag">
       <span aria-hidden="true">+1</span>
-      <span className="sr-only">(endet am Folgetag)</span>
+      <span className="sr-only">, endet am Folgetag</span>
     </span>
   );
 }

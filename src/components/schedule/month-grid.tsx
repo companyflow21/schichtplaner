@@ -69,7 +69,7 @@ function Folgetag() {
   return (
     <span className="ml-1 font-normal text-muted-foreground" title="endet am Folgetag">
       <span aria-hidden="true">+1</span>
-      <span className="sr-only">(endet am Folgetag)</span>
+      <span className="sr-only">, endet am Folgetag</span>
     </span>
   );
 }
@@ -314,7 +314,7 @@ function DayCell({ day, plan, standort, sichtbar }: { day: MonthDay; plan: Month
                 fehlt > 0 ? "border-warn/50 bg-warn/[0.06]" : "bg-[var(--flaeche-vertieft)]",
                 s.isPublic === false && "border-dashed"
               )}
-              title={[s.shiftFrom + "–" + s.shiftTo + (s.endsNextDay ? " (endet am Folgetag)" : ""), s.title, names(s, nameFormat)].filter(Boolean).join(" · ")}
+              title={[s.shiftFrom + "–" + s.shiftTo + (s.endsNextDay ? " +1, endet am Folgetag" : ""), s.title, names(s, nameFormat)].filter(Boolean).join(" · ")}
             >
               <div className="flex flex-wrap items-baseline justify-between gap-x-1">
                 <span className="tabular font-semibold"><span className="whitespace-nowrap">{s.shiftFrom}–{s.shiftTo}</span>{s.endsNextDay && <Folgetag />}</span>
