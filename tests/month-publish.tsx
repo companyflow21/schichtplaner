@@ -10,6 +10,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // Pfad fuer den Ansichtsschalter (usePathname), sonst nur im App Router gesetzt.
 import { PathnameContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
+// Router fuer das Blaettern im Monat (useRouter); statisch gerendert wird nichts aufgerufen.
+import { AppRouterContext, type AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { MonthGrid, type MonthPlan } from "../src/components/schedule/month-grid";
 import { addDate } from "../src/lib/berlin";
 import type { ShiftData } from "../src/types/schedule";
@@ -48,13 +50,18 @@ const monat: MonthPlan = {
   issuesOpen: null,
 };
 
+const nichts = () => {};
+const router: AppRouterInstance = { back: nichts, forward: nichts, refresh: nichts, push: nichts, replace: nichts, prefetch: nichts, bfcacheId: "test" };
+
 function render(plan: MonthPlan) {
   const client = new QueryClient();
   client.setQueryData(["branch-month", "nord", "2026-10"], plan);
   const html = renderToStaticMarkup(
-    <PathnameContext.Provider value="/schedule/month/10-2026">
-      <QueryClientProvider client={client}><MonthGrid month={10} year={2026} standort="nord" /></QueryClientProvider>
-    </PathnameContext.Provider>
+    <AppRouterContext.Provider value={router}>
+      <PathnameContext.Provider value="/schedule/month/10-2026">
+        <QueryClientProvider client={client}><MonthGrid month={10} year={2026} standort="nord" /></QueryClientProvider>
+      </PathnameContext.Provider>
+    </AppRouterContext.Provider>
   );
   client.clear();
   return html;

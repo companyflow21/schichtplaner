@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { ErrorMessage, json, selectClass } from "@/components/workforce/client";
 import { berlinDate, isoWeek, validDate, weekDate } from "@/lib/berlin";
 import { monthNames } from "@/lib/utils/calendar";
+import { cn } from "@/lib/utils";
 import type { ScheduleExport } from "@/types/schedule-export";
 
 const MAX_DAYS = 62;
@@ -26,6 +27,8 @@ export type PdfExportProps = {
   branchId?: string | null;
   /** Ausgewaehlte Person der Ansicht; wird vorbelegt. */
   userId?: string | null;
+  /** Nebenaktion: auf dem Handy nur das Symbol (44 px), der Text bleibt fuer Screenreader. */
+  kompakt?: boolean;
 };
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -67,13 +70,19 @@ function loadLogo(): Promise<string | undefined> {
  * Mitarbeiter. Die Daten kommen vom Server (nur Sichtbares), das PDF entsteht
  * im Browser - es wird nichts hochgeladen. jsPDF wird erst beim Erstellen geladen.
  */
-export function PdfExportDialog(props: PdfExportProps) {
+export function PdfExportDialog({ kompakt = false, ...props }: PdfExportProps) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
-        <FileDown className="size-3.5" />
-        Als PDF exportieren
+      <Button
+        variant="outline"
+        size="sm"
+        className={cn("gap-1.5", kompakt && "max-md:w-11 max-md:px-0 max-md:has-[>svg]:px-0")}
+        title={kompakt ? "Als PDF exportieren" : undefined}
+        onClick={() => setOpen(true)}
+      >
+        <FileDown className="size-3.5" aria-hidden="true" />
+        {kompakt ? <span className="max-md:sr-only">Als PDF exportieren</span> : "Als PDF exportieren"}
       </Button>
       {open && <PdfExportForm {...props} onClose={() => setOpen(false)} />}
     </>

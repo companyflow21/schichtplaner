@@ -49,7 +49,7 @@ export function WeekSwitcher({
   const Tag = as as "p";
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <div className="flex min-h-10 max-w-full items-center rounded-lg border bg-card">
+      <div className="flex min-h-10 max-w-full items-center rounded-lg border bg-card max-md:min-h-11">
         <button
           type="button"
           onClick={onPrev}

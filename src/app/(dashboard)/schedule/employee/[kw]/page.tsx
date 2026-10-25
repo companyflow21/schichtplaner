@@ -6,8 +6,6 @@ import {
   getWeekDates,
 } from "@/lib/utils/calendar";
 import { WeekNav } from "@/components/schedule/week-nav";
-import { PdfExportDialog } from "@/components/schedule/pdf-export-dialog";
-import { ViewSwitcher } from "@/components/schedule/view-switcher";
 import { EmployeeGridWrapper } from "@/components/schedule/employee-grid-wrapper";
 
 interface EmployeeKWPageProps {
@@ -31,13 +29,8 @@ export default async function EmployeeKWPage({ params, searchParams }: EmployeeK
   const weekDateStrings = weekDates.map((d) => d.toISOString());
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <PdfExportDialog week={{ year, weekNumber }} branchId={standort ?? null} />
-          <ViewSwitcher kw={kw} standort={standort ?? null} />
-        </div>
-      </div>
+    <div className="space-y-5">
+      {/* Kopf, PDF und Ansicht stehen in der WeekNav; ihre Zeitraumzeile klebt auf dem Handy. */}
       <WeekNav weekNumber={weekNumber} year={year} baseUrl="/schedule/employee" standort={standort ?? null} />
       <EmployeeGridWrapper
         weekNumber={weekNumber}
