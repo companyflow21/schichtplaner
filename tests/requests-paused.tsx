@@ -109,7 +109,7 @@ check(count(onlyOne, "Keine weiteren Schichten geplant und keine passenden offen
 
 // --- Startseite der Disposition: "Heute im Dienstplan" als Zeilen ---------------------------
 const people = ["Anna Albers", "Bernd Berger", "Clara Conrad", "David Dietz", "Eva Engel", "Felix Fuchs", "Gina Graf", "Hans Heinz", "Ines Immer", "Jan Jäger", "Karla Kuhn", "Lars Lorenz", "Mia Maier"];
-function todayShift(id: string, extra: Partial<ShiftData> & Record<string, unknown>) {
+function todayShift(id: string, extra: Record<string, unknown>) {
   return { ...view(false, admin), id, date: "2030-01-08", shiftFrom: "08:00", shiftTo: "16:00", missing: 0, isPublic: true, endsNextDay: false, openConfirmations: 0, branch: { name: "Demo Nord", address: null, meetingPoint: null, notes: null, customer: null }, title: "Empfang", bookings: [], ...extra };
 }
 const booked = people.map((name, i) => ({ userId: "u" + i, confirmedAt: "2030-01-01T00:00:00Z", confirmation: "PLANNER", user: { firstName: name.split(" ")[0], lastName: name.split(" ")[1] } }));
@@ -134,7 +134,7 @@ check(!manager([todayShift("a", { shiftTo: "06:00", endsNextDay: true, date: "20
 check(manager([]).includes("Heute keine Schichten an deinen Standorten."), "today rows: empty day keeps its sentence");
 
 // --- Zählregel "Bestätigungen offen" ---------------------------------------------------------
-const plannerView = (editing = false) => view(editing, admin);
+const plannerView = (editing = false) => shiftView(fixture(editing), admin);
 const before = new Date("2030-01-08T12:00:00Z"), after = new Date("2030-01-08T15:30:00Z"); // 13:00 bzw. 16:30 Berliner Zeit
 const legacy = plannerView();
 check(openConfirmations(legacy, before) === 1 && shiftEnded(fixture(false), before) === false, "count rule: a legacy booking without confirmation on a running plan counts");
