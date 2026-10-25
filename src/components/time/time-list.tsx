@@ -84,11 +84,9 @@ function getInitials(firstName: string, lastName: string) {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 }
 
+/** Stunden wie in der Auswertung: Dezimalkomma, höchstens zwei Stellen ("7,5 h"). */
 function formatHours(hours: number): string {
-  const h = Math.floor(hours);
-  const m = Math.round((hours - h) * 60);
-  if (m === 0) return `${h}h`;
-  return `${h}h ${m}m`;
+  return hours.toLocaleString("de-DE", { maximumFractionDigits: 2 }) + " h";
 }
 
 function getRecordDisplayTime(record: TimeRecord): string {
@@ -102,9 +100,7 @@ function getRecordDisplayTime(record: TimeRecord): string {
     return `${record.timeFrom} - ...`;
   }
   if (record.type === "MANUAL_DURATION") {
-    const h = record.durationHours ?? 0;
-    const m = record.durationMinutes ?? 0;
-    return `${h}h ${m}m`;
+    return formatHours((record.durationHours ?? 0) + (record.durationMinutes ?? 0) / 60);
   }
   return "-";
 }
@@ -298,12 +294,7 @@ export function TimeList() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">Zeiterfassung</h1>
-          <p className="text-sm text-muted-foreground">
-            Arbeitszeiten erfassen und verwalten
-          </p>
-        </div>
+        <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">Zeiterfassung</h1>
         <div className="flex flex-wrap items-center gap-2">
           <OwnAccountButton from={monthKey + "-01"} to={format(endOfMonth(currentMonth), "yyyy-MM-dd")} />
           <TimesheetButton from={monthKey + "-01"} to={format(endOfMonth(currentMonth), "yyyy-MM-dd")} label="Mein Stundenzettel" />
@@ -375,6 +366,7 @@ export function TimeList() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            aria-label="Mitarbeiter suchen"
             placeholder="Mitarbeiter suchen..."
             className="pl-9"
           />

@@ -16,7 +16,7 @@ export default function ReportingLoading() {
         <Skeleton className="h-24 rounded-lg" />
         <Skeleton className="h-24 rounded-lg" />
       </div>
-      <div className="rounded-lg border border-border bg-white">
+      <div className="rounded-lg border border-border bg-card">
         <div className="p-4">
           <Skeleton className="h-64 w-full" />
         </div>

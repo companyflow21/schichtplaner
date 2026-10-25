@@ -112,9 +112,10 @@ export function TopNav() {
           />
         </Link>
 
-        <h2 className="hidden min-w-0 truncate text-[22px] leading-none font-semibold tracking-[-0.02em] md:block">
+        {/* Kein Ueberschriftenelement: die Seite traegt ihr eigenes h1 mit demselben Namen. */}
+        <p className="hidden min-w-0 truncate text-[22px] leading-none font-semibold tracking-[-0.02em] md:block">
           {titel}
-        </h2>
+        </p>
 
         <div className="ml-auto flex items-center gap-3">
           <span className="hidden md:block">

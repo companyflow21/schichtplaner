@@ -252,7 +252,7 @@ export function AbsenceList() {
                   <Filter className="size-3.5" />
                 )}
                 <span className="hidden sm:inline">{tab.label}</span>
-                <span className="tabular-nums text-xs opacity-70">
+                <span className="tabular-nums text-xs text-muted-foreground">
                   ({count})
                 </span>
               </button>

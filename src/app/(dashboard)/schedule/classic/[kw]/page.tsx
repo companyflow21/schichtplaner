@@ -13,6 +13,8 @@ interface ClassicKWPageProps {
   searchParams: Promise<{ standort?: string }>;
 }
 
+export const metadata = { title: "Dienstplan" };
+
 export default async function ClassicKWPage({ params, searchParams }: ClassicKWPageProps) {
   const { kw } = await params;
   // Mit Standort: nur dieser Plan; ohne: eigene Schichten und freigegebene Plaene.

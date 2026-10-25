@@ -1,5 +1,7 @@
 import { EmployeeDetail } from "@/components/employees/employee-detail";
 
+export const metadata = { title: "Mitarbeiter" };
+
 export default async function EmployeeDetailPage({
   params,
 }: {

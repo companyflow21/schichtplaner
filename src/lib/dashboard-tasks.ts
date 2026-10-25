@@ -11,6 +11,27 @@ import type { planningOverview } from "./overview";
 
 type Overview = Awaited<ReturnType<typeof planningOverview>>;
 
+/** Eine Schicht in der Form, wie shiftView sie ausgibt - nur die Felder der Zählregel. */
+type ConfirmationShift = {
+  isPublic: boolean;
+  /** Echtes Ende als ISO-Zeitpunkt (shiftView.endsAt); beendet heißt endsAt <= jetzt, wie shiftEnded() in planning.ts. */
+  endsAt: string;
+  bookings: { userId: string | null; former?: boolean; confirmedAt: Date | string | null; confirmation?: "PLANNER" | "EMPLOYEE" | null }[];
+};
+
+/**
+ * Zählregel "Bestätigungen offen" - Startseite und Wochenplan zählen gleich:
+ * Gezählt wird jede Buchung mit Person (userId gesetzt, keine gelöschte
+ * Person), ohne confirmedAt und nicht confirmation === "PLANNER" (Einteilungen
+ * der Planung sind verbindlich) - und nur an noch nicht beendeten Schichten
+ * (shiftEnded aus planning.ts, siehe archive.ts). Entwürfe sind für
+ * Mitarbeitende unsichtbar und haben nichts zu bestätigen.
+ */
+export function openConfirmations(shift: ConfirmationShift, now = new Date()): number {
+  if (!shift.isPublic || Date.parse(shift.endsAt) <= now.getTime()) return 0;
+  return shift.bookings.filter((b) => !!b.userId && !b.former && !b.confirmedAt && b.confirmation !== "PLANNER").length;
+}
+
 export type DashboardTasks = {
   /** Aktive, nicht freigeschaltete Personen (Link: /employees?status=not_activated). */
   notActivated: number | null;

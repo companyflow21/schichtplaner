@@ -13,6 +13,8 @@ interface EmployeeKWPageProps {
   searchParams: Promise<{ standort?: string }>;
 }
 
+export const metadata = { title: "Mein Dienstplan" };
+
 export default async function EmployeeKWPage({ params, searchParams }: EmployeeKWPageProps) {
   const { kw } = await params;
   // Mit Standort: nur dieser Plan; ohne: eigene Schichten und freigegebene Plaene.

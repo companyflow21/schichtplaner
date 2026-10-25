@@ -12,7 +12,7 @@ export default function TimeLoading() {
         <Skeleton className="h-28 rounded-lg" />
         <Skeleton className="h-28 rounded-lg" />
       </div>
-      <div className="rounded-lg border border-border bg-white">
+      <div className="rounded-lg border border-border bg-card">
         <div className="divide-y divide-border">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="flex items-center gap-4 p-4">

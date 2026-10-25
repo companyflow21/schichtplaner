@@ -2,9 +2,11 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { formatName } from "@/lib/names";
+import { useNameFormat } from "@/lib/hooks/use-current-member";
 import { StatusBadge, type StatusTon } from "@/components/ui/status-badge";
 import { json, useAction, ErrorMessage, dateLabel, selectClass } from "./client";
 // Namen, Notizen und Aktionen liefert der Server nur, soweit sie freigegeben sind.
@@ -16,13 +18,21 @@ type Option = { shiftId: string; userId: string; date: string; shiftFrom: string
 const labels: Record<string,string> = { OPEN: "Offen", ACCEPTED: "Genehmigt", DECLINED: "Abgelehnt", PENDING: "Zur Freigabe", APPROVED: "Genehmigt" };
 // Offen = Hinweis, genehmigt = erledigt, abgelehnt = reine Angabe.
 const tones: Record<string,StatusTon> = { OPEN: "hinweis", PENDING: "hinweis", ACCEPTED: "ok", APPROVED: "ok", DECLINED: "neutral" };
-// TAKEOVER: offene Schicht anfragen, SWAP: eigene Schicht abgeben, EXCHANGE: zwei Schichten tauschen.
-const kinds: Record<string,string> = { TAKEOVER: "Offene Schicht angefragt", SWAP: "Abgabe", EXCHANGE: "Tausch" };
+// Begriffe wie auf den Knoepfen und in ANLEITUNG.md: TAKEOVER = "Uebernahme anfragen" (offene Schicht),
+// SWAP = "Zur Uebernahme anbieten" (Abgabe der eigenen Schicht), EXCHANGE = "Tausch anfragen".
+const kinds: Record<string,string> = { TAKEOVER: "Übernahme angefragt", SWAP: "Zur Übernahme angeboten (Abgabe)", EXCHANGE: "Tausch" };
 const fieldLabels: Record<string,string> = { date: "Datum", timeFrom: "Beginn", timeTo: "Ende", durationHours: "Stunden", durationMinutes: "Minuten", breakMinutes: "Pause (Min.)", comment: "Kommentar", categoryId: "Kategorie" };
-const person = (n: Name) => n ? `${n.firstName} ${n.lastName}` : "";
 const shiftText = (s: ShiftInfo) => `${dateLabel(s.date)} · ${s.shiftFrom}–${s.shiftTo} · ${s.title || "Schicht"}${s.branch ? " · " + s.branch.name : ""}`;
 
+/** Platzhalter in der Form der Liste: zwei Zeilen statt eines Ladetexts. */
+function ListSkeleton() {
+  return <div className="space-y-2 border-t py-3" aria-busy="true" aria-label="Wird geladen"><Skeleton className="h-4 w-40" /><Skeleton className="h-4 w-full" /></div>;
+}
+
 export function Requests({ manager, userId }: { manager: boolean; userId: string }) {
+  // Namen wie im Dienstplan nach dem Namensformat der Organisation.
+  const nameFormat = useNameFormat();
+  const person = (n: Name) => n ? formatName(n, nameFormat) : "";
   const requests = useQuery({ queryKey: ["requests"], queryFn: () => json<{ requests: RequestRow[] }>("/api/mod-requests") });
   const corrections = useQuery({ queryKey: ["corrections"], queryFn: () => json<{ corrections: Correction[] }>("/api/time/corrections") });
   const action = useAction();
@@ -45,7 +55,7 @@ export function Requests({ manager, userId }: { manager: boolean; userId: string
   }
   const pending = action.isPending || busy;
   const content = <section id="antraege" className="scroll-mt-20 space-y-3" aria-label={manager ? "Anträge bearbeiten" : "Anträge und Schichttausch"}><h2 className="text-[17px] font-semibold tracking-[-0.02em]">Anträge</h2><ErrorMessage error={requests.error || corrections.error} />
-    <div className="grid items-start gap-4 lg:grid-cols-2"><Card className="p-4"><h3 className="text-[14px] font-semibold tracking-[-0.02em]">Übernahmen, Abgaben und Tausch</h3>{requests.isPending ? <p>Lädt …</p> : !requests.data?.requests.length ? <p className="text-sm text-muted-foreground">Keine Anträge vorhanden.</p> : requests.data.requests.map(r => <div key={r.id} className="space-y-2 border-t py-3">
+    <div className="grid items-start gap-4 lg:grid-cols-2"><div className="akro-panel p-4"><h3 className="pb-3 text-[14px] font-semibold tracking-[-0.02em]">Übernahmen, Abgaben und Tausch</h3>{requests.isPending ? <ListSkeleton /> : !requests.data?.requests.length ? <p className="text-sm text-muted-foreground">Keine Anträge vorhanden.</p> : requests.data.requests.map(r => <div key={r.id} className="space-y-2 border-t py-3">
       <p className="flex flex-wrap items-center gap-2 font-medium">{kinds[r.kind] ?? r.kind}<StatusBadge ton={tones[r.state] ?? "neutral"} klein>{labels[r.state]}</StatusBadge></p>
       {r.kind === "EXCHANGE" && r.targetShift ? <div className="tabular space-y-0.5 text-sm">
         <p><span className="text-muted-foreground">{r.user ? person(r.user) + " gibt ab: " : "Abgabe: "}</span>{shiftText(r.shift)}</p>
@@ -64,9 +74,9 @@ export function Requests({ manager, userId }: { manager: boolean; userId: string
         {r.can.withdraw && <Button size="sm" variant="outline" disabled={pending} onClick={() => action.mutate({ url: "/api/mod-requests/" + r.id, method: "DELETE", message: "Antrag zurückgezogen" })}>Zurückziehen</Button>}
       </div>}
       {r.kind === "SWAP" && !r.targetUserId && r.state === "OPEN" && <p className="text-sm text-muted-foreground">Wartet auf eine passende Übernahme.</p>}
-    </div>)}</Card>
+    </div>)}</div>
     <div className="space-y-4"><TauschAnfragen />
-    <Card className="p-4"><h3 className="text-[14px] font-semibold tracking-[-0.02em]">Zeitkorrekturen</h3>{corrections.isPending ? <p>Lädt …</p> : !corrections.data?.corrections.length ? <p className="text-sm text-muted-foreground">Keine Zeitkorrekturen vorhanden.</p> : corrections.data.corrections.map(c => <div key={c.id} className="space-y-2 border-t py-3"><p className="font-medium">{c.record.user.firstName} {c.record.user.lastName} · {dateLabel(c.record.date)}{c.record.branch ? " · " + c.record.branch.name : ""}</p><p className="flex flex-wrap items-center gap-2 text-sm">{c.reason}<StatusBadge ton={tones[c.status] ?? "neutral"} klein>{labels[c.status]}</StatusBadge></p><dl className="text-sm">{Object.entries(c.proposed).map(([key,value]) => <div key={key}><dt className="inline text-muted-foreground">{fieldLabels[key] || key}: </dt><dd className="inline">{String(c.before[key] ?? "–")} → {String(value ?? "–")}</dd></div>)}</dl>{c.canDecide && <div className="flex gap-2"><Button size="sm" disabled={pending} onClick={() => action.mutate({ url: "/api/time/corrections", method: "PATCH", data: { id: c.id, status: "APPROVED" }, message: "Zeitkorrektur bestätigt" })}>Bestätigen</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => action.mutate({ url: "/api/time/corrections", method: "PATCH", data: { id: c.id, status: "DECLINED" }, message: "Zeitkorrektur abgelehnt" })}>Ablehnen</Button></div>}</div>)}</Card></div></div>
+    <div className="akro-panel p-4"><h3 className="pb-3 text-[14px] font-semibold tracking-[-0.02em]">Zeitkorrekturen</h3>{corrections.isPending ? <ListSkeleton /> : !corrections.data?.corrections.length ? <p className="text-sm text-muted-foreground">Keine Zeitkorrekturen vorhanden.</p> : corrections.data.corrections.map(c => <div key={c.id} className="space-y-2 border-t py-3"><p className="font-medium">{person(c.record.user)} · {dateLabel(c.record.date)}{c.record.branch ? " · " + c.record.branch.name : ""}</p><p className="flex flex-wrap items-center gap-2 text-sm">{c.reason}<StatusBadge ton={tones[c.status] ?? "neutral"} klein>{labels[c.status]}</StatusBadge></p><dl className="text-sm">{Object.entries(c.proposed).map(([key,value]) => <div key={key}><dt className="inline text-muted-foreground">{fieldLabels[key] || key}: </dt><dd className="inline">{String(c.before[key] ?? "–")} → {String(value ?? "–")}</dd></div>)}</dl>{c.canDecide && <div className="flex gap-2"><Button size="sm" disabled={pending} onClick={() => action.mutate({ url: "/api/time/corrections", method: "PATCH", data: { id: c.id, status: "APPROVED" }, message: "Zeitkorrektur bestätigt" })}>Bestätigen</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => action.mutate({ url: "/api/time/corrections", method: "PATCH", data: { id: c.id, status: "DECLINED" }, message: "Zeitkorrektur abgelehnt" })}>Ablehnen</Button></div>}</div>)}</div></div></div>
   </section>;
   if (manager) return content;
   const actionable = (requests.data?.requests ?? []).filter(r => r.state === "OPEN" && (r.can.consent || r.can.withdraw || r.can.decide));
@@ -86,6 +96,8 @@ export function Requests({ manager, userId }: { manager: boolean; userId: string
  * jeweils anderen Schicht zugeordnet sind; der Server prueft erneut.
  */
 function TauschAnfragen() {
+  const nameFormat = useNameFormat();
+  const person = (n: Name) => n ? formatName(n, nameFormat) : "";
   const own = useQuery({ queryKey: ["exchange-own"], queryFn: () => json<{ own: ShiftInfo[] }>("/api/mod-requests/exchange-options") });
   const [shiftId, setShiftId] = useState("");
   const [choice, setChoice] = useState("");
@@ -94,14 +106,14 @@ function TauschAnfragen() {
   const action = useAction();
   if (!own.data?.own.length) return null;
   const selected = options.data?.options.find(o => o.shiftId + ":" + o.userId === choice);
-  return <Card className="space-y-3 p-4"><h3 className="text-[14px] font-semibold tracking-[-0.02em]">Tausch anfragen</h3>
+  return <div className="akro-panel space-y-3 p-4"><h3 className="text-[14px] font-semibold tracking-[-0.02em]">Tausch anfragen</h3>
     <p className="text-sm text-muted-foreground">Deine Schicht gegen die Schicht einer anderen Person. Die andere Person stimmt zu, danach entscheidet die Planung. Bis dahin bleibt die Besetzung unverändert.</p>
     <label className="block space-y-1 text-sm"><span>Deine Schicht</span><select className={selectClass} value={shiftId} onChange={e => { setShiftId(e.target.value); setChoice(""); }}><option value="">Bitte wählen</option>{own.data.own.map(s => <option key={s.id} value={s.id}>{shiftText(s)}</option>)}</select></label>
-    {shiftId && (options.isPending ? <p className="text-sm">Lädt …</p> : options.error ? <ErrorMessage error={options.error} /> : !options.data?.options.length ? <p className="text-sm text-muted-foreground">Keine passende Schicht zum Tausch gefunden.</p> : <>
+    {shiftId && (options.isPending ? <div aria-busy="true" aria-label="Passende Schichten werden geladen"><Skeleton className="h-11 w-full" /></div> : options.error ? <ErrorMessage error={options.error} /> : !options.data?.options.length ? <p className="text-sm text-muted-foreground">Keine passende Schicht zum Tausch gefunden.</p> : <>
       <label className="block space-y-1 text-sm"><span>Tauschen gegen</span><select className={selectClass} value={choice} onChange={e => setChoice(e.target.value)}><option value="">Bitte wählen</option>{options.data.options.map(o => <option key={o.shiftId + ":" + o.userId} value={o.shiftId + ":" + o.userId}>{shiftText({ id: o.shiftId, date: o.date, shiftFrom: o.shiftFrom, shiftTo: o.shiftTo, title: o.title, branch: o.branch })}{o.user ? " · " + person(o.user) : ""}</option>)}</select></label>
       {options.data.limited && <p className="text-xs text-muted-foreground">Es werden nur die nächsten passenden Schichten angezeigt.</p>}
       <Input aria-label="Nachricht (optional)" placeholder="Nachricht (optional)" maxLength={1000} value={note} onChange={e => setNote(e.target.value)} />
       <Button disabled={!selected || action.isPending} onClick={() => selected && action.mutate({ url: "/api/mod-requests", data: { shiftId, kind: "EXCHANGE", targetShiftId: selected.shiftId, targetUserId: selected.userId, note: note.trim() || undefined }, message: "Tausch angefragt" }, { onSuccess: () => { setChoice(""); setNote(""); } })}>Tausch anfragen</Button>
     </>)}
-  </Card>;
+  </div>;
 }
