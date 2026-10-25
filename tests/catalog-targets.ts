@@ -31,7 +31,10 @@ export async function catalogTargetTests(t: TestContext) {
   // --- Zuordnungen nur aus dem Katalog, in Katalog-Schreibweise ------------
   await admin.request("/api/employees/" + staffB, "PATCH", { qualifications: ["Erfunden"] }, 400);
   await admin.request("/api/employees/" + staffB, "PATCH", { qualifications: [" erste hilfe", "NACHTWACHE", "Erste Hilfe"] });
-  check((await admin.request("/api/employees/" + staffB)).qualifications.join("|") === "Erste Hilfe|Nachtwache", "member qualifications are stored in catalog spelling, without duplicates");
+  // Welche Schreibweise von "Nachtwache" das Rennen oben gewonnen hat, ist Zufall - die
+  // Zuordnung muss genau diese Katalog-Schreibweise tragen, nicht eine feste.
+  const nachtwache = catalog.find((n: string) => n.toLowerCase() === "nachtwache");
+  check((await admin.request("/api/employees/" + staffB)).qualifications.join("|") === "Erste Hilfe|" + nachtwache, "member qualifications are stored in catalog spelling, without duplicates");
   const branch = (await mB.request("/api/branches?right=EDIT_SHIFTS")).branches[0];
   const week = isoWeek(berlinDate());
   const plan = (await mB.request("/api/schedules?kw=" + week.weekNumber + "&year=" + week.year + "&standort=" + branch.id)).schedule;
