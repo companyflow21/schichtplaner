@@ -7,6 +7,7 @@ import { AlertTriangle, EyeOff, Loader2, PencilLine, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { cn } from "@/lib/utils";
 import type { ScheduleAccess, ScheduleData, ScheduleStatus } from "@/types/schedule";
 import { anzahl, PublishDialog } from "./publish-dialog";
 
@@ -21,10 +22,10 @@ export function zeitpunkt(iso: string): string {
 }
 
 /** Status-Badge in der Kopfzeile: "Entwurf", "Veröffentlicht" oder "In Bearbeitung". */
-export function PlanStatusBadge({ schedule }: { schedule: Pick<ScheduleData, "isPublic" | "status"> }) {
+export function PlanStatusBadge({ schedule, klein = false }: { schedule: Pick<ScheduleData, "isPublic" | "status">; klein?: boolean }) {
   const status = planStatus(schedule);
-  if (status === "EDITING") return <StatusBadge ton="hinweis" icon={PencilLine}>In Bearbeitung</StatusBadge>;
-  return status === "PUBLISHED" ? <StatusBadge ton="ok">Veröffentlicht</StatusBadge> : <StatusBadge ton="hinweis" icon={EyeOff}>Entwurf</StatusBadge>;
+  if (status === "EDITING") return <StatusBadge ton="hinweis" icon={PencilLine} klein={klein}>In Bearbeitung</StatusBadge>;
+  return status === "PUBLISHED" ? <StatusBadge ton="ok" klein={klein}>Veröffentlicht</StatusBadge> : <StatusBadge ton="hinweis" icon={EyeOff} klein={klein}>Entwurf</StatusBadge>;
 }
 
 /** Folgen der Bearbeitung in einfachen Saetzen, mit Warnzeile fuer eine bereits begonnene Woche. */
@@ -75,8 +76,9 @@ export function verworfenText({ restored, removed, skipped }: Verworfen): string
 /**
  * Bearbeitung eines veroeffentlichten Plans starten - ein Knopf, eine
  * Rueckfrage mit den Folgen. Recht "Schichten bearbeiten" prueft der Server.
+ * Im Kopf des veroeffentlichten Plans ist er die Hauptaktion (variant default).
  */
-export function BearbeitungStarten({ scheduleId, wochenLabel, wochenbeginn }: { scheduleId: string; wochenLabel: string; wochenbeginn: Date }) {
+export function BearbeitungStarten({ scheduleId, wochenLabel, wochenbeginn, variant = "outline", className }: { scheduleId: string; wochenLabel: string; wochenbeginn: Date; variant?: "default" | "outline"; className?: string }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   // Erst beim Oeffnen pruefen, ob die Woche schon begonnen hat (Montag 00:00).
@@ -109,7 +111,7 @@ export function BearbeitungStarten({ scheduleId, wochenLabel, wochenbeginn }: { 
       disabled={mutation.isPending}
       onConfirm={() => mutation.mutate()}
     >
-      <Button variant="outline" size="sm" className="gap-1.5" disabled={mutation.isPending}>
+      <Button variant={variant} size="sm" className={cn("gap-1.5", className)} disabled={mutation.isPending}>
         {mutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <PencilLine className="size-3.5" />}
         Bearbeitung starten
       </Button>

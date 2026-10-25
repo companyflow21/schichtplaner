@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils";
  * die Ueberschrift der Seite sein (as="h1"); nach dem Blaettern setzt die
  * aufrufende Seite den Fokus darauf (labelRef, tabIndex -1), damit die
  * Tastatur nicht auf BODY landet. Kein overflow-hidden, damit der
- * Fokusring der Pfeile sichtbar bleibt (nach innen versetzt).
+ * Fokusring der Pfeile sichtbar bleibt (nach innen versetzt). Auf dem
+ * Handy sind Pfeile und "Heute" 44 px hoch (Touchflaeche).
  */
 export function WeekSwitcher({
   label,
@@ -24,6 +25,7 @@ export function WeekSwitcher({
   nextLabel = "Nächste Woche",
   as = "p",
   labelRef,
+  heuteMobilAusblenden = false,
   className,
 }: {
   /** Zeitraum, z. B. "19.10.–25.10.2026" oder "Okt 2026". */
@@ -40,6 +42,8 @@ export function WeekSwitcher({
   nextLabel?: string;
   as?: "h1" | "h2" | "p";
   labelRef?: Ref<HTMLElement>;
+  /** Auf dem Handy den deaktivierten "Heute"-Knopf weglassen (Platz in einer klebenden Zeile). */
+  heuteMobilAusblenden?: boolean;
   className?: string;
 }) {
   const Tag = as as "p";
@@ -50,7 +54,7 @@ export function WeekSwitcher({
           type="button"
           onClick={onPrev}
           aria-label={prevLabel}
-          className="flex size-10 shrink-0 items-center justify-center rounded-l-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-offset-[-3px]"
+          className="flex size-10 shrink-0 items-center justify-center rounded-l-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-offset-[-3px] max-md:size-11"
         >
           <ChevronLeft className="size-4" aria-hidden="true" />
         </button>
@@ -62,13 +66,13 @@ export function WeekSwitcher({
           type="button"
           onClick={onNext}
           aria-label={nextLabel}
-          className="flex size-10 shrink-0 items-center justify-center rounded-r-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-offset-[-3px]"
+          className="flex size-10 shrink-0 items-center justify-center rounded-r-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-offset-[-3px] max-md:size-11"
         >
           <ChevronRight className="size-4" aria-hidden="true" />
         </button>
       </div>
       {onToday && (
-        <Button variant="outline" size="sm" disabled={heuteAktiv} onClick={onToday}>
+        <Button variant="outline" size="sm" disabled={heuteAktiv} onClick={onToday} className={cn("max-md:h-11", heuteAktiv && heuteMobilAusblenden && "max-md:hidden")}>
           Heute
         </Button>
       )}

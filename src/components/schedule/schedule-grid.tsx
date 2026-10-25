@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, Plus } from "lucide-react";
+import { AlertTriangle, Plus, X } from "lucide-react";
 import { isToday } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
-import { dayNames, formatDateShort } from "@/lib/utils/calendar";
+import { dayNames, formatDateShort, formatKW } from "@/lib/utils/calendar";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
 import { cn } from "@/lib/utils";
 import { json } from "@/components/workforce/client";
-import { ScheduleToolbar } from "./schedule-toolbar";
+import { FOKUS_NACH_BLAETTERN, offenePlätze, ScheduleToolbar } from "./schedule-toolbar";
 import { ShiftCard } from "./shift-card";
 import { ShiftForm } from "./shift-form";
 import { EmployeeNav } from "./employee-nav";
@@ -171,13 +171,33 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
     setFormOpen(true);
   }
 
+  // Nach dem Blaettern: Fokus auf den Zeitraum statt auf BODY. Sonst auf dem
+  // Handy beim ersten Laden der aktuellen Woche zum heutigen Tag scrollen.
+  const zeitraumRef = useRef<HTMLElement>(null);
+  const geladen = !!data;
+  useEffect(() => {
+    if (!geladen) return;
+    let nachBlättern = false;
+    try {
+      nachBlättern = sessionStorage.getItem(FOKUS_NACH_BLAETTERN) === "1";
+      sessionStorage.removeItem(FOKUS_NACH_BLAETTERN);
+    } catch {
+      // Ohne Speicher kein Fokuswechsel.
+    }
+    if (nachBlättern) {
+      zeitraumRef.current?.focus();
+      return;
+    }
+    if (window.matchMedia("(max-width: 767px)").matches) document.getElementById("tag-heute-mobil")?.scrollIntoView({ block: "start" });
+  }, [geladen, weekNumber, year, standort]);
+
   if (isLoading) return <ScheduleGridSkeleton />;
 
   if (error || !data) {
     return (
       <div className="akro-panel space-y-2 p-5 text-[14px]">
         <p>Dieser Standortplan ist nicht freigegeben oder existiert nicht.</p>
-        <Link href="/schedule/month" className="font-medium text-primary underline-offset-4 hover:underline">Standort wählen</Link>
+        <Link href={`/schedule/flexible/${formatKW(weekNumber, year)}?wahl=1`} className="font-medium text-primary underline-offset-4 hover:underline">Standort wählen</Link>
       </div>
     );
   }
@@ -199,57 +219,50 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
         openWishCount={openWishCount}
         onAddShift={canAdd ? () => handleAddShift(ersterTagDerWoche) : undefined}
         selectedEmployeeId={selectedEmployeeId}
+        konflikteFrei={planner && !!conflicts.data && conflicts.data.counts.fehler + conflicts.data.counts.hinweis === 0}
+        mitarbeiterFilter={shifts.some((s) => s.bookings.length) ? <EmployeeNav shifts={shifts} selectedEmployeeId={selectedEmployeeId} onSelectEmployee={setSelectedEmployeeId} /> : undefined}
+        zeitraumRef={zeitraumRef}
       />
 
       {canEdit && branch && !branch.plannable && (
-        <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
-          {branch.isActive ? "Standort ohne Kunde: neue Schichten erst nach der Zuordnung unter Einsatzorte." : "Standort inaktiv: keine neuen Schichten möglich."}
-          {branch.isActive && <Link href="/divisions" className="font-medium text-primary underline-offset-4 hover:underline">Jetzt zuordnen</Link>}
-        </p>
+        <Hinweiszeile aktion={branch.isActive ? <HinweisLink href="/divisions">Jetzt zuordnen</HinweisLink> : undefined}>
+          {branch.isActive ? "Standort ohne Kunde: neue Schichten erst nach der Zuordnung." : "Standort inaktiv: keine neuen Schichten möglich."}
+        </Hinweiszeile>
       )}
       {branch?.archivedAt && (
-        <p className="mb-4 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
-          Einsatzort archiviert: nur Ansicht vergangener Wochen. Planen erst nach dem Wiederherstellen unter Einsatzorte → Archiv.
-        </p>
+        <Hinweiszeile>Einsatzort archiviert: nur Ansicht. Planen nach dem Wiederherstellen unter Einsatzorte → Archiv.</Hinweiszeile>
       )}
       <PlanStatusBanner schedule={schedule} access={access} standort={standort} />
       {canEdit && branch && !branch.holidayState && (
-        <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
-          Für diesen Einsatzort ist kein Bundesland festgelegt. Angezeigt werden nur bundesweite Feiertage; landesrechtliche (z. B. Reformationstag in Thüringen, Allerheiligen in NRW) fehlen. Festlegen unter Einsatzorte → Bearbeiten.
-          <Link href="/divisions" className="font-medium text-primary underline-offset-4 hover:underline">Bundesland festlegen</Link>
-        </p>
+        <Hinweiszeile key={"bundesland-" + branch.id} sitzungsSchluessel={"akro.hinweis.bundesland." + branch.id} aktion={<HinweisLink href="/divisions">Bundesland festlegen</HinweisLink>}>
+          Kein Bundesland festgelegt: nur bundesweite Feiertage sichtbar.
+        </Hinweiszeile>
       )}
       {standort === "ohne" && (
-        <p className="mb-4 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] px-3 py-2 text-[13px]">
-          Altbestand ohne Standort – nur für die Administration sichtbar. Beim Bearbeiten einen Standort wählen.
-        </p>
+        <Hinweiszeile>Altbestand ohne Standort – nur für die Administration; beim Bearbeiten einen Standort wählen.</Hinweiszeile>
       )}
 
+      {/* Ohne Befund kein Panel - "Keine Konflikte" steht in der Kennwertzeile. */}
       {planner && conflicts.data && <ConflictPanel data={conflicts.data} shifts={shifts} standort={standort} onSprung={springeZuSchicht} />}
-      {planner && conflicts.isError && <p className="mb-4 text-[13px] text-muted-foreground">Konfliktprüfung konnte nicht geladen werden.</p>}
-      {planner && violations.data && <RuleViolationPanel data={violations.data} shifts={shifts} isAdmin={!!member?.access?.isAdmin} onSprung={springeZuSchicht} />}
-      {planner && violations.isError && <p className="mb-4 text-[13px] text-muted-foreground">Regelprüfung konnte nicht geladen werden.</p>}
+      {planner && conflicts.isError && <p className="mb-3 text-[13px] text-muted-foreground">Konfliktprüfung konnte nicht geladen werden.</p>}
+      {planner && violations.data && violations.data.count > 0 && <RuleViolationPanel data={violations.data} shifts={shifts} isAdmin={!!member?.access?.isAdmin} onSprung={springeZuSchicht} />}
+      {planner && violations.isError && <p className="mb-3 text-[13px] text-muted-foreground">Regelprüfung konnte nicht geladen werden.</p>}
 
-      {/* Employee filter bar */}
-      {shifts.some((s) => s.bookings.length) && (
-        <div className="mb-4">
-          <EmployeeNav shifts={shifts} selectedEmployeeId={selectedEmployeeId} onSelectEmployee={setSelectedEmployeeId} />
-        </div>
-      )}
-
-      {/* Sieben Tageskarten; schmale Bildschirme scrollen nur innerhalb des Boards. */}
+      {/* Eine Wochentafel mit sieben Tagesspalten (je mindestens 136 px); passt ab etwa 970 px
+          Inhaltsbreite ohne inneren Scroll, schmalere Tablets scrollen nur innerhalb der Tafel. */}
       <LiveBorder isActive={isLiveActive}>
-        <div className="hidden max-w-full overflow-x-auto pb-3 md:block">
-          <div className="grid min-w-[1120px] grid-cols-7 items-start gap-2">
+        <div className="hidden max-w-full overflow-x-auto pb-2 md:block">
+          <div className="akro-panel grid min-w-[952px] grid-cols-7 divide-x overflow-hidden">
             {weekDates.map((date, index) => {
               const dayOfWeek = index + 1; // 1=Mo .. 7=So
               const dayShifts = shiftsByDay[dayOfWeek] ?? [];
               const heute = isToday(date);
+              const kopfId = "tag-" + dayOfWeek;
               return (
-                <div key={dayOfWeek} className={cn("akro-panel flex min-h-[28rem] min-w-0 flex-col overflow-hidden", heute && "border-primary/40")}>
-                  <TagesKopf kuerzel={dayNames[index]} datum={formatDateShort(date)} anzahl={dayShifts.length} offen={offeneMenge(dayShifts)} heute={heute} feiertag={branch?.holidays?.find((h) => h.dayOfWeek === dayOfWeek)?.name} />
-                  <div className={cn("flex flex-1 flex-col gap-2 p-2", heute && "bg-[var(--flaeche-heute)]")}>
-                    {dayShifts.length === 0 && <LeererTag />}
+                <section key={dayOfWeek} aria-labelledby={kopfId} className={cn("flex min-h-[16rem] min-w-0 flex-col", heute && "bg-[var(--flaeche-heute)]")}>
+                  <TagesKopf id={kopfId} kuerzel={dayNames[index]} datum={formatDateShort(date)} anzahl={dayShifts.length} offen={offenePlätze(dayShifts)} heute={heute} feiertag={branch?.holidays?.find((h) => h.dayOfWeek === dayOfWeek)?.name} />
+                  <div className="flex flex-1 flex-col gap-2 p-2">
+                    {dayShifts.length === 0 && <p className="flex flex-1 items-center justify-center py-6 text-center text-[13px] text-muted-foreground">Keine Schichten</p>}
                     {dayShifts.map((shift) => (
                       <ShiftCard
                         key={shift.id}
@@ -268,9 +281,9 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
                         hervorheben={sprung?.shiftId === shift.id}
                       />
                     ))}
-                    {canAdd && <SchichtHinzufuegen onClick={() => handleAddShift(dayOfWeek)} label="Schicht" />}
+                    {canAdd && <SchichtHinzufuegen onClick={() => handleAddShift(dayOfWeek)} label="Schicht" tag={dayNames[index] + " " + formatDateShort(date) + "."} />}
                   </div>
-                </div>
+                </section>
               );
             })}
           </div>
@@ -284,9 +297,11 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
             const dayOfWeek = index + 1;
             const dayShifts = shiftsByDay[dayOfWeek] ?? [];
             const heute = isToday(date);
+            const kopfId = "tag-mobil-" + dayOfWeek;
             return (
-              <div key={dayOfWeek} className="akro-panel overflow-hidden">
-                <TagesKopf kuerzel={dayNames[index]} datum={formatDateShort(date)} anzahl={dayShifts.length} offen={offeneMenge(dayShifts)} heute={heute} feiertag={branch?.holidays?.find((h) => h.dayOfWeek === dayOfWeek)?.name} breit />
+              // scroll-mt: Kopfschiene (75 px) und klebende Zeitraumzeile bleiben darueber.
+              <section key={dayOfWeek} id={heute ? "tag-heute-mobil" : undefined} aria-labelledby={kopfId} className="akro-panel scroll-mt-40 overflow-hidden">
+                <TagesKopf id={kopfId} kuerzel={dayNames[index]} datum={formatDateShort(date)} anzahl={dayShifts.length} offen={offenePlätze(dayShifts)} heute={heute} feiertag={branch?.holidays?.find((h) => h.dayOfWeek === dayOfWeek)?.name} breit />
                 <div className={cn("space-y-3 p-3", heute && "bg-[var(--flaeche-heute)]")}>
                   {dayShifts.length === 0 && <p className="py-2 text-center text-[12px] text-muted-foreground">Keine Schichten</p>}
                   {dayShifts.map((shift) => (
@@ -307,9 +322,9 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
                       hervorheben={sprung?.shiftId === shift.id}
                     />
                   ))}
-                  {canAdd && <SchichtHinzufuegen onClick={() => handleAddShift(dayOfWeek)} label="Schicht hinzufügen" />}
+                  {canAdd && <SchichtHinzufuegen onClick={() => handleAddShift(dayOfWeek)} label="Schicht hinzufügen" tag={dayNames[index] + " " + formatDateShort(date) + "."} />}
                 </div>
-              </div>
+              </section>
             );
           })}
         </div>
@@ -323,43 +338,89 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
   );
 }
 
-/** Wie viele Plaetze an diesem Tag noch offen sind (wirksame Zuweisungen). */
-function offeneMenge(shifts: ShiftData[]): number {
-  return shifts.reduce((summe, shift) => summe + (shift.missing ?? Math.max(0, shift.maxEmployees - (shift.occupiedCount ?? shift.bookings.length))), 0);
+/** Ein Hinweis in einer Zeile; mit Schluessel pro Sitzung schliessbar (sessionStorage). */
+function Hinweiszeile({ children, aktion, sitzungsSchluessel }: { children: ReactNode; aktion?: ReactNode; sitzungsSchluessel?: string }) {
+  const [geschlossen, setGeschlossen] = useState(() => {
+    if (!sitzungsSchluessel) return false;
+    try {
+      return sessionStorage.getItem(sitzungsSchluessel) === "1";
+    } catch {
+      return false;
+    }
+  });
+  if (geschlossen) return null;
+  function schliessen() {
+    try {
+      if (sitzungsSchluessel) sessionStorage.setItem(sitzungsSchluessel, "1");
+    } catch {
+      // Ohne Speicher gilt das Ausblenden nur bis zum Neuladen.
+    }
+    setGeschlossen(true);
+  }
+  return (
+    <p className="mb-2 flex min-h-9 items-start gap-2 rounded-[var(--radius)] border border-warn/40 bg-warn/[0.06] py-1 pr-1 pl-3 text-[13px] leading-5 md:items-center">
+      <AlertTriangle className="mt-[7px] size-3.5 shrink-0 text-warn md:mt-0" aria-hidden="true" />
+      <span className="min-w-0 flex-1 py-1 md:truncate">
+        {children}
+        {aktion && <> {aktion}</>}
+      </span>
+      {sitzungsSchluessel && (
+        <button
+          type="button"
+          onClick={schliessen}
+          aria-label="Hinweis ausblenden"
+          title="Hinweis ausblenden"
+          className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-offset-[-3px] max-md:-my-1 max-md:size-11"
+        >
+          <X className="size-4" aria-hidden="true" />
+        </button>
+      )}
+    </p>
+  );
 }
 
-/** Tag und Datum bilden die ruhige Orientierung oberhalb der Schichten. */
-function TagesKopf({ kuerzel, datum, anzahl, offen, heute, feiertag, breit = false }: { kuerzel: string; datum: string; anzahl: number; offen: number; heute: boolean; feiertag?: string; breit?: boolean }) {
+/** Aktion im Hinweis: im Satzfluss; auf dem Handy reicht die Tippflaeche per Innenabstand auf 44 px. */
+function HinweisLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <div className={cn("border-b px-3 py-3", heute ? "bg-[var(--flaeche-heute)] text-primary" : "bg-card", !breit && "text-center")}>
-      <div className={cn("flex gap-2", breit ? "items-center justify-between" : "flex-col items-center gap-0.5")}>
-        <span className="text-[14px] font-semibold">{kuerzel}{heute && <span className="ml-1.5 text-xs font-medium">heute</span>}</span>
-        <span className={cn("tabular text-[12px]", !heute && "text-muted-foreground")}>{datum}</span>
+    <Link href={href} className="ml-1 font-medium whitespace-nowrap text-primary underline-offset-4 hover:underline max-md:py-3">
+      {children}
+    </Link>
+  );
+}
+
+/**
+ * Tag und Datum als Ueberschrift der Tagesspalte, darunter Anzahl und offene
+ * Plaetze; auf dem Handy ("breit") steht alles in einer Zeile.
+ */
+function TagesKopf({ id, kuerzel, datum, anzahl, offen, heute, feiertag, breit = false }: { id: string; kuerzel: string; datum: string; anzahl: number; offen: number; heute: boolean; feiertag?: string; breit?: boolean }) {
+  const zaehler = (
+    <p className={cn("flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground", !breit && "mt-0.5 justify-center")}>
+      <span>{anzahl} {anzahl === 1 ? "Schicht" : "Schichten"}</span>
+      {offen > 0 && <span className="font-medium text-warn">{offen} offen</span>}
+    </p>
+  );
+  return (
+    <div className={cn("border-b px-3 py-2", heute ? "bg-[var(--flaeche-heute)] text-primary" : "bg-card", !breit && "text-center")}>
+      <div className={cn("flex flex-wrap items-baseline gap-x-2", breit ? "justify-between" : "justify-center")}>
+        <h2 id={id} className="text-[14px] leading-5 font-semibold tracking-normal">
+          {kuerzel} <span className={cn("tabular text-[12px] font-normal", !heute && "text-muted-foreground")}>{datum}</span>
+          {heute && <span className="ml-1.5 text-xs font-medium">heute</span>}
+        </h2>
+        {breit && zaehler}
       </div>
-      {feiertag && <p className="mt-1 text-xs font-medium text-warn">Feiertag: {feiertag}</p>}
-      <div className={cn("mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground", !breit && "justify-center")}>
-        <span>{anzahl} {anzahl === 1 ? "Schicht" : "Schichten"}</span>
-        {offen > 0 && <span className="font-medium text-warn">{offen} offen</span>}
-      </div>
+      {feiertag && <p className="mt-0.5 text-xs font-medium text-warn">Feiertag: {feiertag}</p>}
+      {!breit && zaehler}
     </div>
   );
 }
 
-function LeererTag() {
-  return (
-    <div className="flex min-h-48 flex-1 flex-col items-center justify-center gap-2 rounded-lg bg-muted/40 px-3 py-6 text-center text-muted-foreground">
-      <CalendarDays className="size-6 opacity-60" aria-hidden="true" />
-      <p className="text-[13px] font-medium">Keine Schichten</p>
-      <p className="text-[12px] leading-5">Für diesen Tag ist noch keine Schicht geplant.</p>
-    </div>
-  );
-}
-
-function SchichtHinzufuegen({ onClick, label }: { onClick: () => void; label: string }) {
+/** Hinzufuegen je Tag; der Name nennt den Tag ("Schicht hinzufügen am Mo 26.10."). */
+function SchichtHinzufuegen({ onClick, label, tag }: { onClick: () => void; label: string; tag: string }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-label={"Schicht hinzufügen am " + tag}
       className="mt-auto flex min-h-10 w-full items-center max-md:min-h-11 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary justify-center gap-1.5 rounded-lg border border-dashed border-primary/30 bg-primary/[0.03] px-2 py-2 text-[12px] font-medium text-primary transition-colors hover:border-primary hover:bg-primary/10"
     >
       <Plus className="size-3.5" aria-hidden="true" />
@@ -372,9 +433,9 @@ function SchichtHinzufuegen({ onClick, label }: { onClick: () => void; label: st
 function ScheduleGridSkeleton() {
   return (
     <div className="max-w-full overflow-hidden" aria-busy="true" aria-label="Dienstplan wird geladen">
-      <div className="grid grid-cols-1 gap-3 md:min-w-[1120px] md:grid-cols-7 md:gap-2">
+      <div className="grid grid-cols-1 gap-3 md:min-w-[952px] md:grid-cols-7 md:gap-2">
         {Array.from({ length: 7 }).map((_, i) => (
-          <div key={i} className="min-h-[19rem]">
+          <div key={i} className="min-h-[16rem]">
             <div className="akro-panel-kopf space-y-1.5 border-b px-3 py-2">
               <Skeleton className="h-3.5 w-10" />
               <Skeleton className="h-3 w-16" />
