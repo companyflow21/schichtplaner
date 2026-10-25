@@ -72,7 +72,8 @@ function maxISOWeek(year: number): number {
  */
 export function offeneBestätigungen(shifts: ShiftData[], jetzt: number): number {
   return shifts.reduce((summe, shift) => {
-    if (shift.endsAt && Date.parse(shift.endsAt) <= jetzt) return summe;
+    // Nur veroeffentlichte Schichten: im Entwurf kann niemand bestaetigen (keine Mitteilung).
+    if (!shift.isPublic || (shift.endsAt && Date.parse(shift.endsAt) <= jetzt)) return summe;
     return summe + shift.bookings.filter((b) => b.userId && !b.confirmedAt && !b.former && b.confirmation !== "PLANNER").length;
   }, 0);
 }
