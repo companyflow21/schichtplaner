@@ -12,11 +12,11 @@ import { cn } from "@/lib/utils";
 import { json } from "@/components/workforce/client";
 import { FOKUS_NACH_BLAETTERN, offenePlätze, ScheduleToolbar } from "./schedule-toolbar";
 import { ShiftCard } from "./shift-card";
-import { ShiftForm } from "./shift-form";
+import { ShiftForm, type ShiftFormVorlage } from "./shift-form";
 import { EmployeeNav } from "./employee-nav";
 import { LiveBorder } from "./live-mode";
 import { ConflictPanel, useWeekConflicts } from "./conflict-panel";
-import { PlanStatusBanner } from "./plan-status-banner";
+import { PlanStatusBanner, planStatus } from "./plan-status-banner";
 import { RuleViolationPanel, useViolations } from "./rule-violations";
 import type { WishRequest } from "./wish-plan";
 import type { ScheduleResponse, ShiftData } from "@/types/schedule";
@@ -51,6 +51,13 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
   const branch = data?.branch ?? null;
   const scheduleId = schedule?.id ?? "";
   const shifts = useMemo(() => schedule?.shifts ?? [], [schedule]);
+  // Vorbelegung fuer neue Schichten: die zuletzt angelegte Schicht der Woche. Die Pause nur
+  // bei "Pro Schicht" - "Pro Stunde" wuerde im Dialog als Minuten je Schicht missverstanden.
+  const vorlage = useMemo<ShiftFormVorlage | null>(() => {
+    const juengste = [...shifts].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    if (!juengste) return null;
+    return { shiftFrom: juengste.shiftFrom, shiftTo: juengste.shiftTo, pauseMinutes: juengste.pauseOption === "PER_SHIFT" ? juengste.pauseValue : 0, title: juengste.title, maxEmployees: juengste.maxEmployees, divisionId: juengste.divisionId };
+  }, [shifts]);
   const layout = schedule?.settingsLayout ?? "LAYOUT_1";
   const showTitle = schedule?.showTitle ?? true;
   const showPauses = schedule?.showPauses ?? true;
@@ -332,7 +339,7 @@ export function ScheduleGrid({ weekNumber, year, weekDates, standort }: Schedule
 
       {/* Shift Form Dialog */}
       {scheduleId && canEdit && (
-        <ShiftForm open={formOpen} onOpenChange={setFormOpen} scheduleId={scheduleId} branchId={branch?.id ?? null} defaultDayOfWeek={formDay} shift={editingShift} />
+        <ShiftForm open={formOpen} onOpenChange={setFormOpen} scheduleId={scheduleId} branchId={branch?.id ?? null} defaultDayOfWeek={formDay} shift={editingShift} vorlage={vorlage} planStatus={schedule ? planStatus(schedule) : undefined} />
       )}
     </>
   );
