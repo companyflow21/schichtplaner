@@ -1,28 +1,33 @@
 import { api, serial, ApiError } from "@/lib/api";
 import { requireAccess, requireAdmin } from "@/lib/access";
-import { archiveBlockers, CUSTOMER_ARCHIVED } from "@/lib/archive";
+import { archiveBranches, archiveConfirmed, archiveResponse, CUSTOMER_ARCHIVED, requireConfirmation, signalArchive } from "@/lib/archive";
 
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Einsatzort archivieren (nur Administration) - nur ohne laufende oder
- * kuenftige Schichten. Vergangene Schichten, Zeiten, Meldungen und Check-ins
- * bleiben unveraendert; Wiederherstellen mit DELETE.
+ * Einsatzort archivieren (nur Administration). Kuenftige Schichten werden
+ * abgesagt, Wochen in Bearbeitung verworfen (lib/archive.ts) - hat das
+ * Folgen, zuerst 409 { confirm: true, warnings }, ausgefuehrt erst mit
+ * Body { confirm: true }. Laufende und vergangene Schichten, Zeiten,
+ * Meldungen und Check-ins bleiben unveraendert; Wiederherstellen mit DELETE.
  */
-export async function POST(_request: Request, context: Context) {
+export async function POST(request: Request, context: Context) {
   return api(async () => {
     const a = await requireAccess();
     requireAdmin(a);
     const { id } = await context.params;
-    await serial(async (tx) => {
-      const branch = await tx.branch.findFirst({ where: { id, organizationId: a.orgId }, select: { archivedAt: true } });
+    const confirm = await archiveConfirmed(request);
+    const result = await serial(async (tx) => {
+      const branch = await tx.branch.findFirst({ where: { id, organizationId: a.orgId }, select: { name: true, archivedAt: true } });
       if (!branch) throw new ApiError("Einsatzort nicht gefunden.", 404);
-      if (branch.archivedAt) return;
-      const blocked = (await archiveBlockers(tx, a.orgId, [id])).get(id);
-      if (blocked) throw new ApiError("Archivieren nicht möglich: " + blocked + ".", 409);
-      await tx.branch.update({ where: { id }, data: { archivedAt: new Date() } });
+      if (branch.archivedAt) return null;
+      const sites = [{ id, name: branch.name }];
+      const done = await archiveBranches(tx, a, sites, "Der Einsatzort „" + branch.name + "“ wurde archiviert.");
+      if (!confirm) requireConfirmation(done, sites, false);
+      return done;
     }, { retry: true });
-    return { success: true };
+    if (result) await signalArchive(a.orgId, result);
+    return archiveResponse(result);
   });
 }
 
