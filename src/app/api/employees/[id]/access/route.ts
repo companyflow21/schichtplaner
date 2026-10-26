@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { api, body, serial, ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
-import { requireAccess, requireAdmin } from "@/lib/access";
+import { ARCHIVED_MESSAGE, requireAccess, requireAdmin } from "@/lib/access";
 import {
   allowedBranchRights,
   allowedStaffRights,
@@ -30,7 +30,8 @@ export async function GET(_request: Request, context: Context) {
     const target = await targetFor(a.orgId, (await context.params).id);
     const [grants, branches, staff, candidates, managers] = await Promise.all([
       db.branchAccess.findMany({ where: { memberId: target.id }, select: { branchId: true, rights: true, updatedAt: true } }),
-      db.branch.findMany({ where: { organizationId: a.orgId }, orderBy: [{ name: "asc" }], select: { id: true, name: true, isActive: true, customer: { select: { id: true, name: true } } } }),
+      // Archivierte nur, soweit die Person dort noch eine Freigabe hat (Anzeige, Entziehen) - nicht zur Auswahl.
+      db.branch.findMany({ where: { organizationId: a.orgId, OR: [{ archivedAt: null }, { access: { some: { memberId: target.id } } }] }, orderBy: [{ name: "asc" }], select: { id: true, name: true, isActive: true, archivedAt: true, customer: { select: { id: true, name: true } } } }),
       db.staffAssignment.findMany({ where: { managerMemberId: target.id }, select: { rights: true, updatedAt: true, employee: { select: { id: true, role: true, isActive: true, user: { select: { firstName: true, lastName: true } } } } } }),
       target.role === "MANAGER"
         ? db.organizationMember.findMany({ where: { organizationId: a.orgId, id: { not: target.id }, role: { in: ["EMPLOYEE", "MANAGER"] }, isActive: true }, orderBy: { user: { lastName: "asc" } }, select: { id: true, role: true, user: { select: { firstName: true, lastName: true } } } })
@@ -72,9 +73,11 @@ export async function PUT(request: Request, context: Context) {
     const result = await serial(async (tx) => {
       if (data.kind === "branch") {
         if (!allowedBranchRights(target.role).length) throw new ApiError("Für diese Rolle gibt es keine Standortfreigaben; sie hat organisationsweiten Zugriff.", 400);
-        const branch = await tx.branch.findFirst({ where: { id: data.branchId, organizationId: a.orgId }, select: { id: true } });
+        const branch = await tx.branch.findFirst({ where: { id: data.branchId, organizationId: a.orgId }, select: { id: true, archivedAt: true } });
         if (!branch) throw new ApiError("Standort nicht gefunden.", 404);
         const rights = normalizeBranchRights(data.rights, target.role);
+        // Archiviert: keine neuen oder geaenderten Freigaben, Entziehen bleibt moeglich.
+        if (branch.archivedAt && rights.length) throw new ApiError(ARCHIVED_MESSAGE, 409);
         if (data.rights.some((r) => !allowedBranchRights(target.role).includes(r))) throw new ApiError("Diese Rolle kann einzelne der gewählten Rechte nicht erhalten.", 400);
         if (!rights.length) {
           await tx.branchAccess.deleteMany({ where: { memberId: target.id, branchId: branch.id } });

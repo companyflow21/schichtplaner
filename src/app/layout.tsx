@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: {
     default: "AKRO Schichtplaner",
-    template: "%s | AKRO Schichtplaner",
+    template: "%s · AKRO Schichtplaner",
   },
   description: "Dienst- und Schichtplanung der AKRO GmbH",
   icons: { icon: "/akro/img/akro-schild.svg", apple: "/akro/img/apple-touch-icon.png" },

@@ -46,7 +46,7 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
     // Collect unique time slots
     const slotMap = new Map<
       string,
-      { from: string; to: string; divisionColor: string; divisionTitle: string; branchName: string }
+      { from: string; to: string; endsNextDay: boolean; divisionColor: string; divisionTitle: string; branchName: string }
     >();
     for (const shift of shifts) {
       const key = slotOf(shift);
@@ -54,6 +54,7 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
         slotMap.set(key, {
           from: shift.shiftFrom,
           to: shift.shiftTo,
+          endsNextDay: !!shift.endsNextDay,
           divisionColor: shift.division?.color ?? "#94a3b8",
           divisionTitle: shift.division?.title ?? "",
           branchName: standort ? "" : shift.branch?.name ?? "",
@@ -102,7 +103,8 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
   return (
     <>
     {balken}
-    <div className="akro-panel overflow-x-auto">
+    {/* relative: versteckte Screenreader-Texte bleiben im Rollbereich statt die Seite zu verbreitern. */}
+    <div className="akro-panel relative overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
           <tr className="akro-panel-kopf">
@@ -120,8 +122,8 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
                   )}
                 >
                   <div>{dayNames[idx]}</div>
-                  <div className="text-xs text-muted-foreground font-normal">
-                    {formatDateShort(date)}
+                  <div className={cn("text-xs font-normal", today ? "text-primary" : "text-muted-foreground")}>
+                    {formatDateShort(date)}.
                   </div>
                 </th>
               );
@@ -139,15 +141,22 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
                     className="size-2 rounded-full shrink-0"
                     style={{ backgroundColor: slot.divisionColor }}
                   />
-                  <div>
+                  <div className="min-w-0">
                     <div className="tabular text-xs font-medium whitespace-nowrap">
                       {slot.from}–{slot.to}
+                      {/* Nachtschicht wie im Monatsplan: "+1", ausgeschrieben fuer Screenreader. */}
+                      {slot.endsNextDay && (
+                        <span className="ml-1 font-normal text-muted-foreground" title="endet am Folgetag">
+                          <span aria-hidden="true">+1</span>
+                          <span className="sr-only">, endet am Folgetag</span>
+                        </span>
+                      )}
                     </div>
                     {slot.branchName && (
-                      <div className="text-xs text-muted-foreground truncate max-w-[100px]">{slot.branchName}</div>
+                      <div className="text-xs text-muted-foreground truncate max-w-[100px]" title={slot.branchName}>{slot.branchName}</div>
                     )}
                     {slot.divisionTitle && (
-                      <div className="text-xs text-muted-foreground truncate max-w-[100px]">
+                      <div className="text-xs text-muted-foreground truncate max-w-[100px]" title={slot.divisionTitle}>
                         {slot.divisionTitle}
                       </div>
                     )}
@@ -171,21 +180,24 @@ export function ClassicGrid({ weekNumber, year, weekDates, standort }: ClassicGr
                     )}
                   >
                     {cellShifts.length === 0 ? (
-                      <span className="text-xs text-muted-foreground/40">--</span>
+                      <span className="text-xs text-muted-foreground">
+                        <span aria-hidden="true">–</span>
+                        <span className="sr-only">keine Schicht</span>
+                      </span>
                     ) : (
                       <div className="space-y-0.5">
                         {cellShifts.flatMap((shift) => {
                           // Offene Plaetze stehen mit Text dabei - nicht nur als Zahl.
                           const offen = shift.missing ?? Math.max(0, shift.maxEmployees - (shift.occupiedCount ?? shift.bookings.length));
                           return [
-                            ...shift.bookings.map((booking) => (
-                              <div
-                                key={booking.id}
-                                className="text-xs truncate"
-                              >
-                                {formatName(booking.user, nameFormat, { contractor: !!booking.contractorWorkerId })}
-                              </div>
-                            )),
+                            ...shift.bookings.map((booking) => {
+                              const name = formatName(booking.user, nameFormat, { contractor: !!booking.contractorWorkerId });
+                              return (
+                                <div key={booking.id} className="text-xs truncate" title={name}>
+                                  {name}
+                                </div>
+                              );
+                            }),
                             ...(offen > 0
                               ? [<StatusBadge key={shift.id + "-offen"} ton="hinweis" klein>{offen} offen</StatusBadge>]
                               : []),

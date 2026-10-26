@@ -48,7 +48,7 @@ type Report = {
   from: string; to: string; showPay: boolean; showBalance: boolean; people: Person[]; notices: string[]; setup: { payTypes: number; surcharges: number } | null;
   totals: { plannedMinutes: number; istMinutes: number; openCount: number; totalCents: number | null };
 };
-type BranchOption = { id: string; name: string; customer?: { name: string } | null };
+type BranchOption = { id: string; name: string; archivedAt?: string | null; customer?: { name: string } | null };
 
 const monthStart = (date: string) => date.slice(0, 8) + "01";
 const monthEnd = (date: string) => addDate(addDate(monthStart(date), 32).slice(0, 8) + "01", -1);
@@ -102,7 +102,8 @@ export function HoursView() {
   const [entering, setEntering] = useState<{ userId: string; date: string; timeFrom: string; timeTo: string; breakMinutes: number } | null>(null);
   const wholeMonth = from === monthStart(from) && to === monthEnd(from);
   const params = "from=" + from + "&to=" + to + (standort ? "&standort=" + encodeURIComponent(standort) : "");
-  const { data: branchData } = useQuery({ queryKey: ["branches", "VIEW_TIME"], queryFn: () => json<{ branches: BranchOption[] }>("/api/branches?right=VIEW_TIME") });
+  // Archivierte Einsatzorte bleiben auswertbar (vergangene Stunden).
+  const { data: branchData } = useQuery({ queryKey: ["branches", "VIEW_TIME", "archived"], queryFn: () => json<{ branches: BranchOption[] }>("/api/branches?right=VIEW_TIME&archived=include") });
   const query = useQuery({ queryKey: ["hours", from, to, standort], queryFn: () => json<Report>("/api/hours?" + params), enabled: from <= to });
   const approve = useMutation({
     mutationFn: (v: { ids: string[]; approved: boolean }) => json<{ updated: number }>("/api/time/approve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(v) }),
@@ -157,7 +158,7 @@ export function HoursView() {
             <span className="shrink-0 text-muted-foreground">Standort</span>
             <select className={cn(selectClass, "lg:w-64")} value={standort} onChange={(e) => setStandort(e.target.value)}>
               <option value="">Alle Standorte</option>
-              {branchData!.branches.map((b) => <option key={b.id} value={b.id}>{b.name}{b.customer ? " · " + b.customer.name : ""}</option>)}
+              {branchData!.branches.map((b) => <option key={b.id} value={b.id}>{b.name}{b.customer ? " · " + b.customer.name : ""}{b.archivedAt ? " (archiviert)" : ""}</option>)}
             </select>
           </label>
         )}

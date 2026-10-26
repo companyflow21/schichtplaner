@@ -15,6 +15,8 @@ function parseMonth(str: string): { month: number; year: number } | null {
   return { month, year };
 }
 
+export const metadata = { title: "Monatsplan" };
+
 /** Monatsdienstplan eines Standorts; ohne Standort die Auswahl der freigegebenen Standorte. */
 export default async function MonthViewPage({ params, searchParams }: MonthPageProps) {
   const { month: monthParam } = await params;

@@ -1,36 +1,41 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, EyeOff, Moon } from "lucide-react";
+import { EyeOff, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ErrorMessage, json } from "@/components/workforce/client";
 import { berlinDate, isoWeek } from "@/lib/berlin";
-import { dayNames, formatKW, monthNames } from "@/lib/utils/calendar";
+import { dayNames, formatKW } from "@/lib/utils/calendar";
 import { cn } from "@/lib/utils";
-import type { ShiftData } from "@/types/schedule";
+import type { ScheduleStatus, ShiftData } from "@/types/schedule";
 import { BranchIssues } from "./branch-issues";
 import { PdfExportDialog } from "./pdf-export-dialog";
+import { PublishDialog } from "./publish-dialog";
 import { ViewSwitcher } from "./view-switcher";
+import { WeekSwitcher } from "./week-switcher";
 import { formatName } from "@/lib/names";
 import { useNameFormat } from "@/lib/hooks/use-current-member";
 
 type MonthDay = { date: string; weekday: number; isToday: boolean; shifts: ShiftData[]; continuations: ShiftData[]; missing: number };
-type MonthPlan = {
+export type MonthPlan = {
   branch: { id: string; name: string; address: string | null; meetingPoint: string | null; isActive: boolean; customer: { id: string; name: string } | null };
   month: string;
   first: string;
   last: string;
   today: string;
   days: MonthDay[];
-  weeks: { year: number; weekNumber: number; scheduleId: string | null; isPublic: boolean | null; shifts: number }[];
+  /** status nur fuer die Planung, sonst null. */
+  weeks: { year: number; weekNumber: number; scheduleId: string | null; isPublic: boolean | null; status: ScheduleStatus | null; shifts: number }[];
   totals: { shifts: number; missing: number; draftShifts: number };
   access: { planner: boolean; edit: boolean; publish: boolean; handleRequests: boolean; manageIssues: boolean; viewTime: boolean };
   issuesOpen: number | null;
 };
+type MonthWeek = MonthPlan["weeks"][number];
 
 /** "10-2026" <-> "2026-10" */
 function toApiMonth(month: number, year: number) {
@@ -45,12 +50,33 @@ function shiftMonth(apiMonth: string, offset: number) {
   const d = new Date(Date.UTC(y, m - 1 + offset, 1));
   return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0");
 }
-function weekHref(date: string, standort: string) {
-  const w = isoWeek(date);
+function kwHref(w: { weekNumber: number; year: number }, standort: string) {
   return `/schedule/flexible/${formatKW(w.weekNumber, w.year)}?standort=${standort}`;
+}
+function weekHref(date: string, standort: string) {
+  return kwHref(isoWeek(date), standort);
 }
 function names(shift: ShiftData, nameFormat: string | undefined) {
   return shift.bookings.map((b) => formatName(b.user, nameFormat, { contractor: !!b.contractorWorkerId, short: true })).join(", ");
+}
+/** "Oktober 2026" - der Monat ausgeschrieben fuer die Zeitraumzeile. */
+const monatLang = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric", timeZone: "UTC" });
+/** Blaettern baut die Seite neu auf; der Fokus wandert dann auf den Monat statt auf BODY. */
+const blaettern = { fokus: false };
+
+/** Nachtschicht: "+1" wie in der Mitarbeiteransicht, ausgeschrieben fuer Screenreader. */
+function Folgetag() {
+  return (
+    <span className="ml-1 font-normal text-muted-foreground" title="endet am Folgetag">
+      <span aria-hidden="true">+1</span>
+      <span className="sr-only">, endet am Folgetag</span>
+    </span>
+  );
+}
+
+/** Direkt aus dem Monat veroeffentlichen: Entwurf mit Schichten und Recht "Dienstplan veroeffentlichen". */
+function veröffentlichbar(week: MonthWeek, plan: MonthPlan) {
+  return plan.access.publish && week.status === "DRAFT" && week.shifts > 0;
 }
 
 /**
@@ -60,7 +86,15 @@ function names(shift: ShiftData, nameFormat: string | undefined) {
  */
 export function MonthGrid({ month, year, standort, offen = false }: { month: number; year: number; standort: string; offen?: boolean }) {
   const apiMonth = toApiMonth(month, year);
+  const router = useRouter();
+  const labelRef = useRef<HTMLElement>(null);
   const [nurOffen, setNurOffen] = useState(offen);
+  useEffect(() => {
+    if (!blaettern.fokus) return;
+    blaettern.fokus = false;
+    const aktiv = document.activeElement;
+    if (!aktiv || aktiv === document.body) labelRef.current?.focus({ preventScroll: true });
+  }, [apiMonth]);
   const query = useQuery({
     queryKey: ["branch-month", standort, apiMonth],
     queryFn: () => json<MonthPlan>(`/api/branches/${standort}/month?monat=${apiMonth}`),
@@ -88,49 +122,48 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
   }
 
   const heuteMonat = berlinDate().slice(0, 7);
+  const geheZu = (zielMonat: string) => {
+    blaettern.fokus = true;
+    router.push(monthPath(zielMonat, standort, nurOffen));
+  };
   const sichtbar = (s: ShiftData) => !nurOffen || (s.missing ?? 0) > 0;
   const offeneTage = plan.days.filter((d) => d.missing > 0);
+  // Wochen mit Status fuer die Planung; Mitarbeitende bekommen keinen Status.
+  const wochen = plan.access.planner ? plan.weeks.filter((w) => w.scheduleId && (w.status === "DRAFT" || w.status === "EDITING")) : [];
+  const mitKnopf = wochen.some((w) => veröffentlichbar(w, plan));
+  // Breitere KW-Spalte nur, wenn dort ein Knopf oder "In Bearbeitung" steht.
+  const spalten = mitKnopf || wochen.some((w) => w.status === "EDITING") ? "grid-cols-[9rem_repeat(7,minmax(0,1fr))]" : "grid-cols-[4rem_repeat(7,minmax(0,1fr))]";
 
   return (
     <div className="space-y-5">
-      {/* Kopf: Kunde, Standort, Monat */}
-      <header className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-          <div className="w-full min-w-0 sm:w-auto sm:flex-1">
-            <p className="akro-label truncate">{plan.branch.customer?.name ?? "Ohne Kunde"}</p>
-            <h1 className="flex flex-wrap items-center gap-2 text-[22px] leading-tight font-semibold tracking-[-0.03em]">
-              {plan.branch.name}
-              {!plan.branch.isActive && <StatusBadge ton="neutral">inaktiv</StatusBadge>}
-            </h1>
-            {plan.branch.address && <p className="text-[13px] text-muted-foreground">{plan.branch.address}</p>}
-          </div>
-          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-            <PdfExportDialog month={{ year, month }} branch={plan.branch} />
-            {ansicht}
-          </div>
+      {/* Kopf: Ansicht und Standort, darunter Kunde und Adresse; PDF als Nebenaktion, rechts die Ansicht. */}
+      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[22px] leading-tight font-semibold tracking-[-0.03em]">
+            Monatsplan {plan.branch.name}
+            {!plan.branch.isActive && <StatusBadge ton="neutral">inaktiv</StatusBadge>}
+          </h1>
+          <p className="truncate text-[13px] text-muted-foreground">
+            {[plan.branch.customer?.name ?? "Ohne Kunde", plan.branch.address].filter(Boolean).join(" · ")}
+          </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center overflow-hidden rounded-[var(--radius)] border bg-card">
-            <Link href={monthPath(shiftMonth(apiMonth, -1), standort, nurOffen)} aria-label="Vorheriger Monat" className="flex size-9 items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground">
-              <ChevronLeft className="size-4" />
-            </Link>
-            <span className="h-9 w-px bg-border" aria-hidden="true" />
-            <span className="tabular px-3 text-[15px] font-semibold">{monthNames[month - 1]} {year}</span>
-            <span className="h-9 w-px bg-border" aria-hidden="true" />
-            <Link href={monthPath(shiftMonth(apiMonth, 1), standort, nurOffen)} aria-label="Nächster Monat" className="flex size-9 items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground">
-              <ChevronRight className="size-4" />
-            </Link>
-          </div>
-          {/* Immer sichtbar wie in der Wochenansicht; im aktuellen Monat deaktiviert. */}
-          {apiMonth === heuteMonat ? (
-            <Button variant="outline" size="sm" disabled>Heute</Button>
-          ) : (
-            <Button variant="outline" size="sm" asChild>
-              <Link href={monthPath(heuteMonat, standort, nurOffen)}>Heute</Link>
-            </Button>
-          )}
-        </div>
+        <PdfExportDialog month={{ year, month }} branch={plan.branch} kompakt />
+        {ansicht}
       </header>
+
+      {/* Zeitraum wie in den Wochenansichten; auf dem Handy klebt die Zeile unter der Kopfschiene. */}
+      <div className="flex items-center gap-2 max-md:sticky max-md:top-(--kopf-hoehe) max-md:z-20 max-md:-mx-4 max-md:-mt-2 max-md:border-b max-md:border-[var(--linie-fein)] max-md:bg-background max-md:px-4 max-md:py-2">
+        <WeekSwitcher
+          label={monatLang.format(Date.UTC(year, month - 1, 1))}
+          onPrev={() => geheZu(shiftMonth(apiMonth, -1))}
+          onNext={() => geheZu(shiftMonth(apiMonth, 1))}
+          onToday={() => geheZu(heuteMonat)}
+          heuteAktiv={apiMonth === heuteMonat}
+          prevLabel="Vorheriger Monat"
+          nextLabel="Nächster Monat"
+          labelRef={labelRef}
+        />
+      </div>
 
       {/* Lage des Monats */}
       <div className="akro-panel flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-[13px]">
@@ -141,7 +174,7 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
           <StatusBadge ton="ok">voll besetzt</StatusBadge>
         ) : null}
         {plan.access.planner && plan.totals.draftShifts > 0 && (
-          <StatusBadge ton="hinweis" icon={EyeOff}>{plan.totals.draftShifts} im Entwurf</StatusBadge>
+          <StatusBadge ton="hinweis" icon={EyeOff}>{plan.totals.draftShifts} im Entwurf{mitKnopf && " – je Woche veröffentlichen"}</StatusBadge>
         )}
         {plan.issuesOpen ? (
           <StatusBadge ton="hinweis">{plan.issuesOpen} {plan.issuesOpen === 1 ? "offene Meldung" : "offene Meldungen"}</StatusBadge>
@@ -164,7 +197,7 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
 
       {/* Kalender ab Tablet */}
       <div className="akro-panel hidden overflow-hidden md:block">
-        <div className="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] akro-panel-kopf border-b">
+        <div className={cn("grid akro-panel-kopf border-b", spalten)}>
           <div className="px-2 py-2 text-xs font-semibold text-muted-foreground">KW</div>
           {dayNames.map((name) => (
             <div key={name} className="border-l px-2 py-2 text-[12px] font-semibold text-muted-foreground">{name}</div>
@@ -175,10 +208,11 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
           const w = isoWeek(firstDate);
           const week = plan.weeks.find((x) => x.year === w.year && x.weekNumber === w.weekNumber);
           return (
-            <div key={index} className="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] border-t first:border-t-0">
-              <div className="px-2 py-2 text-xs leading-tight text-muted-foreground">
-                <Link href={weekHref(firstDate, standort)} className="tabular font-semibold text-foreground hover:underline">{w.weekNumber}</Link>
-                {plan.access.planner && week?.isPublic === false && <p className="mt-1 font-medium text-warn">Entwurf</p>}
+            <div key={index} className={cn("grid border-t first:border-t-0", spalten)}>
+              <div className="flex flex-col items-start gap-1 px-2 py-2 text-xs leading-tight text-muted-foreground">
+                {/* 24 px Klickflaeche ueber Innenabstand, nicht ueber groessere Schrift. */}
+                <Link href={weekHref(firstDate, standort)} aria-label={"KW " + w.weekNumber + " im Wochenplan öffnen"} title="Im Wochenplan öffnen" className="tabular -mx-1 inline-flex min-h-6 min-w-6 items-center justify-center rounded-sm px-1 font-semibold text-foreground underline-offset-4 hover:bg-muted hover:underline">{w.weekNumber}</Link>
+                <WochenStatus week={week} plan={plan} standort={standort} />
               </div>
               {row.map((day, i) => day ? <DayCell key={day.date} day={day} plan={plan} standort={standort} sichtbar={sichtbar} /> : <div key={"leer" + i} className="border-l akro-vertieft" />)}
             </div>
@@ -188,9 +222,20 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
 
       {/* Tagesliste auf dem Handy */}
       <div className="space-y-2 md:hidden">
+        {/* Wochenstatus mit derselben Aktion wie in der KW-Spalte des Kalenders. */}
+        {wochen.length > 0 && (
+          <ul className="akro-panel divide-y divide-[var(--linie-fein)] overflow-hidden">
+            {wochen.map((week) => (
+              <li key={week.year + "-" + week.weekNumber} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-[13px]">
+                <span className="tabular font-semibold">KW {week.weekNumber}</span>
+                <WochenStatus week={week} plan={plan} standort={standort} />
+              </li>
+            ))}
+          </ul>
+        )}
         {plan.days.filter((d) => d.shifts.some(sichtbar) || (!nurOffen && d.continuations.length)).map((day) => (
           <div key={day.date} className={cn("akro-panel overflow-hidden", day.isToday && "border-primary/50")}>
-            <Link href={weekHref(day.date, standort)} className="akro-panel-kopf flex items-baseline justify-between border-b px-4 py-2">
+            <Link href={weekHref(day.date, standort)} className="akro-panel-kopf flex min-h-11 items-center justify-between gap-2 border-b px-4 py-1.5">
               <span className="text-[13px] font-semibold">{dayNames[day.weekday - 1]} {day.date.slice(8)}.{day.date.slice(5, 7)}.{day.isToday && <span className="ml-1.5 text-xs font-medium text-primary">heute</span>}</span>
               {day.missing > 0 && <StatusBadge ton="hinweis" klein>{day.missing} offen</StatusBadge>}
             </Link>
@@ -207,12 +252,49 @@ export function MonthGrid({ month, year, standort, offen = false }: { month: num
   );
 }
 
+/**
+ * Status einer Woche fuer die Planung: "Entwurf", bei Schichten und Recht mit
+ * demselben Veroeffentlichen-Dialog wie im Wochenplan; "In Bearbeitung" nur
+ * mit Sprung in die Woche, weil Veroeffentlichen und Verwerfen dort
+ * zusammengehoeren.
+ */
+function WochenStatus({ week, plan, standort }: { week: MonthWeek | undefined; plan: MonthPlan; standort: string }) {
+  if (!plan.access.planner || !week?.scheduleId) return null;
+  if (week.status === "EDITING") {
+    return (
+      <>
+        <p className="font-medium text-warn">In Bearbeitung</p>
+        <Link href={kwHref(week, standort)} className="inline-flex min-h-6 items-center font-medium text-primary underline-offset-4 hover:underline max-md:inline-flex max-md:min-h-11 max-md:items-center">
+          Zur Woche
+        </Link>
+      </>
+    );
+  }
+  if (week.status !== "DRAFT") return null;
+  return (
+    <>
+      <p className="font-medium text-warn">Entwurf</p>
+      {veröffentlichbar(week, plan) && (
+        <PublishDialog
+          scheduleId={week.scheduleId}
+          wochenLabel={"KW " + String(week.weekNumber).padStart(2, "0") + "/" + week.year}
+          status="DRAFT"
+          woche={{ weekNumber: week.weekNumber, year: week.year, standort }}
+          hauptaktion={false}
+          size="sm"
+          className="h-7 gap-1 px-2 text-xs has-[>svg]:px-2"
+        />
+      )}
+    </>
+  );
+}
+
 function DayCell({ day, plan, standort, sichtbar }: { day: MonthDay; plan: MonthPlan; standort: string; sichtbar: (s: ShiftData) => boolean }) {
   const nameFormat = useNameFormat();
   const shifts = day.shifts.filter(sichtbar);
   return (
     <div className={cn("min-h-[7.5rem] border-l p-1.5", day.isToday ? "bg-[var(--flaeche-heute)]" : "bg-card")}>
-      <Link href={weekHref(day.date, standort)} className="flex flex-wrap items-baseline justify-between gap-x-1 rounded-sm px-0.5 hover:bg-muted" title="Im Wochenplan öffnen">
+      <Link href={weekHref(day.date, standort)} className="flex min-h-6 flex-wrap items-center justify-between gap-x-1 rounded-sm px-0.5 hover:bg-muted" title="Im Wochenplan öffnen">
         <span className={cn("tabular text-[13px] font-semibold", day.isToday && "text-primary")}>{Number(day.date.slice(8))}</span>
         {day.missing > 0 && <StatusBadge ton="hinweis" klein>{day.missing} offen</StatusBadge>}
       </Link>
@@ -232,10 +314,10 @@ function DayCell({ day, plan, standort, sichtbar }: { day: MonthDay; plan: Month
                 fehlt > 0 ? "border-warn/50 bg-warn/[0.06]" : "bg-[var(--flaeche-vertieft)]",
                 s.isPublic === false && "border-dashed"
               )}
-              title={[s.shiftFrom + "–" + s.shiftTo + (s.endsNextDay ? " (endet am Folgetag)" : ""), s.title, names(s, nameFormat)].filter(Boolean).join(" · ")}
+              title={[s.shiftFrom + "–" + s.shiftTo + (s.endsNextDay ? " +1, endet am Folgetag" : ""), s.title, names(s, nameFormat)].filter(Boolean).join(" · ")}
             >
               <div className="flex flex-wrap items-baseline justify-between gap-x-1">
-                <span className="tabular font-semibold"><span className="whitespace-nowrap">{s.shiftFrom}–{s.shiftTo}</span>{s.endsNextDay && <span className="font-normal text-muted-foreground"> +1</span>}</span>
+                <span className="tabular font-semibold"><span className="whitespace-nowrap">{s.shiftFrom}–{s.shiftTo}</span>{s.endsNextDay && <Folgetag />}</span>
                 <span className={cn("tabular whitespace-nowrap", fehlt > 0 ? "font-medium text-warn" : "text-muted-foreground")}>
                   {(s.occupiedCount ?? s.bookings.length)}/{s.maxEmployees}
                 </span>
@@ -259,7 +341,7 @@ function ShiftLine({ shift, planner = false, fortsetzung = false }: { shift: Shi
     <li className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-4 py-2 text-[13px]">
       <span className="tabular font-semibold">
         {fortsetzung ? "bis " + shift.shiftTo : shift.shiftFrom + "–" + shift.shiftTo}
-        {!fortsetzung && shift.endsNextDay && <span className="font-normal text-muted-foreground"> (+1)</span>}
+        {!fortsetzung && shift.endsNextDay && <Folgetag />}
       </span>
       <span className="min-w-0 flex-1 truncate text-muted-foreground">
         {fortsetzung ? "Fortsetzung vom Vortag · " : ""}{shift.title || "Schicht"}{shift.bookings.length ? " · " + names(shift, nameFormat) : ""}

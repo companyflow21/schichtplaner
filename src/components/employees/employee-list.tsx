@@ -32,6 +32,7 @@ import {
 import { EmployeeForm } from "./employee-form";
 import { EinladungDialog, StandortListe, StandorteDialog } from "./staff-sites";
 import { useCurrentMember } from "@/lib/hooks/use-current-member";
+import { rollenName } from "@/components/layout/nav-config";
 import { STAFF_RIGHTS, summaryCan } from "@/lib/access-shared";
 
 type Employee = {
@@ -115,7 +116,7 @@ function getRoleBadge(role: string) {
     case "OWNER":
       return (
         <Badge className="bg-warn/10 text-warn dark:bg-warn/20 dark:text-warn">
-          Owner
+          {rollenName("OWNER")}
         </Badge>
       );
     case "ADMIN":
@@ -185,9 +186,10 @@ function Mitarbeiterliste() {
       <div className="flex flex-wrap items-start justify-between gap-4 sm:items-center">
         <div>
           <h1 className="text-[22px] leading-none font-[560] tracking-[-0.03em]">Mitarbeiter</h1>
-          <p className="text-sm text-muted-foreground">
-            {isAdmin ? "Verwalte dein Team und weise Rollen zu" : "Dir zugeordnete Mitarbeitende und deine Rechte"}
-          </p>
+          {/* Erst nach dem Laden der Rolle: der Hinweis gilt nur fuer die Planung. */}
+          {currentMember && !isAdmin && (
+            <p className="text-sm text-muted-foreground">Dir zugeordnete Mitarbeitende und deine Rechte</p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -210,6 +212,7 @@ function Mitarbeiterliste() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            aria-label="Mitarbeiter suchen"
             placeholder={isAdmin ? "Suche nach Name oder E-Mail..." : "Suche nach Name..."}
             className="pl-9"
           />
@@ -234,7 +237,7 @@ function Mitarbeiterliste() {
               >
                 <Icon className="size-3.5" />
                 <span>{tab.label}</span>
-                <span className="tabular-nums text-xs opacity-70">
+                <span className="tabular-nums text-xs text-muted-foreground">
                   ({count})
                 </span>
               </button>

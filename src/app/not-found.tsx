@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+export const metadata = { title: "Seite nicht gefunden" };
+
 export default function NotFound() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
@@ -14,10 +16,10 @@ export default function NotFound() {
           Die angeforderte Seite existiert nicht oder wurde verschoben.
         </p>
         <Link
-          href="/schedule/flexible"
-          className="mt-8 inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+          href="/dashboard"
+          className="mt-8 inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
-          Zum Dashboard
+          Zur Startseite
         </Link>
       </div>
     </div>

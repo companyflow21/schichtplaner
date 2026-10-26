@@ -228,4 +228,24 @@ export async function planLifecycleTests(t: TestContext) {
   check(withdrawn.schedule.status === "DRAFT" && withdrawn.notified === 0 && await silent(before), "withdrawing with notify=false sends nothing");
   await admin.request(laterPlan, "PATCH", { isPublic: true });
   check((await fresh(e3, before)).some((m) => m.subject === "Dienstplan veröffentlicht"), "default publication still informs the booked person");
+
+  // === 11. Monatsplan: Lebenszyklus je Woche nur fuer die Planung =================
+  // Eigener Standort: Eine Mitarbeiterin mit "Dienstplan ansehen" (der Monatsplan verlangt das Recht)
+  // zaehlt sonst bei den Mitteilungen oben mit.
+  const west = await site("Lebenszyklus West");
+  const viewer = await newPerson(t, admin, "lz.view", "Vera", "Sicht");
+  await admin.request("/api/employees/" + viewer.memberId + "/access", "PUT", { kind: "branch", branchId: west.id, rights: ["VIEW_SCHEDULE"] });
+  await shift(west.id, day(2), "08:00", "16:00");
+  const westPlan = "/api/schedules/" + (await planOf(west.id, day(2))).id;
+  const monthWeek = async (s: Sess) => (await s.request("/api/branches/" + west.id + "/month?monat=" + day(2).slice(0, 7))).weeks.find((x: any) => x.year === w.year && x.weekNumber === w.weekNumber);
+  const draftWeek = await monthWeek(admin), draftView = await monthWeek(viewer.session);
+  check(draftWeek.status === "DRAFT" && draftWeek.isPublic === false && draftWeek.shifts === 1, "month view: planner gets status DRAFT for the week with its shift count");
+  check(draftView.scheduleId === null && draftView.status === null, "month view: employee sees neither the draft nor a status");
+  await admin.request(westPlan, "PATCH", { isPublic: true, notify: false });
+  await admin.request(westPlan + "/editing", "POST");
+  const editingWeek = await monthWeek(admin), editingView = await monthWeek(viewer.session);
+  check(editingWeek.status === "EDITING" && editingWeek.scheduleId === draftWeek.scheduleId, "month view: status EDITING after starting the editing");
+  check(editingView.scheduleId === draftWeek.scheduleId && editingView.isPublic === true && editingView.status === null, "month view: employee gets status null while editing");
+  await admin.request(westPlan, "PATCH", { isPublic: true, notify: false });
+  check((await monthWeek(admin)).status === "PUBLISHED" && (await monthWeek(viewer.session)).status === null, "month view: PUBLISHED after publishing, still null for the employee");
 }

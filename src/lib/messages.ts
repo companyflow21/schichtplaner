@@ -39,10 +39,10 @@ export async function shiftBranchForMessage(a: Access, shiftId: string): Promise
   return visible ? branchId : undefined;
 }
 
-/** Standorte, auf die die Person in einer Nachricht verweisen darf (Task 1: eigene Planungsstandorte oder Standort einer veroeffentlichten eigenen Buchung). */
+/** Standorte, auf die die Person in einer Nachricht verweisen darf (Task 1: eigene Planungsstandorte oder Standort einer veroeffentlichten eigenen Buchung); archivierte nie. */
 export async function referencableBranches(a: Access): Promise<{ id: string; name: string }[]> {
   if (a.isAdmin) {
-    return db.branch.findMany({ where: { organizationId: a.orgId, isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } });
+    return db.branch.findMany({ where: { organizationId: a.orgId, isActive: true, archivedAt: null }, select: { id: true, name: true }, orderBy: { name: "asc" } });
   }
   const ids = new Set<string>(anyBranchIds(a) ?? []);
   const booked = await db.schedule.findMany({
@@ -52,12 +52,12 @@ export async function referencableBranches(a: Access): Promise<{ id: string; nam
   });
   for (const s of booked) if (s.branchId) ids.add(s.branchId);
   if (!ids.size) return [];
-  return db.branch.findMany({ where: { id: { in: [...ids] }, organizationId: a.orgId }, select: { id: true, name: true }, orderBy: { name: "asc" } });
+  return db.branch.findMany({ where: { id: { in: [...ids] }, organizationId: a.orgId, archivedAt: null }, select: { id: true, name: true }, orderBy: { name: "asc" } });
 }
 
-/** Darf die Person auf diesen Standort verweisen? Existenz eines fremden Standorts wird nicht preisgegeben. */
+/** Darf die Person auf diesen Standort verweisen? Existenz eines fremden oder archivierten Standorts wird nicht preisgegeben. */
 export async function branchVisibleForMessage(a: Access, branchId: string): Promise<boolean> {
-  const branch = await db.branch.findFirst({ where: { id: branchId, organizationId: a.orgId }, select: { id: true } });
+  const branch = await db.branch.findFirst({ where: { id: branchId, organizationId: a.orgId, archivedAt: null }, select: { id: true } });
   if (!branch) return false;
   if (a.isAdmin) return true;
   const allowed = await referencableBranches(a);

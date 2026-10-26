@@ -34,6 +34,14 @@ Als Admin angemeldet:
 Ohne Freigabe sehen Manager keine Standorte und Mitarbeitende nur ihre eigenen Schichten,
 Zeiten und Abwesenheiten. Details: `docs/AKRO-ERWEITERUNG.md`, Abschnitte 5 und 6.
 
+**Archivieren** (Einsatzorte → „Archivieren“ beim Kunden oder Einsatzort): für Kunden und Einsatzorte, die nicht
+mehr betreut werden. Sie verschwinden aus Dienstplan, Auswahllisten und Startseite; vergangene Schichten, Zeiten
+und Stunden bleiben erhalten und in der Auswertung sichtbar. Vorher müssen zukünftige Schichten gelöscht oder
+verschoben sein. *Deaktivieren* sperrt dagegen nur neue Schichten und Einteilungen, der Einsatzort bleibt in
+Listen und Auswahlfeldern („inaktiv“);
+*Endgültig löschen* geht nur, solange es noch keine Schichten, Zeiten oder Meldungen gibt. Wiederherstellen und
+Löschen im Bereich **Archiv** am Seitenende.
+
 ## Bedienung: Nachrichten, Tausch und Check-in
 
 **Subunternehmer** (nur Administration, „Mehr“ → „Subunternehmer“)

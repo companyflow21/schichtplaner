@@ -21,4 +21,4 @@ export function ErrorMessage({ error }: { error: Error | null }) {
   return error ? <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error.message}</p> : null;
 }
 export function dateLabel(date: string) { return new Date(date.slice(0,10) + "T12:00:00Z").toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit" }); }
-export const selectClass = "h-11 w-full min-w-0 rounded-[var(--radius)] border border-input bg-card px-3 text-base md:h-10 md:text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50";
+export const selectClass = "h-11 w-full min-w-0 rounded-[var(--radius)] border border-input bg-card px-3 text-base md:h-10 md:text-sm focus-visible:border-ring disabled:opacity-50";

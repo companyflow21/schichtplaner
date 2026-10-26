@@ -37,7 +37,8 @@ function examine(date: string, from: string, to: string, expectedEnd: string, in
     const html = renderToStaticMarkup(<QueryClientProvider client={queryClient}><ShiftCard shift={clientView} canEdit onEdit={() => {}} /></QueryClientProvider>);
     check(html.includes("durch andere Person ersetzen") === !ended, label + ": Wechselaktion nur vor Schichtende");
     check((html.match(/aus der Schicht entfernen/g) ?? []).length === (ended ? 0 : 2), label + ": Mitarbeiter- und Sub-Entfernen nur vor Schichtende");
-    check(html.includes("Schicht beendet") === ended && html.includes("Kopieren"), label + ": Historienhinweis korrekt, Kopieren bleibt möglich");
+    // Kopieren ist ein Icon-Knopf; sein Name steht im aria-label.
+    check(html.includes("Schicht beendet") === ended && html.includes('aria-label="Schicht auf weitere Tage kopieren"'), label + ": Historienhinweis korrekt, Kopieren bleibt möglich");
   } finally { Date.now = realNow; }
 }
 
@@ -50,5 +51,18 @@ examine("2026-12-31", "22:00", "06:00", "2027-01-01T05:00:00.000Z", "2027-01-01T
 examine("2026-03-28", "22:00", "06:00", "2026-03-29T04:00:00.000Z", "2026-03-29T04:00:00Z", true, "Umstellung auf Sommerzeit");
 examine("2026-10-24", "22:00", "06:00", "2026-10-25T05:00:00.000Z", "2026-10-25T04:59:59Z", false, "Umstellung auf Winterzeit");
 examine("2026-10-25", "01:00", "02:30", "2026-10-25T00:30:00.000Z", "2026-10-25T01:15:00Z", true, "Beendete Schicht öffnet in wiederholter Stunde nicht erneut");
+
+// Kartensemantik: Nachtschicht als "+1", Zustand je Person als Icon mit Screenreader-Text.
+const employee = { isAdmin: false, role: "EMPLOYEE", userId: "employee", branches: new Map([["site", new Set(["REQUEST_SHIFTS"])]]), staff: new Map() } as unknown as Access;
+const render = (shift: ShiftWithRelations, a: Access, canEdit: boolean) =>
+  renderToStaticMarkup(<QueryClientProvider client={queryClient}><ShiftCard shift={JSON.parse(JSON.stringify(shiftView(shift, a))) as ShiftData} canEdit={canEdit} currentUserId={a.userId} onEdit={() => {}} /></QueryClientProvider>);
+const night = render(fixture("2030-01-08", "22:00", "06:00"), admin, true);
+check(night.includes('title="endet am Folgetag"') && night.includes(">+1<") && !night.includes("Endet am nächsten Tag"), "Nachtschicht: Kurzform +1 mit Titel 'endet am Folgetag'");
+check(night.includes(">Bestätigung offen<") && night.includes("1 Bestätigung offen"), "Planung: Altbestand ohne Bestätigung als Icon mit Text und Zähler");
+const fest = fixture("2030-01-08", "08:00", "16:00");
+(fest.bookings[0] as unknown as { confirmation: string; confirmedAt: Date }).confirmation = "PLANNER";
+(fest.bookings[0] as unknown as { confirmation: string; confirmedAt: Date }).confirmedAt = new Date("2029-12-20T10:00:00Z");
+const own = render(fest, employee, false);
+check(own.includes(">fest eingeteilt<") && !own.includes("Bestätigung offen"), "Mitarbeitende: eigene feste Einteilung zeigt 'fest eingeteilt'");
 queryClient.clear();
 console.log("SUCCESS: " + checks + " Schichtkarten-Prüfungen bestanden.");

@@ -6,14 +6,14 @@ import {
   getWeekDates,
 } from "@/lib/utils/calendar";
 import { WeekNav } from "@/components/schedule/week-nav";
-import { PdfExportDialog } from "@/components/schedule/pdf-export-dialog";
-import { ViewSwitcher } from "@/components/schedule/view-switcher";
 import { ClassicGridWrapper } from "@/components/schedule/classic-grid-wrapper";
 
 interface ClassicKWPageProps {
   params: Promise<{ kw: string }>;
   searchParams: Promise<{ standort?: string }>;
 }
+
+export const metadata = { title: "Dienstplan" };
 
 export default async function ClassicKWPage({ params, searchParams }: ClassicKWPageProps) {
   const { kw } = await params;
@@ -31,13 +31,8 @@ export default async function ClassicKWPage({ params, searchParams }: ClassicKWP
   const weekDateStrings = weekDates.map((d) => d.toISOString());
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <PdfExportDialog week={{ year, weekNumber }} branchId={standort ?? null} />
-          <ViewSwitcher kw={kw} standort={standort ?? null} />
-        </div>
-      </div>
+    <div className="space-y-5">
+      {/* Kopf, PDF und Ansicht stehen in der WeekNav; ihre Zeitraumzeile klebt auf dem Handy. */}
       <WeekNav weekNumber={weekNumber} year={year} baseUrl="/schedule/classic" standort={standort ?? null} />
       <ClassicGridWrapper
         weekNumber={weekNumber}

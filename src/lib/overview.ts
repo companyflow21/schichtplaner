@@ -10,6 +10,7 @@ import { anyBranchIds, assertCan, can, type Access } from "./access";
 import { BRANCH_RIGHTS, type BranchRightKey } from "./access-shared";
 import { ineffectiveBookings, shiftInclude, shiftView, type ShiftView } from "./planning";
 import { frozenView } from "./schedule-frozen";
+import { scheduleStatus } from "./schedule-status";
 
 /** Wie weit die Startseite nach offenen Plaetzen vorausschaut. */
 export const HORIZON_DAYS = 28;
@@ -58,12 +59,12 @@ export type BranchCard = {
   issuesOpen: number | null;
 };
 
-/** Karten der sichtbaren Kunden mit ihren sichtbaren Standorten. */
+/** Karten der sichtbaren Kunden mit ihren sichtbaren Standorten (ohne Archivierte). */
 export async function planningOverview(a: Access) {
   const today = berlinDate(), until = addDate(today, HORIZON_DAYS - 1);
   const ids = anyBranchIds(a);
   const branches = await db.branch.findMany({
-    where: { organizationId: a.orgId, isActive: true, ...(ids ? { id: { in: ids } } : {}) },
+    where: { organizationId: a.orgId, isActive: true, archivedAt: null, ...(ids ? { id: { in: ids } } : {}) },
     orderBy: { name: "asc" },
     select: { id: true, name: true, isActive: true, customerId: true },
   });
@@ -76,7 +77,7 @@ export async function planningOverview(a: Access) {
       : Promise.resolve([]),
     db.customer.findMany({
       // Admins sehen auch aktive Kunden ohne Standort; Standorte eines inaktiven Kunden bleiben sichtbar.
-      where: { organizationId: a.orgId, OR: [{ id: { in: branches.map((b) => b.customerId).filter((x): x is string => !!x) } }, ...(a.isAdmin ? [{ isActive: true }] : [])] },
+      where: { organizationId: a.orgId, archivedAt: null, OR: [{ id: { in: branches.map((b) => b.customerId).filter((x): x is string => !!x) } }, ...(a.isAdmin ? [{ isActive: true }] : [])] },
       orderBy: { name: "asc" },
       select: { id: true, name: true, isActive: true },
     }),
@@ -138,7 +139,7 @@ export async function branchMonth(a: Access, branchId: string, month: string) {
   const weeks = weeksBetween(first, last);
   const schedules = await db.schedule.findMany({
     where: { organizationId: a.orgId, branchId: branch.id, deletedAt: null, OR: weeks.map((w) => ({ year: w.year, weekNumber: w.weekNumber })), ...(isPlanner ? {} : { isPublic: true }) },
-    select: { id: true, weekNumber: true, year: true, isPublic: true },
+    select: { id: true, weekNumber: true, year: true, isPublic: true, editingSince: true },
   });
   const inMonth = views.filter((s) => s.date >= first && s.date <= last);
   const issuesOpen = can(a, "MANAGE_ISSUES", branch.id) ? await db.branchIssue.count({ where: { organizationId: a.orgId, branchId: branch.id, status: { not: "RESOLVED" } } }) : null;
@@ -146,7 +147,8 @@ export async function branchMonth(a: Access, branchId: string, month: string) {
     branch, month, first, last, today, days,
     weeks: weeks.map((w) => {
       const s = schedules.find((x) => x.year === w.year && x.weekNumber === w.weekNumber);
-      return { ...w, scheduleId: s?.id ?? null, isPublic: s ? s.isPublic : null, shifts: inMonth.filter((v) => v.scheduleId === s?.id).length };
+      // Lebenszyklus nur fuer die Planung (wie im Wochenplan); Mitarbeitende sehen nur isPublic.
+      return { ...w, scheduleId: s?.id ?? null, isPublic: s ? s.isPublic : null, status: s && isPlanner ? scheduleStatus(s) : null, shifts: inMonth.filter((v) => v.scheduleId === s?.id).length };
     }),
     totals: { shifts: inMonth.length, missing: inMonth.reduce((sum, s) => sum + s.missing, 0), draftShifts: inMonth.filter((s) => !s.isPublic).length },
     access: {

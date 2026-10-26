@@ -1,8 +1,7 @@
-"use client";
-
-import { use } from "react";
 import { redirect } from "next/navigation";
 import { HoursTable } from "@/components/reporting/hours-table";
+
+export const metadata = { title: "Auswertung" };
 
 interface ReportingMonthPageProps {
   params: Promise<{ month: string }>;
@@ -17,8 +16,8 @@ function parseMonthParam(param: string): { month: number; year: number } | null 
   return { month, year };
 }
 
-export default function ReportingMonthPage({ params }: ReportingMonthPageProps) {
-  const { month: monthParam } = use(params);
+export default async function ReportingMonthPage({ params }: ReportingMonthPageProps) {
+  const { month: monthParam } = await params;
   const parsed = parseMonthParam(monthParam);
 
   if (!parsed) {

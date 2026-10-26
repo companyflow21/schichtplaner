@@ -462,6 +462,28 @@ async function main() {
   check((await rows(vac, `SELECT 1 FROM "vacation_rules"`)).length === 0 && (await rows(vac, `SELECT 1 FROM "vacation_adjustments"`)).length === 0, "rules and corrections are removed with the member");
   await vac.close();
 
+  // Archivieren: rein additiv nach den Planungsregeln; bestehende Kunden und Einsatzorte (auch inaktive) bleiben
+  // unveraendert und nicht archiviert, ihre Plaene, Schichten und Zeiten bleiben unberuehrt.
+  const ARCHIVE = "20261013160000_archive_customers_branches";
+  check(ARCHIVE > RULES, "archive migration is ordered after the planning rules");
+  const arc = await database(ARCHIVE);
+  await arc.exec(`
+    INSERT INTO "organizations" ("id","name","updatedAt") VALUES ('a1','Org Archiv',${now});
+    INSERT INTO "users" ("id","email","firstName","lastName","updatedAt") VALUES ('aa','aa@akro-test.invalid','Arne','Alt',${now});
+    INSERT INTO "customers" ("id","organizationId","name","isActive","updatedAt") VALUES ('ac','a1','Kunde Alt',false,${now}),('ad','a1','Kunde Aktiv',true,${now});
+    INSERT INTO "branches" ("id","organizationId","customerId","name","isActive") VALUES ('ab','a1','ac','Objekt Alt',false),('ae','a1','ad','Objekt Aktiv',true);
+    INSERT INTO "schedules" ("id","organizationId","branchId","weekNumber","year","isPublic","updatedAt") VALUES ('as','a1','ab',36,2026,true,${now});
+    INSERT INTO "shifts" ("id","scheduleId","dayOfWeek","shiftFrom","shiftTo","maxEmployees") VALUES ('ash','as',2,'08:00','16:00',1);
+    INSERT INTO "time_records" ("id","organizationId","userId","branchId","type","date","timeFrom","timeTo","updatedAt") VALUES ('at','a1','aa','ab','MANUAL','2026-09-01','08:00','16:00',${now});
+  `);
+  await arc.exec(await readFile("prisma/migrations/" + ARCHIVE + "/migration.sql", "utf8"));
+  const sites = await rows<{ id: string; name: string; isActive: boolean; archivedAt: Date | null; customerActive: boolean; customerArchivedAt: Date | null }>(arc, `SELECT b."id",b."name",b."isActive",b."archivedAt",c."isActive" AS "customerActive",c."archivedAt" AS "customerArchivedAt" FROM "branches" b JOIN "customers" c ON c."id"=b."customerId" ORDER BY b."id"`);
+  check(sites.length === 2 && sites.every((s) => s.archivedAt === null && s.customerArchivedAt === null) && sites[0].name === "Objekt Alt" && !sites[0].isActive && !sites[0].customerActive && sites[1].isActive && sites[1].customerActive, "existing customers and sites keep name and active state and are not archived");
+  check((await rows(arc, `SELECT 1 FROM "shifts" WHERE "id"='ash'`)).length === 1 && (await rows(arc, `SELECT 1 FROM "time_records" WHERE "id"='at' AND "branchId"='ab'`)).length === 1, "plans, shifts and times of existing sites stay unchanged");
+  await arc.exec(`UPDATE "branches" SET "archivedAt"=CURRENT_TIMESTAMP WHERE "id"='ab'; UPDATE "customers" SET "archivedAt"=CURRENT_TIMESTAMP WHERE "id"='ac'`);
+  check((await rows(arc, `SELECT 1 FROM "branches" WHERE "archivedAt" IS NOT NULL`)).length === 1 && (await rows(arc, `SELECT 1 FROM "customers" WHERE "archivedAt" IS NOT NULL`)).length === 1, "archive date is stored per customer and site");
+  await arc.close();
+
   console.log("SUCCESS: " + checks + " migration checks passed.");
 }
 

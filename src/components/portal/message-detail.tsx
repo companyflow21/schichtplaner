@@ -185,7 +185,7 @@ export function MessageDetail() {
             </h3>
             <div className="space-y-4">
               {msg.replies.map((reply) => (
-                <div key={reply.id} className="rounded-md border-l-2 border-primary/30 bg-muted p-4/50">
+                <div key={reply.id} className="rounded-md border-l-2 border-primary/30 bg-muted/50 p-4">
                   <div className="mb-2 flex items-center gap-2">
                     <Avatar className="size-7">
                       <AvatarFallback className="text-xs bg-accent text-primary dark:text-primary">

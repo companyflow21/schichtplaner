@@ -12,6 +12,8 @@ interface ScheduleKWPageProps {
   searchParams: Promise<{ standort?: string }>;
 }
 
+export const metadata = { title: "Dienstplan" };
+
 /** Wochenplan eines Standorts (?standort=ID); ohne Standort die Auswahl. */
 export default async function ScheduleKWPage({ params, searchParams }: ScheduleKWPageProps) {
   const { kw } = await params;

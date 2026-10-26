@@ -67,7 +67,7 @@ async function keyboardCheck(page, role) {
 async function visitPages(page, role, routes, width) {
   await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
   const endpoint = { '/dashboard': '/api/dashboard', '/employees': '/api/employees', '/divisions': '/api/branches', '/time': '/api/time', '/reporting': '/api/reporting', '/portal/inbox': '/api/messages', '/settings': '/api/settings', '/employees/absences': '/api/absences', '/schedule/employee': '/api/schedules' };
-  const heading = { '/dashboard': role === 'mitarbeiter' ? 'Heute' : 'Übersicht', '/employees': 'Mitarbeiter', '/divisions': 'Kunden und Einsatzorte', '/time': 'Zeiterfassung', '/reporting': 'Auswertung', '/portal/inbox': 'Posteingang', '/settings': 'Einstellungen', '/employees/absences': 'Abwesenheiten' };
+  const heading = { '/dashboard': 'Heute', '/employees': 'Mitarbeiter', '/divisions': 'Kunden und Einsatzorte', '/time': 'Zeiterfassung', '/reporting': 'Auswertung', '/portal/inbox': 'Posteingang', '/settings': 'Einstellungen', '/employees/absences': 'Abwesenheiten' };
   for (const route of routes) {
     const loaded = page.waitForResponse(response => new URL(response.url()).pathname === endpoint[route] && response.request().method() === 'GET');
     await page.goto(config.base + route);

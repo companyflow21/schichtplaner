@@ -178,21 +178,126 @@ Migrationen, Fachannahmen und Gesamtabnahme in `docs/UEBERGABE-SMARTPLAN-PORT.md
 Cloud-Branch `claude/wizardly-cerf-cxbutc` selbst darf nicht gemerged werden
 (`docs/BERICHT-CLOUD-BRANCH-2026-10-12.md`).
 
+## Nachtrag 13.10.2026 (nach der Einspielung): Veröffentlichen aus der Monatsansicht
+
+Anlass: AKRO konnte nach dem Rollout (`194c532`) in der Monatsansicht nur das Label „Entwurf“
+sehen, aber nicht veröffentlichen. Commits `26fbffa` und `94ccf73` (Basis `47203de`):
+
+- `GET /api/branches/[id]/month` liefert je Woche zusätzlich `status` (DRAFT/PUBLISHED/EDITING
+  über `scheduleStatus`), nur für die Planung; Mitarbeitende bekommen `null` und weiterhin nur
+  veröffentlichte Pläne (`src/lib/overview.ts`).
+- Monatsraster (`src/components/schedule/month-grid.tsx`): In der KW-Spalte steht bei einem
+  Entwurf mit Schichten unter „Entwurf“ der Knopf „Veröffentlichen“, der denselben
+  `PublishDialog` wie der Wochenplan öffnet (Änderungen, Benachrichtigung, Konflikte); nach dem
+  Veröffentlichen lädt der Monat neu. Woche „In Bearbeitung“ zeigt das Label und den Link
+  „Zur Woche“, weil Veröffentlichen und Verwerfen im Statusbalken der Woche zusammengehören.
+  Entwurf ohne Schichten: nur Label. Ohne Recht „Dienstplan veröffentlichen“: nur Labels.
+  Auf dem Handy steht eine kompakte Wochenliste mit derselben Aktion über der Tagesliste.
+  Die KW-Spalte wird nur dann breiter (9 rem statt 4 rem), wenn ein Knopf oder „In
+  Bearbeitung“ sichtbar ist.
+- Nachweise (Agent, Worktree auf `47203de`): `tsc` 0; `lint` 0/25; `tests/month-publish.tsx`
+  16/16 (zwei eingebaute Fehler wurden erkannt); `tests/plan-banner.tsx` 45/45;
+  `TEST_ONLY=plan-lifecycle,permissions` 733 Prüfungen, davon 5 neue zur Monats-API
+  (eigener Standort „Lebenszyklus West“, damit die bestehende Zählung der Mitteilungen
+  unverändert bleibt); Browser auf lokalem Dev-Server mit Testdaten (1280 px und Handy:
+  Veröffentlichen aus dem Monat mit Toast „KW 43/2026 veröffentlicht – 1 Person
+  benachrichtigt“, „Zur Woche“ öffnet den Statusbalken, Knopf mobil 44 px hoch).
+  Nach dem Merge im Klon erneut: `tsc` 0, `lint` 0/25, beide Rendertests grün.
+- Offen: Bei 768 px mit ausgeklappter Seitenleiste nimmt die breite KW-Spalte jeder
+  Tagesspalte rund 12 px; Abhilfe wäre, die Wochenliste bis `lg` zu zeigen. Liegen alle
+  Schichten einer Entwurfswoche im Nachbarmonat, erscheint der Knopf nur dort. Der Rendertest
+  setzt den Pfad für `usePathname` über das Next-interne `PathnameContext`.
+- Noch nicht im Original und nicht auf Netcup; Einspielen erst nach AKROs Sammelliste.
+
+## Nachtrag 13.10.2026 (nach der Einspielung): Kunden und Einsatzorte archivieren
+
+Anlass: AKRO wollte Einsatzorte bzw. Kunden löschen und bekam „Der Einsatzort hat bereits
+Schichten, Zeiten oder Meldungen und kann nicht gelöscht werden.“ Löschen mit Historie bleibt
+gesperrt (Lohn- und Nachweisdaten hängen daran); stattdessen gibt es **Archivieren**.
+Commits `0e96bb5`, `8c38650`, `a7111c5`, Merge `a92da53`.
+
+- **Datenmodell:** Migration `20261013160000_archive_customers_branches` ergänzt
+  `customers.archivedAt` und `branches.archivedAt` (NULL = nicht archiviert; rein additiv,
+  Bestand bleibt unverändert; `tests/migration.ts` prüft das mit 4 neuen Checks).
+- **Routen (nur Admin):** `POST/DELETE /api/branches/[id]/archive` (archivieren/
+  wiederherstellen), `POST/DELETE /api/customers/[id]/archive` (Kunde mit allen seinen
+  Einsatzorten in einer Transaktion – alles oder nichts; Wiederherstellen holt die Einsatzorte
+  nicht mit zurück), `GET /api/branches/archive` (Archivliste mit `deletable`),
+  `GET /api/branches?archived=include` für den Standortfilter der Auswertung.
+- **Voraussetzung:** keine laufende oder zukünftige Schicht (Entwurf oder veröffentlicht) und
+  keine noch nicht vergangene Woche in Bearbeitung – sonst 409 mit Anzahl bzw. KW
+  („Archivieren nicht möglich: 4 zukünftige/laufende Schichten – zuerst löschen oder
+  verschieben“). `src/lib/archive.ts`: `archiveBlockers`, `branchHasHistory` (gemeinsame
+  Löschregel mit `DELETE /api/branches/[id]`), `CUSTOMER_ARCHIVED`.
+- **Zentrale Regel** in `src/lib/access.ts`: An archivierten Einsatzorten gelten für jede
+  Rolle (auch Admin) nur noch „Dienstplan ansehen“, „Zeiterfassung einsehen“ und
+  „Zeiterfassung bearbeiten“ (`ARCHIVE_RIGHTS`); `can()` liefert sonst false, `assertCan()`
+  antwortet 409 „Einsatzort ist archiviert.“. Damit sind Schichten anlegen/kopieren/verschieben,
+  Besetzen, Veröffentlichen, Bearbeitung, Briefing, Anträge, offene Schichten und Meldungen
+  ohne Einzelprüfung gesperrt; `ensureSchedule` greift nicht mehr. Admins laden dafür je
+  Anfrage zusätzlich die archivierten Einsatzorte der Organisation (eine kleine Abfrage).
+- **Ausgeblendet** in `/api/branches`, `/api/customers`, `/api/branches/status`, Startseite
+  (Planungsübersicht, Aufgaben, Zähler offener Anträge, Mitarbeiter-„plans“), Nachrichtenbezug
+  (Auswahl und Prüfung beim Senden), Freigabe-Auswahl und Standortzuordnung (bestehende
+  Zuordnungen an archivierten Orten bleiben unberührt), Mitarbeiterliste, Planungspool
+  (Kunden-Geschwister), Einteilungsprüfung (harte Sperre) und KI-Werkzeug.
+- **Historie bleibt:** vergangene Wochen über `/api/schedules?standort=` und Monatsansicht
+  lesbar (ohne Planungsrechte, Wochenplan zeigt „nur Ansicht“); eigene vergangene Schichten der
+  Mitarbeitenden; Auswertung, CSV, PDF, Stundenzettel, Lohn, Zeitkonten mit den Stunden;
+  Standortfilter unter „Stunden und Lohn“ zeigt „(archiviert)“; Zeiten nachtragen und
+  genehmigen möglich; Freigaben bleiben erhalten (Editor zeigt „(archiviert)“, Entziehen
+  erlaubt, keine neuen); Check-ins und Echtzeit unverändert.
+- **Oberfläche** (`src/components/workforce/locations.tsx`): Knopf „Archivieren“ je Kunde und
+  je Einsatzort mit Rückfrage und Folgen in einfachen Sätzen; 409-Texte wörtlich als Toast.
+  Eingeklappter Bereich „Archiv (N)“ am Seitenende mit Datum je Eintrag, „Wiederherstellen“
+  (Einsatzort erst, wenn sein Kunde nicht archiviert ist) und „Endgültig löschen“ nur ohne
+  Historie (rot, abgesetzt). Lösch-Hinweistexte sagen jetzt „Bitte stattdessen archivieren.“
+  „Deaktivieren“ bleibt für vorübergehende Pausen.
+- **Doku:** `ANLEITUNG.md` (Abschnitt Archivieren), `docs/ROLLEN-UND-RECHTE.md`.
+- **Nachweise (Agent, Worktree auf `47203de`):** `tsc` 0; `lint` 0/25; `test:migration` 104;
+  `TEST_ONLY=archive,permissions,staff-sites,assignment,plan-lifecycle,dashboard-tasks` auf
+  3406/55540: 1474/1474 (Modul `archive` allein 203); `tests/archive-ui.tsx` 17/17; übrige
+  Rendertests unverändert grün; `test:rules` 12; Browser 375×812 auf eigenem Testserver mit
+  Testdaten (keine Überbreite, keine Schrift unter 12 px, Archivieren/Kunde archivieren/
+  Wiederherstellen inkl. 409-Toasts, „nur Ansicht“ und „(archiviert)“ sichtbar).
+  **Nach dem Merge im Klon (`a92da53`):** `tsc` 0; `lint` 0/25; `test:migration` 104;
+  Rendertests 17/16/45/17/45/6/14; Gesamtsuite `npm run test:workflows` (3408/55542): 4329/4329; `npm run build` ok;
+  Browser-Tests auf dem Build (`tests/load-local.ts --serve`, 3337): `ui-quality` 16/16,
+  `ui-design` 71/71, `ui-shift-location` bestanden. Diese Gesamtabnahme deckt auch das
+  Monats-Veröffentlichen (oben) mit ab.
+- **Entscheidungen, die AKRO bestätigen sollte:** (1) Plan in Bearbeitung blockiert das
+  Archivieren, solange die Woche nicht vorbei ist. (2) Standortmeldungen und Anträge an
+  archivierten Einsatzorten ruhen bis zum Wiederherstellen, auch für Admins. (3) Kunde
+  wiederherstellen holt seine Einsatzorte nicht automatisch zurück.
+- **Offen:** Zähler offener Anträge ohne archivierte Orte ist umgesetzt, aber ohne
+  Workflow-Test (bräuchte einen offenen Antrag auf einer vergangenen Schicht). Monatsansicht
+  zeigt an archivierten Orten keinen eigenen Hinweis (Planungsaktionen sind dort ohnehin aus).
+- Noch nicht im Original und nicht auf Netcup; die Migration ist nicht gegen eine Kopie der
+  Betriebsdaten gelaufen (gehört zur Einspielung).
+
 ## Übernahme in das Original
+
+Stand nach dem ersten Rollout (13.10.2026): Das Original enthält `47203de` bereits über den
+Merge `194c532` (Branch `feat/plan-delete-assign-copy-pdf`), und dieser Stand läuft auf Netcup.
+Neu sind seitdem nur die Commits `47203de..HEAD` dieses Branches (Veröffentlichen aus der
+Monatsansicht, Archivieren von Kunden und Einsatzorten, Doku) mit **einer** neuen Migration
+`20261013160000_archive_customers_branches`.
 
 1. Im Original den Branch holen – entweder direkt aus dem Klon
    (`git remote add bausteine ../schichtplaner-bausteine && git fetch bausteine
    feat/plan-lifecycle-diff-conflicts`) oder aus dem Bundle
    `uebergabe/schichtplaner-bausteine.bundle` (`git fetch <pfad>.bundle
-   feat/plan-lifecycle-diff-conflicts`), dann `git merge --no-ff FETCH_HEAD`. Der Branch basiert
-   auf `c36a59f` des Originals (alle Commits seit `c36a59f` inkl. Merges, 112 Dateien,
-   +4330/−523 im Quellcode und in der Doku); spätere Commits des Originals vorher einbeziehen
-   und Konflikte dort lösen. `uebergabe/patches/` enthält dieselben Änderungen als nummerierte
-   Einzelpatches ohne Merge-Commits (nur als Rückfallweg, Reihenfolge nach Nummer; die Anzahl
-   entspricht den Nicht-Merge-Commits des Bundles).
+   feat/plan-lifecycle-diff-conflicts`), dann `git merge --no-ff FETCH_HEAD` auf
+   `feat/plan-delete-assign-copy-pdf`. Erwartete Berührungspunkte: nur Dateien aus
+   `git diff --stat 47203de HEAD`; die Doku-Datei `docs/FERTIGSTELLUNG.md` des Originals ist
+   hier unverändert. `uebergabe/patches/` enthält alle Nicht-Merge-Commits seit `c36a59f` als
+   nummerierte Einzelpatches (nur als Rückfallweg).
 2. `npm ci`, `npx prisma generate`, `npx tsc --noEmit --incremental false`, `npm run lint`,
-   `npm run test:migration`, `npm run test:workflows`, `npm run build`.
-3. Vor dem Einspielen auf Netcup: Sicherung, Migration auf verifizierter Kopie
-   (`docs/UEBERGABE-BETRIEB.md`), Rückfallversion, Einspielen, Anmeldung mit echten Konten.
+   `npm run test:migration`, `npm run test:workflows`, `npm run build`, Playwright
+   (`tests/ui-design.mjs`, `tests/ui-quality.mjs`).
+3. Vor dem Einspielen auf Netcup wie beim ersten Rollout (`docs/FERTIGSTELLUNG.md` im
+   Original, Skripte unter `/root/deploy-194c532/` als Vorlage): Sicherung (`pg_dump`),
+   Migrationsprobe auf einer Kopie, Rückfallbilder, Einspielen, Prüfung der Zeilenzahlen und
+   des Integritäts-Hashes, Anmeldung mit echten Konten. Nur mit ausdrücklichem Go von AKRO.
 4. Danach fachlich entscheiden: Verwerfen bei vorbestehender Überschneidung; Sichtbarkeiten
-   der Live-Restpfade (oben).
+   der Live-Restpfade (oben); die drei Archiv-Entscheidungen (oben).

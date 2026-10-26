@@ -25,7 +25,7 @@ type AccessData = {
   allowedBranchRights: BranchRightKey[];
   allowedStaffRights: StaffRightKey[];
   grants: { branchId: string; rights: BranchRightKey[]; updatedAt: string }[];
-  branches: { id: string; name: string; isActive: boolean; customer: { id: string; name: string } | null }[];
+  branches: { id: string; name: string; isActive: boolean; archivedAt: string | null; customer: { id: string; name: string } | null }[];
   staff: { memberId: string; role: string; isActive: boolean; name: string; rights: StaffRightKey[]; updatedAt: string }[];
   candidates: { memberId: string; role: string; name: string }[];
   managers: { memberId: string; name: string; rights: StaffRightKey[] }[];
@@ -85,7 +85,7 @@ export function AccessEditor({ memberId }: { memberId: string }) {
             <RechteZeile
               key={g.branchId + ":" + g.rights.join()}
               icon={<Building2 className="size-4 shrink-0 text-muted-foreground" />}
-              titel={b ? b.name + (b.isActive ? "" : " (inaktiv)") : "Standort"}
+              titel={b ? b.name + (b.archivedAt ? " (archiviert)" : b.isActive ? "" : " (inaktiv)") : "Standort"}
               untertitel={[b?.customer?.name ?? "Ohne Kunde", geändert(g.updatedAt)].join(" · ")}
               rights={g.rights}
               options={branchOptions}

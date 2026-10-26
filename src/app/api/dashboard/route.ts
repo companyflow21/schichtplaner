@@ -4,7 +4,7 @@ import { addDate, berlinDate, berlinTime, minuteOfDay, shiftRange } from "@/lib/
 import { branchIds, can, requireAccess, staffIds, timeScope, type Access } from "@/lib/access";
 import { checkAssignment, shiftInclude, shiftView } from "@/lib/planning";
 import { monthlyReport } from "@/lib/report";
-import { dashboardTasks } from "@/lib/dashboard-tasks";
+import { dashboardTasks, openConfirmations } from "@/lib/dashboard-tasks";
 import { planningOverview } from "@/lib/overview";
 import { frozenView } from "@/lib/schedule-frozen";
 
@@ -52,7 +52,7 @@ export async function GET() {
     const planning = a.isAdmin || a.role === "MANAGER";
     if (!planning) {
       const plans = await db.branch.findMany({
-        where: { organizationId: a.orgId, isActive: true, id: { in: branchIds(a, "VIEW_SCHEDULE") ?? [] } },
+        where: { organizationId: a.orgId, isActive: true, archivedAt: null, id: { in: branchIds(a, "VIEW_SCHEDULE") ?? [] } },
         orderBy: { name: "asc" },
         select: { id: true, name: true, customer: { select: { name: true } } },
       });
@@ -67,7 +67,8 @@ export async function GET() {
     const issues = a.isAdmin || !!branchIds(a, "MANAGE_ISSUES")?.length;
     const plans = a.isAdmin || !!branchIds(a, "VIEW_SCHEDULE")?.length;
     const [pendingRequests, pendingAbsences, pendingCorrections] = await Promise.all([
-      handle && !handle.length ? null : db.modRequest.count({ where: { state: "OPEN", shift: { deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null, ...(handle ? { branchId: { in: handle } } : {}) } } } }),
+      // Archivierte Einsatzorte: Antraege dort sind nicht mehr zu entscheiden und keine Aufgabe.
+      handle && !handle.length ? null : db.modRequest.count({ where: { state: "OPEN", shift: { deletedAt: null, schedule: { organizationId: a.orgId, deletedAt: null, ...(handle ? { branchId: { in: handle } } : { NOT: { branch: { archivedAt: { not: null } } } }) } } } }),
       absences && !absences.length ? null : db.absence.count({ where: { status: "PENDING", category: { organizationId: a.orgId }, ...(absences ? { userId: { in: absences } } : {}) } }),
       corrections ? db.timeCorrection.count({ where: { organizationId: a.orgId, status: "PENDING", record: timeScope(a, "edit") } }) : null,
     ]);
@@ -78,11 +79,12 @@ export async function GET() {
       manager: true,
       tasks: await dashboardTasks(a, overview),
       overview: cards,
-      todayShifts,
+      // openConfirmations je Schicht: dieselbe Zählregel wie "Bestätigungen offen" (lib/dashboard-tasks.ts).
+      todayShifts: todayShifts.map((s) => ({ ...s, openConfirmations: openConfirmations(s) })),
       counts: {
         openSlots: plans ? views.reduce((sum, s) => sum + s.missing, 0) : null,
-        // Nur Altbestand ohne Bestaetigung; Einteilungen der Planung (PLANNER) sind verbindlich.
-        unconfirmed: plans ? views.reduce((sum, s) => sum + (s.isPublic ? s.bookings.filter((b) => b.userId && !b.confirmedAt).length : 0), 0) : null,
+        // Regel "Bestätigungen offen" siehe openConfirmations: nur Altbestand ohne Bestätigung an noch nicht beendeten Schichten.
+        unconfirmed: plans ? views.reduce((sum, s) => sum + openConfirmations(s), 0) : null,
         pendingRequests, pendingAbsences, pendingCorrections,
         openIssues: issues ? [...cards.customers.flatMap((c) => c.branches), ...cards.unassigned].reduce((sum, b) => sum + (b.issuesOpen ?? 0), 0) : null,
       },

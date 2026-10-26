@@ -94,13 +94,13 @@ export function ChatMessages({ messages }: ChatMessagesProps) {
             >
               {msg.isLoading ? (
                 <div className="flex items-center gap-1.5">
-                  <span className="size-1.5 rounded-full bg-current animate-bounce" />
+                  <span className="size-1.5 rounded-full bg-current animate-pulse" />
                   <span
-                    className="size-1.5 rounded-full bg-current animate-bounce"
+                    className="size-1.5 rounded-full bg-current animate-pulse"
                     style={{ animationDelay: "0.15s" }}
                   />
                   <span
-                    className="size-1.5 rounded-full bg-current animate-bounce"
+                    className="size-1.5 rounded-full bg-current animate-pulse"
                     style={{ animationDelay: "0.3s" }}
                   />
                 </div>
