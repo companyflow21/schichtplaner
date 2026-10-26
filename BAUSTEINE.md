@@ -128,9 +128,9 @@ ersten Rollout).
 
 | Wunsch | Agent / Ports | Status |
 |---|---|---|
-| Monatsansicht: Entwurfswochen direkt veröffentlichen | opus, 3405/55539 | gemergt `94ccf73` (Abschnitt in `docs/UEBERGABE-BAUSTEINE.md`) |
-| Kunden und Einsatzorte archivieren statt nur deaktivieren | opus, 3406/55540 | gemergt `a92da53` (Abschnitt in `docs/UEBERGABE-BAUSTEINE.md`) |
-| Design-Durchgang mit Impeccable (Critique, Wochenplan, Schichtkarte, Mitarbeiteransicht, Startseite, Fundament) | 2 Bewertungs- + 5 Umsetzungsagenten, 3420–3424/55554–55558 | gemergt 26.10.2026 (`docs/UEBERGABE-DESIGN-IMPECCABLE.md`) |
+| Monatsansicht: Entwurfswochen direkt veröffentlichen | opus, 3405/55539 | gemergt `94ccf73`, eingespielt 26.10.2026 (`fa6e7bf`) |
+| Kunden und Einsatzorte archivieren statt nur deaktivieren | opus, 3406/55540 | gemergt `a92da53`, eingespielt 26.10.2026 (`fa6e7bf`) |
+| Design-Durchgang mit Impeccable (Critique, Wochenplan, Schichtkarte, Mitarbeiteransicht, Startseite, Fundament) | 2 Bewertungs- + 5 Umsetzungsagenten, 3420–3424/55554–55558 | gemergt und am 26.10.2026 als `fa6e7bf` eingespielt (`docs/UEBERGABE-DESIGN-IMPECCABLE.md`) |
 
 Hinweis: Der Agent für die Monatsansicht hat seinen Worktree versehentlich unter
 `../schichtplaner/.claude/worktrees/` angelegt. Die Commits wurden per `git fetch` in den Klon

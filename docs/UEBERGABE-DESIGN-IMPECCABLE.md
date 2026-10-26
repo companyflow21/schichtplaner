@@ -7,7 +7,7 @@ verbessern – professionell, übersichtlich, im Arbeitsalltag schnell: „Wer a
 Welche Dienste sind offen? Wo besteht Handlungsbedarf?“ Umgesetzt mit dem Impeccable-Skill
 (critique, audit, layout, distill, adapt, harden, clarify, colorize, polish) und fünf
 parallelen Umsetzungsagenten in eigenen Worktrees; Integration und Abnahme durch die Hauptsitzung.
-Nichts davon ist im Original oder auf Netcup.
+Eingespielt am 26.10.2026: Merge `fa6e7bf` ins Original, live auf Netcup seit 01:33 (Rollout-Protokoll in `docs/FERTIGSTELLUNG.md` des Originals).
 
 ## 1. Bestand und Bewertung (Critique, dual-agent)
 

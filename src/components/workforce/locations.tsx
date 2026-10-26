@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +18,20 @@ export function Locations() {
   const customers = useQuery({ queryKey: ["customers"], queryFn: () => json<{ customers: Customer[] }>("/api/customers") });
   const { data: me } = useCurrentMember(), admin = !!me?.access.isAdmin;
   const archive = useQuery({ queryKey: ["branches", "archive"], queryFn: () => json<ArchiveData>("/api/branches/archive"), enabled: admin });
-  // Fehlertexte des Servers (etwa 409 mit Anzahl der Schichten) erscheinen woertlich als Hinweis.
-  const archivieren: ArchivHandler = (url, name) => { action.mutateAsync({ url: url + "/archive", method: "POST", message: "„" + name + "“ archiviert" }).catch(() => {}); };
+  // Archivieren mit Folgen (kuenftige Schichten, Woche in Bearbeitung): Der Server fragt zuerst nach (409 mit confirm),
+  // die zweite Rueckfrage sendet confirm: true. Andere Fehlertexte des Servers erscheinen woertlich als Hinweis.
+  const client = useQueryClient();
+  const [rueckfrage, setRueckfrage] = useState<Rueckfrage | null>(null);
+  const archivAktion = useMutation({
+    mutationFn: (v: { url: string; name: string; confirm?: boolean }) => archivAnfrage(v.url, !!v.confirm),
+    onSuccess: (result, v) => { toast.success(archiviertMeldung(v.name, result)); client.invalidateQueries(); },
+    onError: (error: Error, v) => {
+      if (error instanceof ArchivFolgen && !v.confirm) setRueckfrage({ url: v.url, name: v.name, warnings: error.warnings, absagen: error.absagen });
+      else toast.error(error.message);
+    },
+  });
+  const pending = action.isPending || archivAktion.isPending;
+  const archivieren: ArchivHandler = (url, name) => archivAktion.mutate({ url, name });
   const wiederherstellen: ArchivHandler = (url, name) => { action.mutateAsync({ url: url + "/archive", method: "DELETE", message: "„" + name + "“ wiederhergestellt" }).catch(() => {}); };
   const endgueltigLoeschen: ArchivHandler = (url, name) => { action.mutateAsync({ url, method: "DELETE", message: "„" + name + "“ endgültig gelöscht" }).catch(() => {}); };
   const [edit, setEdit] = useState<Location | null | undefined>();
@@ -34,11 +47,12 @@ export function Locations() {
       <label>Bundesland (Feiertage)<select name="holidayState" defaultValue={edit?.holidayState || ""} className={selectClass}><option value="">Nicht festgelegt</option>{DE_STATES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}</select><span className="mt-1 block text-xs text-muted-foreground">Bestimmt die gesetzlichen Feiertage im Dienstplan dieses Einsatzorts.</span></label>
       <label>Name<Input name="name" defaultValue={edit?.name} maxLength={100} required /></label><label>Adresse<Input name="address" defaultValue={edit?.address || ""} maxLength={500} /></label><label>Treffpunkt<Input name="meetingPoint" defaultValue={edit?.meetingPoint || ""} maxLength={500} /></label><label>Tätigkeiten (durch Komma getrennt)<Input name="positions" defaultValue={edit?.positions.join(", ")} /></label><label className="flex gap-2 items-center sm:pt-6"><input name="isActive" type="checkbox" defaultChecked={edit?.isActive ?? true} />Aktiver Einsatzort</label><label className="sm:col-span-2">Hinweise<Textarea name="notes" defaultValue={edit?.notes || ""} maxLength={2000} /></label>
       <fieldset className="sm:col-span-2 border border-gray-300 rounded-lg p-4"><legend className="text-[14px] font-semibold tracking-[-0.02em] px-2">GPS-Check-in</legend><div className="grid gap-4 sm:grid-cols-2"><label>Breitengrad<Input name="latitude" type="text" placeholder="z.B. 50,7374" defaultValue={edit?.latitude ? String(edit.latitude).replace(".", ",") : ""} /></label><label>Längengrad<Input name="longitude" type="text" placeholder="z.B. 6,6389" defaultValue={edit?.longitude ? String(edit.longitude).replace(".", ",") : ""} /></label><label>Check-in-Radius (m)<Input name="checkinRadiusM" type="number" min="10" max="1000" defaultValue={edit?.checkinRadiusM ?? 50} required /></label><label className="flex gap-2 items-center sm:col-span-2"><input name="gpsCheckinRequired" type="checkbox" defaultChecked={edit?.gpsCheckinRequired ?? false} />GPS-Check-in erforderlich</label><LocationButton /></div><p className="text-sm text-muted-foreground mt-2">Mittelpunkt des Dienstorts. Mitarbeitende können sich nur innerhalb des Radius einchecken. Die Position wird nur beim Einchecken abgefragt.</p></fieldset><div className="flex flex-wrap gap-2"><Button disabled={action.isPending}>Speichern</Button><Button type="button" variant="outline" onClick={() => setEdit(undefined)}>Abbrechen</Button>{edit && <ConfirmDialog title="Einsatzort löschen?" description={"Der Einsatzort „" + edit.name + "“ wird endgültig gelöscht, samt leeren Wochenplänen und Freigaben. Das geht nur, solange es dort keine Schichten, Zeiten oder Meldungen gibt; alternativ lässt er sich archivieren."} confirmLabel="Einsatzort löschen" disabled={action.isPending} onConfirm={() => { action.mutateAsync({ url: "/api/branches/" + edit.id, method: "DELETE", message: "Einsatzort gelöscht" }).then(() => setEdit(undefined)).catch(() => {}); }}><Button type="button" variant="ghost" className="ml-auto text-destructive" disabled={action.isPending}>Einsatzort löschen</Button></ConfirmDialog>}</div></form></Card>}
-    {groups.map(g => <div key={g.key} className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-3 border-b pb-2"><div className="min-w-0"><h3 className="text-[15px] font-semibold tracking-[-0.02em]">{g.customer ? g.customer.name : "Ohne Kunde"}{g.customer && !g.customer.isActive ? " (inaktiv)" : ""}</h3>{!g.customer && <p className="text-sm text-muted-foreground">Diese Einsatzorte sind noch keinem Kunden zugeordnet. Neue Schichten sind dort erst nach der Zuordnung möglich.</p>}{admin && g.customer?.notes && <p className="whitespace-pre-wrap text-sm text-muted-foreground">{g.customer.notes}</p>}</div>{admin && g.customer && <div className="flex flex-wrap gap-2"><Button size="sm" variant="ghost" onClick={() => { setEdit(undefined); setEditCustomer(g.customer); }}>Kunde bearbeiten</Button><ArchivierenKnopf url={"/api/customers/" + g.customer.id} name={g.customer.name} einsatzorte={g.branches.length} pending={action.isPending} onArchive={archivieren} /></div>}</div>
-      {g.branches.length ? <div className="grid gap-4 md:grid-cols-2">{g.branches.map(b => <Card className="p-4" key={b.id}><div className="flex flex-wrap items-start justify-between gap-2"><h4 className="min-w-0 break-words text-[14px] font-semibold tracking-[-0.02em]">{b.name}{!b.isActive ? " (inaktiv)" : ""}</h4>{admin && <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => { setEditCustomer(undefined); setEdit(b); }}>{b.customerId ? "Bearbeiten" : "Kunden zuordnen"}</Button><ArchivierenKnopf url={"/api/branches/" + b.id} name={b.name} pending={action.isPending} onArchive={archivieren} /></div>}</div><p>{b.address}</p><p className="text-sm">Treffpunkt: {b.meetingPoint || "Nicht hinterlegt"}</p><p className="text-sm">Bundesland: {DE_STATES.find(s => s.value === b.holidayState)?.label ?? <span className="text-warn">nicht festgelegt – Feiertage unbekannt</span>}</p><p className="text-sm text-muted-foreground">{b.positions.join(", ")}</p><p className="whitespace-pre-wrap text-sm">{b.notes}</p>{admin && <p className="text-sm text-muted-foreground">GPS-Check-in: {b.gpsCheckinRequired ? "erforderlich, Radius " + b.checkinRadiusM + " m" : b.latitude !== null ? "eingerichtet, nicht erforderlich" : "aus"}</p>}</Card>)}</div> : <p className="text-sm text-muted-foreground">Noch keine Einsatzorte für diesen Kunden.</p>}
+    {groups.map(g => <div key={g.key} className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-3 border-b pb-2"><div className="min-w-0"><h3 className="text-[15px] font-semibold tracking-[-0.02em]">{g.customer ? g.customer.name : "Ohne Kunde"}{g.customer && !g.customer.isActive ? " (inaktiv)" : ""}</h3>{!g.customer && <p className="text-sm text-muted-foreground">Diese Einsatzorte sind noch keinem Kunden zugeordnet. Neue Schichten sind dort erst nach der Zuordnung möglich.</p>}{admin && g.customer?.notes && <p className="whitespace-pre-wrap text-sm text-muted-foreground">{g.customer.notes}</p>}</div>{admin && g.customer && <div className="flex flex-wrap gap-2"><Button size="sm" variant="ghost" onClick={() => { setEdit(undefined); setEditCustomer(g.customer); }}>Kunde bearbeiten</Button><ArchivierenKnopf url={"/api/customers/" + g.customer.id} name={g.customer.name} einsatzorte={g.branches.length} pending={pending} onArchive={archivieren} /></div>}</div>
+      {g.branches.length ? <div className="grid gap-4 md:grid-cols-2">{g.branches.map(b => <Card className="p-4" key={b.id}><div className="flex flex-wrap items-start justify-between gap-2"><h4 className="min-w-0 break-words text-[14px] font-semibold tracking-[-0.02em]">{b.name}{!b.isActive ? " (inaktiv)" : ""}</h4>{admin && <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => { setEditCustomer(undefined); setEdit(b); }}>{b.customerId ? "Bearbeiten" : "Kunden zuordnen"}</Button><ArchivierenKnopf url={"/api/branches/" + b.id} name={b.name} pending={pending} onArchive={archivieren} /></div>}</div><p>{b.address}</p><p className="text-sm">Treffpunkt: {b.meetingPoint || "Nicht hinterlegt"}</p><p className="text-sm">Bundesland: {DE_STATES.find(s => s.value === b.holidayState)?.label ?? <span className="text-warn">nicht festgelegt – Feiertage unbekannt</span>}</p><p className="text-sm text-muted-foreground">{b.positions.join(", ")}</p><p className="whitespace-pre-wrap text-sm">{b.notes}</p>{admin && <p className="text-sm text-muted-foreground">GPS-Check-in: {b.gpsCheckinRequired ? "erforderlich, Radius " + b.checkinRadiusM + " m" : b.latitude !== null ? "eingerichtet, nicht erforderlich" : "aus"}</p>}</Card>)}</div> : <p className="text-sm text-muted-foreground">Noch keine Einsatzorte für diesen Kunden.</p>}
     </div>)}
     {query.isSuccess && customers.isSuccess && !groups.length && <p className="text-muted-foreground">{admin ? "Noch keine Kunden angelegt. Lege zuerst einen Kunden an, danach seine Einsatzorte." : "Dir ist noch kein Einsatzort freigegeben."}</p>}
-    {admin && archive.data && <Archiv data={archive.data} pending={action.isPending} onRestore={wiederherstellen} onDelete={endgueltigLoeschen} />}
+    {admin && archive.data && <Archiv data={archive.data} pending={pending} onRestore={wiederherstellen} onDelete={endgueltigLoeschen} />}
+    <ArchivierenRueckfrage rueckfrage={rueckfrage} onClose={() => setRueckfrage(null)} onConfirm={r => archivAktion.mutate({ url: r.url, name: r.name, confirm: true })} />
   </section>;
 }
 
@@ -52,8 +66,9 @@ const archivDatum = (iso: string) => new Date(iso).toLocaleDateString("de-DE", {
 
 /** Was archiviert wird; einsatzorte nur beim Kunden (seine nicht archivierten Einsatzorte). */
 export function archivierenText(name: string, einsatzorte?: number) {
-  if (einsatzorte === undefined) return "Der Einsatzort „" + name + "“ wird archiviert. Das geht nur, wenn dort keine laufenden oder zukünftigen Schichten mehr geplant sind.";
-  return "Der Kunde „" + name + "“ wird inklusive " + einsatzorte + (einsatzorte === 1 ? " Einsatzort" : " Einsatzorte") + " archiviert. Das geht nur, wenn an keinem davon laufende oder zukünftige Schichten geplant sind.";
+  const folgen = " Künftige Schichten dort werden abgesagt; laufende und vergangene bleiben als Nachweis erhalten.";
+  if (einsatzorte === undefined) return "Der Einsatzort „" + name + "“ wird archiviert." + folgen;
+  return "Der Kunde „" + name + "“ wird inklusive " + einsatzorte + (einsatzorte === 1 ? " Einsatzort" : " Einsatzorte") + " archiviert." + folgen;
 }
 
 /** Folgen des Archivierens in einfachen Saetzen. */
@@ -62,8 +77,49 @@ export function ArchivierenFolgen() {
     <li>Verschwindet aus Dienstplan, Auswahllisten und Startseite.</li>
     <li>Dort sind keine neuen Schichten, Einteilungen oder Freigaben mehr möglich.</li>
     <li>Vergangene Schichten, Zeiten und Stunden bleiben erhalten und in der Auswertung sichtbar.</li>
-    <li>Wiederherstellen ist jederzeit unten im Archiv möglich.</li>
+    <li>Gibt es künftige Schichten oder eine Woche in Bearbeitung, siehst du vor dem Absagen genau, was passiert.</li>
+    <li>Wiederherstellen ist jederzeit unten im Archiv möglich; abgesagte Schichten kommen dabei nicht zurück.</li>
   </ul>;
+}
+
+/** Antwort von POST .../archive (Zahlen der Folgen). */
+export type ArchivErgebnis = { cancelledShifts?: number; notified?: number };
+type Rueckfrage = { url: string; name: string; warnings: string[]; absagen: boolean };
+
+/** Der Server meldet Folgen, die bestaetigt werden muessen (409 { confirm: true, warnings, cancelledShifts }). */
+class ArchivFolgen extends Error {
+  constructor(message: string, public warnings: string[], public absagen: boolean) { super(message); }
+}
+async function archivAnfrage(url: string, confirm: boolean): Promise<ArchivErgebnis> {
+  const res = await fetch(url + "/archive", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(confirm ? { confirm: true } : {}) });
+  const result = await res.json().catch(() => ({}));
+  if (res.status === 409 && result.confirm === true) throw new ArchivFolgen(result.error || "Archivieren hat Folgen.", Array.isArray(result.warnings) ? result.warnings : [], !!result.cancelledShifts);
+  if (!res.ok) throw new Error(result.error || "Archivieren fehlgeschlagen.");
+  return result;
+}
+
+/** Erfolgshinweis mit den Zahlen: „Nord“ archiviert – 4 Schichten abgesagt, 3 Personen benachrichtigt. */
+export function archiviertMeldung(name: string, r: ArchivErgebnis) {
+  const teile = [
+    ...(r.cancelledShifts ? [r.cancelledShifts + (r.cancelledShifts === 1 ? " Schicht" : " Schichten") + " abgesagt"] : []),
+    ...(r.notified ? [r.notified + (r.notified === 1 ? " Person" : " Personen") + " benachrichtigt"] : []),
+  ];
+  return "„" + name + "“ archiviert" + (teile.length ? " – " + teile.join(", ") : "");
+}
+
+/** Folgen laut Server als Liste, darunter, was bleibt und was nicht zurueckkommt. */
+export function ArchivierenWarnungen({ warnings }: { warnings: string[] }) {
+  return <div className="space-y-2">
+    <ul className="list-disc space-y-1 pl-5">{warnings.map((w, i) => <li key={i} className="break-words">{w}</li>)}</ul>
+    <p className="text-muted-foreground">Laufende und vergangene Schichten bleiben als Nachweis erhalten. Abgesagte Schichten kommen beim Wiederherstellen nicht zurück.</p>
+  </div>;
+}
+
+/** Zweite Rueckfrage, wenn der Server Folgen meldet; Bestaetigen sendet confirm: true. */
+function ArchivierenRueckfrage({ rueckfrage, onClose, onConfirm }: { rueckfrage: Rueckfrage | null; onClose: () => void; onConfirm: (r: Rueckfrage) => void }) {
+  return <ConfirmDialog open={rueckfrage !== null} onOpenChange={open => { if (!open) onClose(); }} title="Trotzdem archivieren?"
+    description={rueckfrage ? "Beim Archivieren von „" + rueckfrage.name + "“ passiert Folgendes:" : ""} details={rueckfrage ? <ArchivierenWarnungen warnings={rueckfrage.warnings} /> : undefined}
+    confirmLabel={rueckfrage?.absagen === false ? "Trotzdem archivieren" : "Archivieren und Schichten absagen"} onConfirm={() => { if (rueckfrage) onConfirm(rueckfrage); onClose(); }} />;
 }
 
 /** Knopf "Archivieren" mit Rueckfrage und Folgen. */

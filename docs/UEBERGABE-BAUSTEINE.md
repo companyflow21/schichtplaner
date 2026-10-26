@@ -224,11 +224,12 @@ Commits `0e96bb5`, `8c38650`, `a7111c5`, Merge `a92da53`.
   Einsatzorten in einer Transaktion – alles oder nichts; Wiederherstellen holt die Einsatzorte
   nicht mit zurück), `GET /api/branches/archive` (Archivliste mit `deletable`),
   `GET /api/branches?archived=include` für den Standortfilter der Auswertung.
-- **Voraussetzung:** keine laufende oder zukünftige Schicht (Entwurf oder veröffentlicht) und
-  keine noch nicht vergangene Woche in Bearbeitung – sonst 409 mit Anzahl bzw. KW
-  („Archivieren nicht möglich: 4 zukünftige/laufende Schichten – zuerst löschen oder
-  verschieben“). `src/lib/archive.ts`: `archiveBlockers`, `branchHasHistory` (gemeinsame
-  Löschregel mit `DELETE /api/branches/[id]`), `CUSTOMER_ARCHIVED`.
+- **Künftige Schichten (seit 26.10.2026, Nachtrag unten):** keine Voraussetzung mehr, sondern
+  Folgen mit Bestätigung – künftige Schichten werden abgesagt, Wochen in Bearbeitung verworfen;
+  laufende und vergangene bleiben. Die frühere Sperre („Archivieren nicht möglich: 4
+  zukünftige/laufende Schichten – zuerst löschen oder verschieben“, `archiveBlockers`) ist
+  entfallen. `src/lib/archive.ts`: `archiveBranches`, `requireConfirmation`, `signalArchive`,
+  `branchHasHistory` (gemeinsame Löschregel mit `DELETE /api/branches/[id]`), `CUSTOMER_ARCHIVED`.
 - **Zentrale Regel** in `src/lib/access.ts`: An archivierten Einsatzorten gelten für jede
   Rolle (auch Admin) nur noch „Dienstplan ansehen“, „Zeiterfassung einsehen“ und
   „Zeiterfassung bearbeiten“ (`ARCHIVE_RIGHTS`); `can()` liefert sonst false, `assertCan()`
@@ -265,8 +266,9 @@ Commits `0e96bb5`, `8c38650`, `a7111c5`, Merge `a92da53`.
   Browser-Tests auf dem Build (`tests/load-local.ts --serve`, 3337): `ui-quality` 16/16,
   `ui-design` 71/71, `ui-shift-location` bestanden. Diese Gesamtabnahme deckt auch das
   Monats-Veröffentlichen (oben) mit ab.
-- **Entscheidungen, die AKRO bestätigen sollte:** (1) Plan in Bearbeitung blockiert das
-  Archivieren, solange die Woche nicht vorbei ist. (2) Standortmeldungen und Anträge an
+- **Entscheidungen, die AKRO bestätigen sollte:** (1) ~~Plan in Bearbeitung blockiert das
+  Archivieren, solange die Woche nicht vorbei ist.~~ Ersetzt am 26.10.2026: Die Woche in
+  Bearbeitung wird nach Bestätigung verworfen (Nachtrag unten). (2) Standortmeldungen und Anträge an
   archivierten Einsatzorten ruhen bis zum Wiederherstellen, auch für Admins. (3) Kunde
   wiederherstellen holt seine Einsatzorte nicht automatisch zurück.
 - **Offen:** Zähler offener Anträge ohne archivierte Orte ist umgesetzt, aber ohne
@@ -274,6 +276,67 @@ Commits `0e96bb5`, `8c38650`, `a7111c5`, Merge `a92da53`.
   zeigt an archivierten Orten keinen eigenen Hinweis (Planungsaktionen sind dort ohnehin aus).
 - Noch nicht im Original und nicht auf Netcup; die Migration ist nicht gegen eine Kopie der
   Betriebsdaten gelaufen (gehört zur Einspielung).
+
+## Nachtrag 26.10.2026: Archivieren mit künftigen Schichten
+
+Anlass: AKRO „Wieso kann ich keine Pläne löschen bzw. archivieren, auch wenn schon Schichten
+da sind?“ Entscheidung der Hauptsitzung: Archivieren geht auch mit laufenden und künftigen
+Schichten, die Folgen werden vorher genannt und bestätigt. Endgültiges Löschen mit Historie
+bleibt gesperrt. Keine Schemaänderung.
+
+- **API** `POST /api/branches/[id]/archive` und `POST /api/customers/[id]/archive`, Body
+  optional `{ confirm?: boolean }` (ohne Body = nicht bestätigt; falscher Typ 400). Ohne Folgen
+  wie bisher. Mit Folgen und ohne `confirm: true`: `409 { error, confirm: true, warnings,
+  cancelledShifts }`, nichts geändert; `error` z. B. „Archivieren hat Folgen: 4 künftige
+  Schichten, 3 Personen betroffen. Bitte bestätigen.“, `warnings` z. B. „4 künftige Schichten
+  werden abgesagt.“, „3 eingeteilte Personen werden benachrichtigt.“, „2 offene Anträge werden
+  geschlossen.“, „KW 45/2026 ist in Bearbeitung und wird verworfen.“, beim Kunden je Einsatzort
+  mit Namen voran. Mit `confirm: true`: `{ success, cancelledShifts, notified, requestsClosed,
+  branchesArchived }`. Rechte unverändert (nur Admin); Kunde alles oder nichts.
+- **Ablauf** (`archiveBranches` in `src/lib/archive.ts`, eine `serial`-Transaktion):
+  (1) jede noch nicht vergangene Woche in Bearbeitung mit `discardEdits` verwerfen;
+  (2) jede noch nicht begonnene Schicht wie die Einzelabsage: `shiftDeletion` (mit Check-in oder
+  erfassten Zeiten bleibt sie als Nachweis – eigene Warnung), offene Anträge schließen
+  („Schicht wurde abgesagt.“), Zuweisungen löschen, `deletedAt`; (3) Mitteilungen; (4)
+  `archivedAt`. Laufende und vergangene Schichten bleiben unangetastet. Echtzeit nach dem Commit
+  wie bei der Einzelabsage (`emitToBranch`, `signalBookedSites`, `emitToUsers`).
+- **Folgen = Probelauf:** Ohne Bestätigung läuft derselbe Ablauf, danach wirft
+  `requireConfirmation` die 409 und die Transaktion rollt alles zurück (Muster wie
+  `placeShifts`). Die Warnungen nennen damit genau die Zahlen, die die Bestätigung ausführt –
+  auch nach dem Verwerfen einer Bearbeitung (es zählt der veröffentlichte Stand, nicht die
+  Live-Zeilen der Bearbeitung).
+- **Entscheidung Mitteilungen:** je Person **ein** Postfach-Eintrag pro Archivieren statt einer
+  Nachricht je Schicht (wie die Sammelmitteilung beim Veröffentlichen einer Bearbeitung).
+  Betreff „Schicht abgesagt“ bzw. „Schichten abgesagt“ für Eingeteilte veröffentlichter Pläne,
+  Text „Der Einsatzort „X“ wurde archiviert.“ (Kunde: „Der Kunde „K“ …“) mit der Liste der
+  Schichten (Datum, Zeit, Einsatzort); weitere hinfällige Anträge stehen in derselben Nachricht.
+  Wer nur einen Antrag verliert, erhält „Antrag hinfällig“. Entwürfe: keine Nachricht.
+- **Entscheidung laufende Schichten:** bleiben samt Zuweisung, Check-in und Check-out
+  (Nachweis; Absagen mitten im Einsatz wäre falsch). Ebenso künftige Schichten mit Check-in
+  (Fenster öffnet 30 Minuten vorher) oder erfassten Zeiten.
+- **Oberfläche** (`locations.tsx`): erster Dialog „Einsatzort archivieren?“ mit „Künftige
+  Schichten dort werden abgesagt; laufende und vergangene bleiben als Nachweis erhalten.“
+  (Kunde analog); bei 409 mit `confirm` zweiter Dialog „Trotzdem archivieren?“ mit den Warnungen
+  als Liste, Hinweis „Abgesagte Schichten kommen beim Wiederherstellen nicht zurück.“ und rotem
+  Knopf „Archivieren und Schichten absagen“ (ohne abzusagende Schicht „Trotzdem archivieren“);
+  Erfolg „„X“ archiviert – 4 Schichten abgesagt, 3 Personen benachrichtigt“. Eigener
+  Fetch-Helfer wie `send()` in `shift-card.tsx`; `useAction` unverändert.
+- **Tests:** `tests/archive.ts` (Entwurf + veröffentlichte Schicht mit offenem Antrag + laufende
+  Schicht; 409 ohne Änderung, leerer Body ist keine Bestätigung, Bestätigung sagt ab, Antrag zu,
+  je Person eine Nachricht, Entwurf ohne Nachricht, laufende und vergangene bleiben; Kunde mit
+  zwei Einsatzorten und Woche in Bearbeitung: Warnungen je Einsatzort, Verwerfen vor dem Absagen,
+  eine gebündelte Nachricht über beide Einsatzorte). `tests/archive-ui.tsx` auf die neuen Texte,
+  dazu Warnliste und Erfolgshinweis.
+- **Nachweise (Agent, Worktree auf `ffbead0`):** `tsc` 0; `lint` 0/25;
+  `tests/archive-ui.tsx` 20/20; `TEST_ONLY=permissions,archive` (3425/55559) 696/696;
+  `TEST_ONLY=permissions,plan-lifecycle` 733/733. Nicht ausgeführt: Browserprüfung des
+  Dialogablaufs (Rendertest deckt Texte und Warnliste ab, nicht das Öffnen des zweiten Dialogs),
+  Gesamtsuite. `npm run build` scheitert im Worktree nur an der `node_modules`-Junction
+  (Turbopack); `npx next build --webpack` lief dort fehlerfrei durch (Kompiliernachweis).
+- **Offen:** Bei sehr vielen künftigen Schichten (Hunderte) prüft der Ablauf jede Schicht
+  einzeln (`shiftDeletion`, 3–4 Abfragen) – zweimal, einmal im Probelauf; Transaktionsgrenze
+  20 s. Scheitert das Verwerfen an Überschneidungen, kommt dessen 409 („Verwerfen nicht
+  möglich …“) ohne Bestätigungsdialog als Hinweis.
 
 ## Übernahme in das Original
 
