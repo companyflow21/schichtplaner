@@ -239,8 +239,13 @@ Abkürzungen: A = Inhaber/Administration, D = Disposition, M = Mitarbeiter; Rech
   Auswahlfeldern („inaktiv“); *Archivieren* blendet ihn aus Planung, Auswahllisten, Startseite, Nachrichtenbezug
   und Freigaben aus und setzt die Planungsrechte dort aus; *Endgültig löschen* geht
   weiterhin nur ohne Historie (keine Schichten, Zeiten, Meldungen, Check-ins).
-- Voraussetzung: keine laufenden oder zukünftigen Schichten und keine noch nicht vergangene Woche in Bearbeitung
-  (sonst 409 mit Anzahl). Ein Kunde wird mit allen seinen Einsatzorten archiviert – alles oder nichts.
+- Folgen mit Bestätigung: Künftige (noch nicht begonnene) Schichten werden abgesagt wie beim Einzellöschen
+  (Zuweisungen entfallen, offene Anträge werden geschlossen, Eingeteilte veröffentlichter Pläne und
+  Antragsbeteiligte erhalten je eine gebündelte Nachricht; Entwürfe ohne Nachricht); eine noch nicht vergangene
+  Woche in Bearbeitung wird zuvor verworfen. Gibt es solche Folgen, antwortet der Server zuerst 409
+  `{ confirm: true, warnings }` und ändert nichts; erst `{ confirm: true }` führt aus. Laufende und vergangene
+  Schichten sowie künftige mit Check-in oder erfassten Zeiten bleiben unverändert. Ein Kunde wird mit allen
+  seinen Einsatzorten archiviert – alles oder nichts, Folgen je Einsatzort benannt.
 - Wirkung: keine neuen Wochenpläne, Schichten, Einteilungen oder Freigaben (409 „Einsatzort ist archiviert.“).
   Standortrechte gelten dort nur noch für die Historie (Dienstplan ansehen, Zeiterfassung einsehen/bearbeiten) –
   für jede Rolle, auch A. Vergangene Wochen bleiben für Berechtigte lesbar; Auswertung, CSV und Stundenzettel

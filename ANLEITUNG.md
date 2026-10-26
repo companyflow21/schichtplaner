@@ -33,8 +33,13 @@ Zeiten und Abwesenheiten. Details: `docs/AKRO-ERWEITERUNG.md`, Abschnitte 5 und 
 
 **Archivieren** (Einsatzorte → „Archivieren“ beim Kunden oder Einsatzort): für Kunden und Einsatzorte, die nicht
 mehr betreut werden. Sie verschwinden aus Dienstplan, Auswahllisten und Startseite; vergangene Schichten, Zeiten
-und Stunden bleiben erhalten und in der Auswertung sichtbar. Vorher müssen zukünftige Schichten gelöscht oder
-verschoben sein. *Deaktivieren* sperrt dagegen nur neue Schichten und Einteilungen, der Einsatzort bleibt in
+und Stunden bleiben erhalten und in der Auswertung sichtbar, laufende Schichten ebenfalls. Gibt es dort noch
+künftige Schichten oder eine Woche in Bearbeitung, nennt eine zweite Rückfrage die Folgen („4 künftige Schichten
+werden abgesagt.“, „3 eingeteilte Personen werden benachrichtigt.“, „KW 45/2026 ist in Bearbeitung und wird
+verworfen.“); erst „Archivieren und Schichten absagen“ führt sie aus. Jede betroffene Person erhält eine Nachricht
+mit allen ihren abgesagten Schichten, offene Anträge dazu werden geschlossen. Schichten mit Check-in oder
+erfassten Zeiten bleiben als Nachweis; abgesagte Schichten kommen beim Wiederherstellen nicht zurück.
+*Deaktivieren* sperrt dagegen nur neue Schichten und Einteilungen, der Einsatzort bleibt in
 Listen und Auswahlfeldern („inaktiv“);
 *Endgültig löschen* geht nur, solange es noch keine Schichten, Zeiten oder Meldungen gibt. Wiederherstellen und
 Löschen im Bereich **Archiv** am Seitenende.
