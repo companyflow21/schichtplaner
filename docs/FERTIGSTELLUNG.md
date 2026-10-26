@@ -1,3 +1,25 @@
+## Einspielen 26.10.2026: Monats-Veröffentlichen, Archivieren, Impeccable-Design-Durchgang (ausgeführt, ausdrücklicher Auftrag)
+
+Merge des Übergabe-Branches `feat/plan-lifecycle-diff-conflicts` (Klon `schichtplaner-bausteine`,
+`f0cba38`) als `fa6e7bf` in `feat/plan-delete-assign-copy-pdf`, ohne Konflikte. Übergabetexte:
+`docs/UEBERGABE-BAUSTEINE.md` (Nachträge Monat/Archiv), `docs/UEBERGABE-DESIGN-IMPECCABLE.md`.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P1 | Gesamtabnahme im Original auf `fa6e7bf` | Typprüfung, Lint, Migrationen, Workflow-Suite, Build | bestanden (lokal) | `prisma generate`; tsc 0 Fehler; Lint 0 Fehler/25 Warnungen; Migration 104; `npm run test:workflows` vollständig 4312/4312; Build erfolgreich. Im Klon zuvor zusätzlich Rendertests 33/16/45/48/18/12/17/6, Suite 4324/4324, Playwright `ui-quality` 16/16, `ui-shift-location`, `ui-design` 71/71 |
+| P1 | Sicherung und Rückfall auf Netcup | Aktuelle Betriebssicherung, Code-Archiv, Rückfall-Images | bestanden | `pg_dump -Fc` 198.965 Bytes, 55 Tabellendaten (`db-194c532-20261026-012316.dump`, letzte Sicherung `db-194c532-20261026-013335-c.dump` unmittelbar vor dem Wechsel), Code ohne `.env` `code-194c532-20261026-012316.tar.gz`, alles unter `/root/schichtplaner-backups`; Images `schichtplaner-app:rollback-194c532`, `schichtplaner-migrate:rollback-194c532`; alter Live-Ordner unter `/root/deploy-fa6e7bf/alt`. Hinweis: `pg_restore --list` über die Standardeingabe des Skripts meldet fälschlich 0 Tabellendaten; die Prüfung im Container ergab 55 |
+| P1 | Migrationsprobe auf Wegwerf-Kopie | Restore gleich, eine Migration additiv, neue und alte App lauffähig | bestanden | Restore `--exit-on-error` ok, 54 Tabellen zeilengleich; `prisma migrate deploy` 18 → 19 (`20261013160000_archive_customers_branches`), keine neuen Tabellen, 54/54 Bestandstabellen unverändert; neue App (`schichtplaner-pruef-app:fa6e7bf`) und alte App (`rollback-194c532`) gegen die migrierte Kopie: Health/Login/CSRF/Echtzeit je 200 (`kopie-app.sh`; `kopie.sh` zeigt wegen der Anführungszeichen in `APP_URL` wie beim letzten Mal 500); Kopie entfernt |
+| P1 | Umschalten | Code-Tausch ohne `.env`, Migration, Nachprüfung, Bestand unverändert | bestanden | 01:33:35–01:33:47 (rund 11 s): 519/519 Dateien `fa6e7bf`, `compose up -d --build`, Migrationen 19/19, Bestands-Hash (Konten, Mitgliedschaften, Schichten, Einteilungen, Pläne) vorher = nachher, 54/54 Tabellen unverändert, HTTPS Health/Login/CSRF/`/api/ws` 200, App healthy; Login-Seite liefert den neuen Titel „Anmelden · AKRO Schichtplaner“ |
+
+**Seit 26.10.2026, 01:33 läuft `fa6e7bf` auf Netcup.** Rückweg: Images `:rollback-194c532` zusammen mit
+`db-194c532-20261026-013335-c.dump` in eine neue Datenbank (Schema der Sicherung ist 18 Migrationen; die
+neue ist additiv, die alte App lief auf der migrierten Kopie). Einträge nach 01:33 wären beim Rückweg nachzutragen.
+
+**Noch offen (AKRO):** die Archiv-Entscheidungen bestätigen (Plan in Bearbeitung blockiert Archivieren; Meldungen
+und Anträge an archivierten Orten ruhen; Kunde wiederherstellen holt Einsatzorte nicht mit); die
+Design-Entscheidungen aus `docs/UEBERGABE-DESIGN-IMPECCABLE.md` Abschnitt 4; Anmeldung mit echten Konten
+auf dem neuen Stand; Browser-Cache/PWA bei Mitarbeitenden einmal neu laden.
+
 # Fertigstellung – Arbeitsliste
 
 ## Einspielen 13.10.2026: Smartplan-Paket 1, Design-Stufe 1 und Cloud-Port (ausgeführt, ausdrücklicher Auftrag)
