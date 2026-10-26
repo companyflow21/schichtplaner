@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Archiv, ArchivierenFolgen, ArchivierenKnopf, archivierenText, type ArchiveData } from "../src/components/workforce/locations";
+import { Archiv, ArchivierenFolgen, ArchivierenKnopf, ArchivierenWarnungen, archiviertMeldung, archivierenText, type ArchiveData } from "../src/components/workforce/locations";
 
 let checks = 0;
 function check(value: unknown, label: string) { assert.ok(value, label); checks++; console.log("PASS: " + label); }
@@ -48,10 +48,16 @@ const leer = render(<Archiv data={{ customers: [], branches: [] }} pending={fals
 check(leer.includes("Archiv (0)</summary>") && leer.includes("Nichts archiviert.") && !leer.includes("</button>"), "Archiv: leer ohne Aktionen");
 
 // --- Aktion "Archivieren" ------------------------------------------------------------
-check(archivierenText("Nord") === "Der Einsatzort „Nord“ wird archiviert. Das geht nur, wenn dort keine laufenden oder zukünftigen Schichten mehr geplant sind.", "Archivieren: Einsatzort mit Voraussetzung");
-check(archivierenText("Kunde A", 1).startsWith("Der Kunde „Kunde A“ wird inklusive 1 Einsatzort archiviert.") && archivierenText("Kunde B", 3).startsWith("Der Kunde „Kunde B“ wird inklusive 3 Einsatzorte archiviert.") && archivierenText("Kunde C", 0).includes("inklusive 0 Einsatzorte"), "Archivieren: Kunde inklusive N Einsatzorte");
+check(archivierenText("Nord") === "Der Einsatzort „Nord“ wird archiviert. Künftige Schichten dort werden abgesagt; laufende und vergangene bleiben als Nachweis erhalten.", "Archivieren: Einsatzort mit den Folgen für Schichten");
+check(archivierenText("Kunde A", 1) === "Der Kunde „Kunde A“ wird inklusive 1 Einsatzort archiviert. Künftige Schichten dort werden abgesagt; laufende und vergangene bleiben als Nachweis erhalten." && archivierenText("Kunde B", 3).startsWith("Der Kunde „Kunde B“ wird inklusive 3 Einsatzorte archiviert.") && archivierenText("Kunde C", 0).includes("inklusive 0 Einsatzorte"), "Archivieren: Kunde inklusive N Einsatzorte");
 const folgen = render(<ArchivierenFolgen />);
-check(["Verschwindet aus Dienstplan, Auswahllisten und Startseite.", "Dort sind keine neuen Schichten, Einteilungen oder Freigaben mehr möglich.", "Vergangene Schichten, Zeiten und Stunden bleiben erhalten und in der Auswertung sichtbar.", "Wiederherstellen ist jederzeit unten im Archiv möglich."].every((s) => folgen.includes(s)) && mobil(folgen), "Archivieren: Folgen in einfachen Sätzen");
+check(["Verschwindet aus Dienstplan, Auswahllisten und Startseite.", "Dort sind keine neuen Schichten, Einteilungen oder Freigaben mehr möglich.", "Vergangene Schichten, Zeiten und Stunden bleiben erhalten und in der Auswertung sichtbar.", "Gibt es künftige Schichten oder eine Woche in Bearbeitung, siehst du vor dem Absagen genau, was passiert.", "Wiederherstellen ist jederzeit unten im Archiv möglich; abgesagte Schichten kommen dabei nicht zurück."].every((s) => folgen.includes(s)) && mobil(folgen), "Archivieren: Folgen in einfachen Sätzen");
+// Zweite Rueckfrage (409 mit confirm): die Folgen des Servers als Liste.
+const warnungen = ["Objekt Nord: 4 künftige Schichten werden abgesagt.", "Objekt Nord: 3 eingeteilte Personen werden benachrichtigt.", "Objekt Nord: 2 offene Anträge werden geschlossen.", "Objekt Süd: KW 45/2026 ist in Bearbeitung und wird verworfen."];
+const liste = render(<ArchivierenWarnungen warnings={warnungen} />);
+check(count(liste, "<li") === 4 && warnungen.every((w) => liste.includes(">" + w + "</li>")) && liste.indexOf(warnungen[0]) < liste.indexOf(warnungen[3]), "Archivieren: Bestätigung listet jede Folge als eigenen Punkt in der Reihenfolge des Servers");
+check(liste.includes("Laufende und vergangene Schichten bleiben als Nachweis erhalten. Abgesagte Schichten kommen beim Wiederherstellen nicht zurück.") && mobil(liste) && liste.includes("break-words"), "Archivieren: Bestätigung sagt, was bleibt und was nicht zurückkommt; mobil umbrechend");
+check(archiviertMeldung("Nord", { cancelledShifts: 4, notified: 3 }) === "„Nord“ archiviert – 4 Schichten abgesagt, 3 Personen benachrichtigt" && archiviertMeldung("Nord", { cancelledShifts: 1, notified: 1 }) === "„Nord“ archiviert – 1 Schicht abgesagt, 1 Person benachrichtigt" && archiviertMeldung("Nord", { cancelledShifts: 2, notified: 0 }) === "„Nord“ archiviert – 2 Schichten abgesagt" && archiviertMeldung("Nord", { cancelledShifts: 0, notified: 0 }) === "„Nord“ archiviert", "Archivieren: Erfolgshinweis nennt abgesagte Schichten und Benachrichtigte");
 const knopf = render(<ArchivierenKnopf url="/api/branches/b1" name="Nord" pending={false} onArchive={nichts} />);
 check(knopf.includes("Archivieren</button>") && !knopf.includes("text-destructive") && mobil(knopf), "Archivieren: Knopf ohne Rot (nichts geht verloren)");
 check(render(<ArchivierenKnopf url="/api/customers/k1" name="Kunde" einsatzorte={2} pending onArchive={nichts} />).includes("disabled"), "Archivieren: während einer Aktion gesperrt");
