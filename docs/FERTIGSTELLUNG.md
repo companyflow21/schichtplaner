@@ -1,3 +1,26 @@
+## Einspielen 01.11.2026: Archivieren trotz künftiger Schichten (ausgeführt, ausdrücklicher Auftrag)
+
+Merge des Übergabe-Branches `feat/plan-lifecycle-diff-conflicts` (Klon `schichtplaner-bausteine`,
+`28ab0ba`) als `538c3c2` in `feat/plan-delete-assign-copy-pdf`, ohne Konflikte. Fachliche Änderung:
+Einsatzorte und Kunden lassen sich auch mit laufenden oder künftigen Schichten archivieren; künftige
+Schichten werden nach einer zweiten Rückfrage abgesagt (Zuweisungen gelöscht, offene Anträge geschlossen,
+Eingeteilte veröffentlichter Pläne gebündelt benachrichtigt), Wochen in Bearbeitung verworfen; laufende und
+vergangene Schichten bleiben als Nachweis. Endgültig löschen mit Historie bleibt gesperrt.
+Übergabetext: `docs/UEBERGABE-BAUSTEINE.md` (Nachtrag 26.10.), Anleitung in `ANLEITUNG.md`.
+
+| Prio | Ablauf / Dateien | Abnahmekriterium | Status | Nachweis |
+|---|---|---|---|---|
+| P1 | Gesamtabnahme im Original auf `538c3c2` | Typprüfung, Lint, Workflow-Suite, Build | bestanden (lokal) | tsc 0 Fehler; Lint 0 Fehler/25 Warnungen; `npm run test:workflows` vollständig 4371/4371; Build erfolgreich; im Klon zusätzlich Rendertest `archive-ui` 20/20, Module `archive` 696, `plan-lifecycle` 733 |
+| P1 | Sicherung und Rückfall auf Netcup | Betriebssicherung, Code-Archiv, Rückfall-Images | bestanden | `pg_dump -Fc` 199.203 Bytes, 55 Tabellendaten (`db-fa6e7bf-20261026-104336.dump`; letzte Sicherung `db-fa6e7bf-20261101-153301-c.dump` unmittelbar vor dem Wechsel), Code ohne `.env` `code-fa6e7bf-20261026-104336.tar.gz`, alles unter `/root/schichtplaner-backups`; Images `schichtplaner-app:rollback-fa6e7bf`, `schichtplaner-migrate:rollback-fa6e7bf`; alter Live-Ordner unter `/root/deploy-538c3c2/alt` |
+| P1 | Migrationsprobe auf Wegwerf-Kopie (26.10.) | Restore gleich, keine Migration offen, neue und alte App lauffähig | bestanden | Restore ok, 54 Tabellen zeilengleich; `prisma migrate deploy`: keine offene Migration (19/19); neue App (`schichtplaner-pruef-app:538c3c2`) und alte App (`rollback-fa6e7bf`) gegen die Kopie: Health/Login/CSRF/Echtzeit je 200 |
+| P1 | Umschalten | Code-Tausch ohne `.env`, Nachprüfung, Bestand unverändert | bestanden | 15:33:01–15:36:45: 519/519 Dateien `538c3c2`; `compose up -d --build` baute das Image diesmal rund 3,5 Minuten neu (alter Container lief währenddessen weiter), Containerwechsel am Ende in Sekunden; Migrationen 19/19, Bestands-Hash vorher = nachher, 54/54 Tabellen unverändert, HTTPS Health/Login/CSRF/`/api/ws` 200, App healthy, keine App-Fehler im Log |
+
+**Seit 01.11.2026, 15:36 läuft `538c3c2` auf Netcup.** Rückweg: Images `:rollback-fa6e7bf` zusammen mit
+`db-fa6e7bf-20261101-153301-c.dump` in eine neue Datenbank (gleiches Schema, 19 Migrationen).
+
+**Noch offen (AKRO):** Bündelung der Absage-Mitteilungen und der Umgang mit laufenden Schichten beim
+Archivieren bestätigen; die zweite Rückfrage einmal im Browser mit echtem Konto durchspielen.
+
 ## Einspielen 26.10.2026: Monats-Veröffentlichen, Archivieren, Impeccable-Design-Durchgang (ausgeführt, ausdrücklicher Auftrag)
 
 Merge des Übergabe-Branches `feat/plan-lifecycle-diff-conflicts` (Klon `schichtplaner-bausteine`,
